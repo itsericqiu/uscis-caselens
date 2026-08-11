@@ -47,7 +47,7 @@ Technical detail — permissions, untrusted-input handling, threat model — is 
 
 CaseLens currently installs as a **userscript**. Browser-store versions (Firefox Add-ons, Chrome Web Store) are planned, which will make it a one-click install that updates itself.
 
-1. Install a userscript manager — [Violentmonkey](https://violentmonkey.github.io/) on Chrome, Edge or Firefox, or **Userscripts** by quoid on Safari.
+1. Install a userscript manager — [Violentmonkey](https://violentmonkey.github.io/) on Chrome, Edge or Firefox, or [Userscripts](https://github.com/quoid/userscripts) on Safari. Both are open source, MIT-licensed and collect nothing, so you can audit them the same way you can audit this.
 2. Open the [latest release build](https://github.com/itsericqiu/uscis-caselens/releases/latest/download/caselens.user.js) and confirm the install. That link always points at the newest tagged release, and your copy updates itself from it.
 3. Log in at [my.uscis.gov](https://my.uscis.gov). A **CaseLens** pill appears bottom-right.
 
