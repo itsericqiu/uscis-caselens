@@ -34,15 +34,15 @@
   // SECTION 1: Constants
   // ==========================================================================
 
-  var VERSION = '1.6.1';
+  var VERSION = '1.7.0';
 
   var STORAGE_KEYS = {
     cases: 'uscisTracker.cases.v1',      // [{ number, label, addedAt }]
     snapshots: 'uscisTracker.snapshots.v1', // { [number]: SNAPSHOT (see normalize) }
     history: 'uscisTracker.history.v1',  // { [number]: [{ at, kind, from, to }] } newest-first
     prefs: 'uscisTracker.prefs.v1',      // { panelPos, collapsed, dark, refreshMs, notify, redact }
-    // { v: 2, byCode: { "CODE|FORM": { text, from: receiptNumber } } } harvested
-    // from your own cases. See harvestCodeText() for why the key carries the
+    // { v: 2, byCode: { "CODE|FORM": { text, from: receiptNumber } } } learned
+    // from your own cases. See learnCodeText() for why the key carries the
     // form type and the value remembers which case the wording came from.
     codeText: 'uscisTracker.codeText.v1',
     // Receipt numbers the user explicitly removed. Auto-discovery reads the
@@ -51,7 +51,14 @@
     dismissed: 'uscisTracker.dismissed.v1'
   };
 
-  var CASE_NUMBER_RE = /^IOE[0-9]{10}$/i;
+  // What a receipt number is: three letters and ten digits. This deliberately
+  // matches the rule the add-case error message states. It used to accept only
+  // IOE, so someone holding a paper-filed EAC receipt was told the correct rule
+  // and then shown an error for obeying it.
+  var CASE_NUMBER_RE = /^[A-Z]{3}[0-9]{10}$/i;
+  // Cases these endpoints can actually reach. Other prefixes are real receipt
+  // numbers filed on paper, which this account API does not serve.
+  var ONLINE_PREFIX_RE = /^IOE/i;
   var RECEIPT_NUMBER_RE = /\b(IOE[0-9]{10})\b/g; // for scraping the account page
   var DEFAULT_FORM_TYPE = 'I-765';
   var HISTORY_CAP = 200;
@@ -164,7 +171,7 @@
   };
 
   // Event-code meanings now come from core/uscis-codes.js (the NIEM federal
-  // schema, 492 codes) plus wording harvested from the user's own cases.
+  // schema, 492 codes) plus wording learned from the user's own cases.
   // See describeCode().
 
   var DEFAULT_PREFS = {
@@ -180,6 +187,9 @@
   var state = {
     cases: [],            // [{ number, label, addedAt, result: null|{...}, loading: false, changedSince: false }]
     sessionExpired: false,
+    // This browser refused a write and a detected change was lost with it.
+    // Surfaced by buildStorageBanner(); never cleared silently.
+    storageBlocked: false,
     authenticated: false,
     discoveredCases: null, // from auth probe, for "Import my cases"
     prefs: null
@@ -223,7 +233,7 @@
   }
 
   // Data that cannot be rebuilt if we throw it away. Everything USCIS sends is
-  // re-fetchable and every harvested label re-derivable, but the change history
+  // re-fetchable and every learned label re-derivable, but the change history
   // is this panel's own observation of what moved and when — if a future
   // version reads it with a different shape in mind, load()'s type check would
   // quietly hand back an empty object and the record would be gone. So an
@@ -281,7 +291,10 @@
         addedAt: c.addedAt || new Date().toISOString(),
         result: null,
         loading: false,
-        changedSince: false
+        // Survives the reload that stored it. Only the reader dismissing it,
+        // or a later check finding nothing new, should clear this.
+        changedSince: c.changedSince === true,
+        lastLookedAt: typeof c.lastLookedAt === 'string' ? c.lastLookedAt : null
       });
     }
 
@@ -305,13 +318,24 @@
     state.prefs = prefs;
   }
 
-  // Save state.cases back to localStorage, stripping runtime-only fields
-  // (result, loading, changedSince) so we only persist what the user added.
+  // Save state.cases back to localStorage, stripping the fields that only mean
+  // something while the page is open (result, loading).
+  //
+  // changedSince is kept. It used to be dropped, which quietly lost the one
+  // answer this tool exists to give: the change fires, the snapshot advances to
+  // match, and if the tab closes before the reader marks it seen, the next
+  // fetch diffs against the already-updated snapshot, finds nothing, and the
+  // marker is gone for good. It is cleared when the reader dismisses it, which
+  // is the only thing that should clear it.
   function persistCases() {
     var toSave = [];
     for (var i = 0; i < state.cases.length; i++) {
       var c = state.cases[i];
-      toSave.push({ number: c.number, label: c.label, addedAt: c.addedAt });
+      toSave.push({
+        number: c.number, label: c.label, addedAt: c.addedAt,
+        changedSince: !!c.changedSince,
+        lastLookedAt: c.lastLookedAt || null
+      });
     }
     save(STORAGE_KEYS.cases, toSave);
   }
@@ -689,31 +713,39 @@
       // Only ever the form type USCIS actually reported. result.formTypeUsed
       // may be DEFAULT_FORM_TYPE, which exists to build a URL — recording it
       // here would turn a fallback into a stated fact about the case.
-      formType: null
+      formType: null,
+      // What this case is asking of the person, and whether it is over.
+      // Stored because every collapsed row states these, and until they were
+      // stored a single dropped request silently deleted an appointment from
+      // the row — the one line collapse-all depends on being unmissable.
+      // Cached values are shown dated and marked stale, never as current.
+      closed: null,
+      actionRequired: null,
+      evidenceCount: 0,
+      appointments: []     // [{ label, at }], future-dated when recorded
     };
     if (!result) return snap;
 
+    // flattenValue, not String: these come from an undocumented API that has
+    // already been observed returning an object where a string was expected.
+    // String({}) is "[object Object]", which the differ would compare against
+    // the previous status, call a change, and push to the OS notification
+    // centre — a fabricated status change from a schema wobble.
     var observedForm = pick(result.caseStatus, FIELDS.caseStatus.formType);
     if (observedForm === null) {
       observedForm = pick(result.receiptNotice, FIELDS.receiptNotice.formType);
     }
-    snap.formType = observedForm !== null ? String(observedForm) : null;
-
-    var observedName = pick(result.caseStatus, FIELDS.caseStatus.formName);
-    snap.formName = observedName !== null ? String(observedName) : null;
-
-    var observedFiled = pick(result.caseStatus, FIELDS.caseStatus.submissionDate);
-    snap.submissionDate = observedFiled !== null ? String(observedFiled) : null;
+    snap.formType = flattenValue(observedForm);
+    snap.formName = flattenValue(pick(result.caseStatus, FIELDS.caseStatus.formName));
+    snap.submissionDate = flattenValue(pick(result.caseStatus, FIELDS.caseStatus.submissionDate));
 
     // Status and office come from the case_status endpoint, which carries the
     // official wording, the action code, and the jurisdiction.
     var notice = result.receiptNotice;
     if (notice && !notice.__error && !notice.__empty) {
-      var statusValue = pick(notice, FIELDS.receiptNotice.status);
-      snap.status = statusValue !== null ? stripHtml(String(statusValue)) : null;
-
-      var codeValue = pick(notice, FIELDS.receiptNotice.actionCode);
-      snap.actionCode = codeValue !== null ? String(codeValue) : null;
+      var statusValue = flattenValue(pick(notice, FIELDS.receiptNotice.status));
+      snap.status = statusValue !== null ? stripHtml(statusValue) : null;
+      snap.actionCode = flattenValue(pick(notice, FIELDS.receiptNotice.actionCode));
 
       snap.lastUpdated = pick(notice, FIELDS.receiptNotice.actionCodeDate);
       snap.office = flattenValue(pick(notice, FIELDS.receiptNotice.office));
@@ -727,6 +759,16 @@
       if (snap.lastUpdated === null) {
         snap.lastUpdated = snap.backendAt;
       }
+
+      // Only ever a real boolean from USCIS. A missing field stays null so a
+      // cached card can distinguish "USCIS said this case is open" from
+      // "we never learned either way".
+      snap.closed = strictBool(pick(caseStatus, FIELDS.caseStatus.closed));
+      snap.actionRequired = strictBool(pick(caseStatus, FIELDS.caseStatus.actionRequired));
+
+      var evidence = pick(caseStatus, FIELDS.caseStatus.evidenceRequests);
+      snap.evidenceCount = Array.isArray(evidence) ? evidence.length : 0;
+      snap.appointments = futureAppointments(caseStatus);
     }
 
     // Fall back to the secondary location endpoint only if jurisdiction was absent.
@@ -749,6 +791,32 @@
     }
 
     return snap;
+  }
+
+  // true and false are facts about a case; anything else is an absence.
+  // Coercing a missing field to false would let a card state "not closed"
+  // on the strength of USCIS not having mentioned it.
+  function strictBool(value) {
+    return value === true || value === false ? value : null;
+  }
+
+  // Appointments that had not happened yet when this snapshot was taken.
+  // Recorded so a collapsed row can still show a booked biometrics date after
+  // a failed refresh; the row dates anything it draws from cache.
+  function futureAppointments(caseStatus) {
+    var out = [];
+    var notices = pick(caseStatus, FIELDS.caseStatus.notices);
+    if (!Array.isArray(notices)) return out;
+    var now = new Date().getTime();
+    for (var i = 0; i < notices.length; i++) {
+      var at = pick(notices[i], FIELDS.noticeItem.appointmentAt);
+      if (!at) continue;
+      var ms = parseUscisDate(at);
+      if (ms === null || ms <= now) continue;
+      out.push({ label: flattenValue(pick(notices[i], FIELDS.noticeItem.type)), at: ms });
+    }
+    out.sort(function (a, b) { return a.at - b.at; });
+    return out;
   }
 
   // Documents arrive as a bare array inside the data envelope.
@@ -846,7 +914,7 @@
 
     // Learn USCIS's own wording for any action codes this response explains,
     // so bare codes on other cases can be labeled without guessing.
-    harvestCodeText(result);
+    learnCodeText(result);
 
     // If every endpoint failed we learned nothing about this case. Storing a
     // snapshot anyway would record defaults as if they were facts — the form
@@ -878,7 +946,15 @@
     // against the stale snapshot, re-detects the identical change, and
     // notifies again — every 15 minutes, forever. Only record the change once
     // the state it was measured against is actually stored.
-    if (!setSnapshot(entry.number, snap)) return;
+    //
+    // But returning here also skips appendHistory and the change marker, so a
+    // real status change was detected, discarded, and never mentioned — in
+    // private browsing or at quota, silently, which is the one failure this
+    // tool must not hide. Say so instead.
+    if (!setSnapshot(entry.number, snap)) {
+      if (changes.length) state.storageBlocked = true;
+      return;
+    }
 
     if (changes.length) {
       appendHistory(entry.number, changes);
@@ -935,7 +1011,11 @@
     if (!notifiable) return;
 
     try {
-      var who = entry.label || entry.number;
+      // An OS notification is the one surface that persists outside the
+      // browser — on a lock screen, in a notification centre, possibly mirrored
+      // to another device. It has to honour "Hide receipt numbers" at least as
+      // strictly as the panel does.
+      var who = entry.label || displayNumber(entry.number);
       new Notification('USCIS case update', { body: who + ': ' + describeChange(notifiable) });
     } catch (e) {
       // Notification construction can throw in some contexts; never let a
@@ -963,13 +1043,13 @@
     return 'Case updated';
   }
 
-  // The harvest map's scope. USCIS writes different customer-facing wording
+  // The learned-wording map's scope. USCIS writes different customer-facing wording
   // for the same action code on different forms — the same `IAF` is a receipt
   // notice on an I-485 and something else again on a Supplement J — so a map
   // keyed by code alone hands one case's sentence to another case's event.
   // Both halves of the key are required: a code we cannot attribute to a form
   // is not recorded at all.
-  function harvestKey(code, formType) {
+  function learnedKey(code, formType) {
     if (!code || !formType) return null;
     return String(code).toUpperCase() + '|' + String(formType).toUpperCase();
   }
@@ -977,8 +1057,8 @@
   // Shape-versioned because the v1 map was keyed by bare code. Those entries
   // cannot be attributed to a form now, and guessing would reintroduce exactly
   // the bleed this key change exists to stop, so an old map is dropped rather
-  // than migrated: the next refresh re-harvests it from the user's own cases.
-  function loadHarvest() {
+  // than migrated: the next refresh re-learns it from the user's own cases.
+  function loadLearned() {
     var stored = load(STORAGE_KEYS.codeText, {});
     if (!stored || stored.v !== 2 || !stored.byCode || typeof stored.byCode !== 'object') {
       return { v: 2, byCode: {} };
@@ -989,7 +1069,7 @@
   // Record the official wording USCIS pairs with each action code, so bare
   // event codes elsewhere can be labeled in USCIS's own words rather than a
   // third party's guess. Stored locally like everything else.
-  function harvestCodeText(result) {
+  function learnCodeText(result) {
     if (!result) return;
     var notice = result.receiptNotice;
     if (!notice || notice.__error || notice.__empty) return;
@@ -999,11 +1079,11 @@
     var from = pick(notice, FIELDS.receiptNotice.receiptNumber);
     if (from === null) from = pick(result.caseStatus, FIELDS.caseStatus.receiptNumber);
 
-    var dict = loadHarvest();
+    var dict = loadLearned();
     var changed = false;
 
     function record(code, text) {
-      var key = harvestKey(code, formType);
+      var key = learnedKey(code, formType);
       if (!key || !text) return;
       var clean = stripHtml(String(text));
       if (!clean) return;
@@ -1042,9 +1122,9 @@
     if (!code) return null;
     var key = String(code).toUpperCase();
 
-    var harvested = loadHarvest().byCode[harvestKey(code, formType)] || null;
-    if (harvested && caseNumber && harvested.from === String(caseNumber)) {
-      return { text: harvested.text, source: 'uscis' };
+    var learned = loadLearned().byCode[learnedKey(code, formType)] || null;
+    if (learned && caseNumber && learned.from === String(caseNumber)) {
+      return { text: learned.text, source: 'uscis' };
     }
     // The official federal schema (NIEM). These are USCIS's internal
     // operations phrases, so the UI labels them as a system description
@@ -1053,8 +1133,8 @@
       if (USCIS_CODE_MEANINGS[key]) {
         return { text: USCIS_CODE_MEANINGS[key], source: 'niem' };
       }
-      if (harvested) {
-        return { text: harvested.text, source: 'uscis-other' };
+      if (learned) {
+        return { text: learned.text, source: 'uscis-other' };
       }
       // Genuinely absent from the published schema — an honest unknown.
       return null;
@@ -1064,7 +1144,7 @@
     // has a published meaning, so we must not claim it has none. Reported as
     // 'unavailable' so the UI stays silent about meaning instead of printing
     // a confident denial that a correct build would never print.
-    if (harvested) return { text: harvested.text, source: 'uscis-other' };
+    if (learned) return { text: learned.text, source: 'uscis-other' };
     return { text: null, source: 'unavailable' };
   }
 
@@ -1243,6 +1323,17 @@
   function displayNumber(n) {
     if (state.prefs && state.prefs.redact) return redactNumber(n);
     return n;
+  }
+
+  // USCIS names document files after the receipt number, so the document list
+  // printed the number in full — in visible text and in the title attribute —
+  // while "Hide receipt numbers" was on. The document list is exactly what
+  // gets scrolled past on the screen share this setting exists for.
+  function displayFileName(name) {
+    if (!name || !state.prefs || !state.prefs.redact) return name;
+    return String(name).replace(/[A-Z]{3}[0-9]{10}/gi, function (match) {
+      return redactNumber(match);
+    });
   }
 
   // Plain-text summary of one case, suitable for copying to clipboard (e.g.
@@ -1517,7 +1608,9 @@
     addNumberValue: '',
     addLabelValue: '',
     addError: null,               // validation message from the last failed submit
-    addPendingNumber: null        // the number that failed validation, for "Add anyway"
+    addPendingNumber: null,       // the number that failed validation, for "Add anyway"
+    addOpen: false,               // the add-case form is collapsed until asked for
+    expanded: {}                  // per-case open/closed, for this page view only
   };
   var dragState = null;            // in-progress panel drag, or null
   var refreshTimerId = null;       // setInterval handle for periodic refreshAll()
@@ -1571,7 +1664,9 @@
     FBA: 1, IK: 1, II: 1, EA: 1, IFA: 1, LFA: 1, FKA: 1, FS: 1, KH: 1
   };
 
-  var PROV_RANK = { official: 0, notice: 1, coded: 2, document: 3, local: 4, anchor: 5 };
+  // No 'document' rank: documents carry provenance 'local' with kind
+  // 'document', so no item is ever built with that provenance.
+  var PROV_RANK = { official: 0, notice: 1, coded: 2, local: 4, anchor: 5 };
   var DEDUPE_WINDOW_MS = 36 * 60 * 60 * 1000;   // official (day) x coded (second), same code
   var GAP_LABEL_MIN_DAYS = 14;
   var BACKEND_MIN_LAG_MS = 3 * 24 * 60 * 60 * 1000;  // §4.3: below 3 days it is noise
@@ -1686,9 +1781,12 @@
       ['path', { d: 'M13.4 8a5.4 5.4 0 1 1-1.6-3.8' }],
       ['path', { d: 'M13.5 2.3v3h-3' }]
     ] },
-    gear: { view: '0 0 16 16', shapes: [
-      ['circle', { cx: 8, cy: 8, r: 2.1 }],
-      ['path', { d: 'M8 1.7v1.5M8 12.8v1.5M14.3 8h-1.5M3.2 8H1.7M12.4 3.6l-1.1 1.1M4.7 11.3l-1.1 1.1M12.4 12.4l-1.1-1.1M4.7 4.7 3.6 3.6' }]
+    // A cog, not a circle with eight straight rays — that earlier drawing was
+    // the universal light/dark glyph, so people opened Settings looking for a
+    // theme toggle and found one by accident.
+    gear: { view: '0 0 24 24', shapes: [
+      ['circle', { cx: 12, cy: 12, r: 3 }],
+      ['path', { d: 'M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z' }]
     ] },
     minimize: { view: '0 0 16 16', shapes: [['path', { d: 'M3.5 8h9' }]] },
     chevron: { view: '0 0 16 16', shapes: [['path', { d: 'M6 3.5 10.5 8 6 12.5' }]] },
@@ -1891,24 +1989,40 @@
 
   // ---- panel positioning / dragging ----------------------------------------
 
-  // Keep at least a sliver of the header on-screen no matter how far the
-  // panel was dragged, and never let it be dragged fully off any edge.
-  function clampPanelPos(x, y) {
-    var minVisible = 80;
-    var headerH = 46;
-    var maxX = window.innerWidth - minVisible;
-    var minX = -(400 - minVisible);
-    var maxY = window.innerHeight - headerH;
+  // Keep the whole panel on-screen, not just a sliver of its header.
+  //
+  // Guaranteeing 46px of header was not enough: the panel is position:fixed, so
+  // a panel dragged low hangs off the bottom with its footer, Export and Import
+  // unreachable and no way to scroll to them. The position persists, so
+  // unplugging a larger monitor could strand it that way permanently. When the
+  // panel is genuinely taller than the viewport it is pinned to the top, which
+  // is the only choice that keeps the header reachable.
+  function clampPanelPos(x, y, panel) {
+    var width = 400;
+    var height = 0;
+    if (panel && panel.getBoundingClientRect) {
+      var rect = panel.getBoundingClientRect();
+      if (rect.width) width = rect.width;
+      if (rect.height) height = rect.height;
+    }
+    var margin = 8;
+    var maxX = window.innerWidth - width - margin;
+    if (maxX < margin) maxX = margin;      // panel wider than the window
     if (x > maxX) x = maxX;
-    if (x < minX) x = minX;
-    if (y < 0) y = 0;
+    if (x < margin) x = margin;
+
+    var maxY = height ? window.innerHeight - height - margin : window.innerHeight - 46;
+    if (maxY < 0) maxY = 0;                // taller than the window: pin to top
     if (y > maxY) y = maxY;
+    if (y < 0) y = 0;
     return { x: x, y: y };
   }
 
   function positionPanel(panel) {
     var pos = state.prefs.panelPos;
     if (pos && typeof pos.x === 'number' && typeof pos.y === 'number') {
+      // The panel is not in the document yet, so it cannot be measured here.
+      // reclampPanel() re-runs the clamp against real dimensions once it is.
       var clamped = clampPanelPos(pos.x, pos.y);
       panel.style.left = clamped.x + 'px';
       panel.style.top = clamped.y + 'px';
@@ -1916,6 +2030,23 @@
       panel.style.bottom = 'auto';
     }
     // Otherwise the stylesheet's default (bottom-right) stands.
+  }
+
+  // Re-clamp against the panel's real height, after it is in the document.
+  function reclampPanel() {
+    var pos = state.prefs.panelPos;
+    if (!pos || !ROOT) return;
+    var panel = ROOT.querySelector('.uscistr-panel');
+    if (!panel) return;
+    var clamped = clampPanelPos(pos.x, pos.y, panel);
+    panel.style.left = clamped.x + 'px';
+    panel.style.top = clamped.y + 'px';
+  }
+
+  function resetPanelPosition() {
+    state.prefs.panelPos = null;
+    persistPrefs();
+    render();
   }
 
   function startDrag(e) {
@@ -1934,7 +2065,7 @@
     if (!dragState) return;
     var x = dragState.origX + (e.clientX - dragState.startX);
     var y = dragState.origY + (e.clientY - dragState.startY);
-    var clamped = clampPanelPos(x, y);
+    var clamped = clampPanelPos(x, y, dragState.panel);
     dragState.panel.style.left = clamped.x + 'px';
     dragState.panel.style.top = clamped.y + 'px';
     dragState.panel.style.right = 'auto';
@@ -2156,6 +2287,56 @@
     ], actions);
   }
 
+  // The tool's whole method is comparing today against what it saved
+  // yesterday. If the browser won't let it save, it cannot do that — and the
+  // failure is invisible from the outside, because the panel still renders and
+  // still shows the current status. Someone in private browsing would be
+  // watching a change tracker that had silently stopped tracking changes.
+  function buildStorageBanner() {
+    if (!state.storageBlocked) return null;
+    return banner('', 'warning', "This browser won't let CaseLens save anything.", [
+      'A change was detected on one of your cases and could not be recorded, so it will ' +
+        'not appear in the timeline and you will not be told about it again.',
+      'This is usually private browsing, or storage being full or blocked for this site. ' +
+        'Your cases at USCIS are unaffected.'
+    ]);
+  }
+
+  // Every card collapses by default, and every failure message lived inside an
+  // expanded card — so a check that failed for every case produced a panel
+  // indistinguishable from a healthy one, with rows drawn from cache and a
+  // header reading "last successful check just now". The one state a tracker
+  // must never render silently is "I could not read USCIS at all".
+  //
+  // Session timeouts have their own banner with its own recovery step, so this
+  // covers everything else.
+  function buildFetchFailureBanner() {
+    if (state.sessionExpired) return null;
+    var failed = 0;
+    var checked = 0;
+    for (var i = 0; i < state.cases.length; i++) {
+      var result = state.cases[i].result;
+      if (!result) continue;
+      checked++;
+      if (coreSourcesFailed(result)) failed++;
+    }
+    if (!failed) return null;
+
+    var all = failed === checked;
+    var actions = el('div', { 'class': 'uscistr-banner-actions' }, [
+      el('button', {
+        'class': 'uscistr-btn uscistr-btn-sm', type: 'button', text: 'Try again',
+        onclick: function () { refreshAll(); }
+      })
+    ]);
+    return banner('', 'warning', all
+      ? "Couldn't read your cases from USCIS on the last check."
+      : plural(failed, 'case') + " couldn't be read on the last check.", [
+      'This is a problem reading the record — it says nothing about the case itself.',
+      'Anything shown below is the last copy this browser saved, and is dated.'
+    ], actions);
+  }
+
   function addCase(number, label) {
     for (var i = 0; i < state.cases.length; i++) {
       if (state.cases[i].number === number) return; // duplicate: skip silently
@@ -2171,6 +2352,7 @@
     // Adding a case back is an explicit undo of any earlier removal.
     setDismissed(number, false);
     persistCases();
+    uiState.addOpen = false;
     uiState.addNumberValue = '';
     uiState.addLabelValue = '';
     uiState.addError = null;
@@ -2184,21 +2366,42 @@
     var label = (rawLabel || '').trim();
     if (!number) return;
 
+    // Neither branch is a hard block: a person holding a receipt notice knows
+    // better than this regular expression.
     if (!CASE_NUMBER_RE.test(number)) {
-      // Not a hard block: USCIS has issued other prefixes, and a person
-      // holding a receipt notice knows better than this regular expression.
       uiState.addNumberValue = number;
       uiState.addLabelValue = label;
-      // Don't claim receipt numbers always start with IOE — paper-filed cases
-      // use EAC, WAC, LIN, SRC, MSC, YSC and others. Those are real receipt
-      // numbers; they just live in a system these endpoints can't reach.
       uiState.addError = 'That does not look like a receipt number. A receipt number is 13 characters: ' +
         'three letters and ten digits, like IOE0912345678, printed on your I-797C notice.';
       uiState.addPendingNumber = number;
       render();
       return;
     }
+    if (!ONLINE_PREFIX_RE.test(number)) {
+      uiState.addNumberValue = number;
+      uiState.addLabelValue = label;
+      uiState.addError = 'That is a valid receipt number, but it was not filed through a USCIS ' +
+        'online account. This panel reads the same account API the website uses, which only ' +
+        'covers cases beginning IOE — so it will most likely find nothing for this one.';
+      uiState.addPendingNumber = number;
+      render();
+      return;
+    }
     addCase(number, label);
+  }
+
+  // Cases are discovered from the account page automatically, so for almost
+  // everyone this form is something to scroll past. It used to sit permanently
+  // open above the case list, which meant a returning user met two empty text
+  // inputs before their own case.
+  function buildAddCaseSection() {
+    if (!uiState.addOpen && !uiState.addError) {
+      return el('button', {
+        'class': 'uscistr-add-toggle', type: 'button', text: '+ Add a case by receipt number',
+        onclick: function () { uiState.addOpen = true; render(); }
+      });
+    }
+    return buildAddCaseForm();
   }
 
   function buildAddCaseForm() {
@@ -2208,7 +2411,13 @@
       placeholder: 'IOE receipt number',
       'aria-label': 'Receipt number',
       value: uiState.addNumberValue,
-      oninput: function (e) { uiState.addNumberValue = e.target.value; }
+      // Clearing the field clears the complaint about it. Without this the
+      // error block pinned itself to the top of the panel until a successful
+      // add or a page reload.
+      oninput: function (e) {
+        uiState.addNumberValue = e.target.value;
+        if (uiState.addError) { uiState.addError = null; uiState.addPendingNumber = null; render(); }
+      }
     });
     var labelInput = el('input', {
       'class': 'uscistr-input', type: 'text', placeholder: 'Nickname (optional)',
@@ -2234,10 +2443,28 @@
           onclick: function () {
             addCase(uiState.addPendingNumber, (uiState.addLabelValue || '').trim());
           }
+        }),
+        el('button', {
+          'class': 'uscistr-btn uscistr-btn-sm uscistr-btn-quiet', type: 'button', text: 'Cancel',
+          onclick: function () { closeAddCase(); }
         })
       ]));
+    } else {
+      form.appendChild(el('button', {
+        'class': 'uscistr-btn uscistr-btn-sm uscistr-btn-quiet', type: 'button', text: 'Cancel',
+        onclick: function () { closeAddCase(); }
+      }));
     }
     return form;
+  }
+
+  function closeAddCase() {
+    uiState.addOpen = false;
+    uiState.addError = null;
+    uiState.addPendingNumber = null;
+    uiState.addNumberValue = '';
+    uiState.addLabelValue = '';
+    render();
   }
 
   // Never "0 cases" and never "you have none": a person logged into USCIS who
@@ -2263,7 +2490,12 @@
       cases: load(STORAGE_KEYS.cases, []),
       snapshots: load(STORAGE_KEYS.snapshots, {}),
       history: load(STORAGE_KEYS.history, {}),
-      prefs: load(STORAGE_KEYS.prefs, {})
+      prefs: load(STORAGE_KEYS.prefs, {}),
+      // Without these a restored backup silently un-removes every case the
+      // reader had removed, on the next auto-discovery pass, and loses the
+      // status wording learned from their own cases.
+      dismissed: load(STORAGE_KEYS.dismissed, {}),
+      codeText: load(STORAGE_KEYS.codeText, {})
     };
     var blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     var url = URL.createObjectURL(blob);
@@ -2385,10 +2617,20 @@
   }
 
   // Always present, never dismissible: the panel is a mirror, and it says so.
+  // Dates are the one place this panel reshapes what USCIS sent — it returns
+  // calendar dates and real instants in different shapes, and each is read
+  // accordingly. If USCIS ever corrects those shapes, our handling becomes the
+  // thing that is wrong. That risk is stated here, once, rather than as a
+  // tooltip on every date row: the rows that used to carry it were themselves
+  // duplicates of dates stated above the fold, and a caveat nobody hovers is
+  // not a caveat.
   function buildStandingDisclaimer() {
     return el('div', {
       'class': 'uscistr-standing',
-      text: 'Unofficial tool. Not USCIS, not legal advice. my.uscis.gov is the authority on your case — if this panel and that site disagree, believe the site.'
+      title: DATE_CAVEAT,
+      text: 'Unofficial tool. Not USCIS, not legal advice. Dates and labels here are read out of ' +
+        'USCIS data by this panel and can be wrong. my.uscis.gov and your mailed notices are the ' +
+        'authority on your case — if this panel disagrees with them, believe them.'
     });
   }
 
@@ -2423,7 +2665,11 @@
           'labels are interpreted from that data and can be wrong. Your mailed notices ' +
           'and my.uscis.gov are authoritative. Everything this panel stores stays in ' +
           'this browser; it talks only to my.uscis.gov.',
-        text: 'Unofficial · your USCIS notices are authoritative'
+        // Short enough not to truncate at 400px. The full sentence sits
+        // directly above in the standing disclaimer, so an ellipsis here
+        // rendered a clipped legal line beside its own complete twin — which
+        // reads as a layout fault rather than as a caveat.
+        text: 'Unofficial · follow your USCIS notices'
       })
     ]);
     var right = el('div', { 'class': 'uscistr-footer-right' }, [
@@ -2512,14 +2758,80 @@
       }
     );
 
+    // Recovery for a panel dragged somewhere unreachable. The clamp keeps this
+    // from happening, but a stored position from an older version can predate
+    // the clamp, and there is otherwise no way back except clearing storage.
+    var positionRow = el('div', { 'class': 'uscistr-popover-row' }, [
+      el('div', {}, [
+        el('div', { 'class': 'uscistr-popover-label', text: 'Panel position' }),
+        el('div', { 'class': 'uscistr-popover-desc', text: 'Move it back to the bottom-right corner.' })
+      ]),
+      el('button', {
+        'class': 'uscistr-btn uscistr-btn-sm uscistr-btn-outline', type: 'button', text: 'Reset',
+        disabled: state.prefs.panelPos ? null : 'disabled',
+        onclick: function () { resetPanelPosition(); }
+      })
+    ]);
+
+    // The whole promise of this tool is that your data stays in your browser.
+    // A promise like that is not complete without a way to take it back, and
+    // "clear your browser storage" is not an answer anyone should have to
+    // follow. This names exactly what is stored, so the claim is checkable.
+    var eraseRow = el('div', { 'class': 'uscistr-popover-row' }, [
+      el('div', {}, [
+        el('div', { 'class': 'uscistr-popover-label', text: 'Erase everything' }),
+        el('div', { 'class': 'uscistr-popover-desc',
+          text: 'Deletes your saved cases, snapshots, history, settings and removals from this browser.' })
+      ]),
+      el('button', {
+        'class': 'uscistr-btn uscistr-btn-sm uscistr-btn-outline', type: 'button', text: 'Erase',
+        onclick: function () { eraseEverything(); }
+      })
+    ]);
+
     return el('div', { 'class': 'uscistr-popover', role: 'group', 'aria-label': 'Settings' }, [
       el('div', { 'class': 'uscistr-popover-head', text: 'Settings' }),
       intervalRow,
       el('div', { 'class': 'uscistr-popover-sep' }),
       notifyRow,
       darkRow,
-      redactRow
+      redactRow,
+      el('div', { 'class': 'uscistr-popover-sep' }),
+      positionRow,
+      eraseRow
     ]);
+  }
+
+  function eraseEverything() {
+    var ok = confirm(
+      'Erase all CaseLens data from this browser?\n\n' +
+      'This deletes your saved cases, every stored snapshot, your recorded ' +
+      'history of changes, your settings, and the record of cases you removed.\n\n' +
+      'Nothing at USCIS is touched — your cases are unaffected. Cases on your ' +
+      'account will be found again the next time you open this page.\n\n' +
+      'This cannot be undone. Export a backup first if you want to keep it.');
+    if (!ok) return;
+
+    var keys = [
+      STORAGE_KEYS.cases, STORAGE_KEYS.snapshots, STORAGE_KEYS.history,
+      STORAGE_KEYS.prefs, STORAGE_KEYS.dismissed, STORAGE_KEYS.codeText
+    ];
+    for (var i = 0; i < keys.length; i++) {
+      try { localStorage.removeItem(keys[i]); } catch (e) { /* nothing to undo */ }
+    }
+    // Rescue copies written when a stored value could not be parsed. These are
+    // never read back, so forgetting them elsewhere leaves case data behind in
+    // a key nothing will ever clean up.
+    try {
+      var stale = [];
+      for (var k = 0; k < localStorage.length; k++) {
+        var name = localStorage.key(k);
+        if (name && name.indexOf('uscisTracker.') === 0) stale.push(name);
+      }
+      for (var s = 0; s < stale.length; s++) localStorage.removeItem(stale[s]);
+    } catch (e) { /* private mode: nothing was stored to begin with */ }
+
+    location.reload();
   }
 
   // ==========================================================================
@@ -2592,7 +2904,7 @@
           //   'unavailable' -> the dictionary didn't load, so we don't know
           //                    whether a meaning exists. Show the code with no
           //                    claim either way; never assert there is none.
-          labelSource: ev.textSource === 'uscis' ? 'harvested'
+          labelSource: ev.textSource === 'uscis' ? 'learned'
             : ev.textSource === 'niem' ? 'niem'
             : ev.textSource === 'uscis-other' ? 'other-case'
             : ev.textSource === 'unavailable' ? 'unknown-source'
@@ -2999,15 +3311,34 @@
         formName: snap.formName || null,
         submissionDate: snap.submissionDate || null,
         backendUpdatedAt: snap.backendAt || null,
-        // Deliberately left null, not false: these drive the state pill and
-        // attention styling. `false` would be read as a fact ("In progress")
-        // and could contradict the case's real state, so a cached card makes
-        // no claim about them at all.
-        closed: null,
-        actionRequired: null,
+        // Whatever USCIS actually said on the last successful read, or null if
+        // they never said. This used to be hardcoded null on the grounds that a
+        // cached card should claim nothing — but that silently deleted a
+        // scheduled appointment and an open evidence request from the collapsed
+        // row whenever a single request dropped, which is worse than showing a
+        // dated fact. The card marks itself stale and names the date.
+        closed: strictBool(snap.closed),
+        actionRequired: strictBool(snap.actionRequired),
         premium: null,
         representativeName: null
       };
+    }
+
+    if (!view.evidenceCount && snap.evidenceCount) view.evidenceCount = snap.evidenceCount;
+    if (!view.upcoming.length && snap.appointments && snap.appointments.length) {
+      var now = new Date().getTime();
+      for (var a = 0; a < snap.appointments.length; a++) {
+        // A cached appointment whose date has since passed is dropped rather
+        // than shown: we cannot know whether it was attended or rescheduled.
+        if (snap.appointments[a].at <= now) continue;
+        view.upcoming.push({
+          kind: 'appointment',
+          label: snap.appointments[a].label,
+          displayAt: snap.appointments[a].at,
+          sortAt: snap.appointments[a].at,
+          fromCache: true
+        });
+      }
     }
 
     if (!view.notice) {
@@ -3074,9 +3405,8 @@
     if (item.provenance === 'official') {
       parts.push(dateText);
       parts.push('USCIS');
-      if (item.corroborated && item.loggedAt !== null && item.loggedAt !== undefined) {
-        parts.push('logged ' + formatTimeOfDay(item.loggedAt));
-      }
+      // No "logged 9:58 PM". Minute precision on a case that moves monthly is
+      // noise, and it invites reading a clerical timestamp as significant.
     } else if (item.provenance === 'coded') {
       parts.push(dateText);
       parts.push('USCIS event' + (item.code ? ' ' + item.code : ''));
@@ -3122,7 +3452,7 @@
         lines.push('You first saw this on ' + formatDateFull(item.firstSeenLocally) + '.');
       }
     } else if (item.provenance === 'coded') {
-      if (item.labelSource === 'harvested') {
+      if (item.labelSource === 'learned') {
         lines.push('USCIS logged code ' + item.code + ' on ' + formatDateFull(item.displayAt) +
           ' at ' + formatTimeOfDay(item.displayAt) + '. The wording above is USCIS’s own: it is the status text USCIS published for this code on one of your cases.');
       } else if (item.labelSource === 'niem') {
@@ -3903,9 +4233,13 @@
     // short date keeps the lead on one line; the full date and every change
     // line stay reachable in the tooltip and in the timeline below.
     var lastLookedMs = entry.lastLookedAt ? parseUscisDate(entry.lastLookedAt) : null;
-    var sinceShort = lastLookedMs === null ? null : formatDayLabel(lastLookedMs);
+    // "2 changes since Aug 11" on Aug 11 reads as a bug, and it is the first
+    // sentence a returning reader sees. A date is only worth printing once it
+    // is a different day from today.
+    var sinceShort = (lastLookedMs === null || sameLocalDay(lastLookedMs, new Date().getTime()))
+      ? null : formatDayLabel(lastLookedMs);
     var lead = plural(changes.length || 1, 'change') +
-      (sinceShort ? ' since ' + sinceShort : ' since the last check');
+      (sinceShort ? ' since ' + sinceShort : ' since you last looked');
 
     var body = el('div', {}, [
       el('b', { text: lead }),
@@ -4014,8 +4348,11 @@
             formatTimeOfDay(appt.displayAt) +
             (apptZone ? ' ' + apptZone : '') +
             ' · shown in your device’s time zone, which may not be the office’s.' +
+            // Labelled, never bare. An unlabelled nine-digit number in
+            // parentheses at the end of a sentence is indistinguishable from
+            // a leaked internal id.
             ' If this differs from your notice, follow the notice' +
-            (appt.letterId ? ' (' + appt.letterId + ')' : '') + '.' })
+            (appt.letterId ? ' — letter ' + appt.letterId : '') + '.' })
         ]),
         el('span', { 'class': 'uscistr-upcoming-meta', text:
           'in ' + plural(daysBetween(now, appt.displayAt), 'day') })
@@ -4223,37 +4560,14 @@
     return wrap;
   }
 
+  // Only what is not already stated above the fold. `Filed`, `Status updated`
+  // and `Record touched` each restated a date the card has already given —
+  // and one of them appended a "newer than status" chip that was the third
+  // statement of the same fact, after the band and its explanation. Repeating a
+  // date in a second format is how two numbers for one event end up disagreeing.
   function buildFieldRows(entry, view) {
     var wrap = el('div', { 'class': 'uscistr-fields' });
     var detail = view.detail;
-    var notice = view.notice;
-
-    if (detail && detail.submissionDate) {
-      var filedMs = parseUscisDate(detail.submissionDate);
-      wrap.appendChild(fieldRow('Filed', [
-        el('span', { text: formatDateFull(detail.submissionDate) }),
-        filedMs !== null ? el('span', { 'class': 'uscistr-rel', text: 'day ' + daysBetween(filedMs, new Date().getTime()) }) : null
-      ], DATE_CAVEAT));
-    }
-
-    if (notice && notice.actionCodeDate) {
-      wrap.appendChild(fieldRow('Status updated', [
-        el('span', { text: formatDateFull(notice.actionCodeDate) }),
-        el('span', { 'class': 'uscistr-rel', text: relativeDate(notice.actionCodeDate) }),
-        notice.actionCode ? codeChip(notice.actionCode) : null
-      ], DATE_CAVEAT));
-    }
-
-    if (detail && detail.backendUpdatedAt) {
-      var backendMs = parseUscisDate(detail.backendUpdatedAt);
-      var statusMs = notice && notice.actionCodeDate ? parseUscisDate(notice.actionCodeDate) : null;
-      var newer = backendMs !== null && statusMs !== null && backendMs > statusMs;
-      wrap.appendChild(fieldRow('Record touched', [
-        el('span', { text: formatDateFull(detail.backendUpdatedAt) }),
-        el('span', { 'class': 'uscistr-rel', text: relativeDate(detail.backendUpdatedAt) }),
-        newer ? chip('newer than status', 'quiet') : null
-      ], DATE_CAVEAT));
-    }
 
     // People actively hunt for the office, so its absence is stated rather
     // than hidden.
@@ -4360,16 +4674,51 @@
     return any ? box : null;
   }
 
+  // Six near-identical middle-ellipsised filenames cost more vertical space
+  // than the entire timeline above them, and read as corrupted text. The count
+  // and anything new are stated on the summary row; the list itself is opened
+  // by people who want it.
   function buildDocuments(entry, view) {
     var docs = view.docs;
     if (!docs || !docs.length) return null;
 
+    var list = buildDocumentList(entry, view);
+    var wrap = el('div', { 'class': 'uscistr-docs-wrap' });
+    var label = plural(docs.length, 'document') + ' on file';
+    if (list.fresh) label += ' · ' + list.fresh + ' new';
+
+    var chevron = buildIcon('chevron');
+    var toggle = el('button', {
+      'class': 'uscistr-raw-toggle', type: 'button', 'aria-expanded': 'false',
+      onclick: function (e) {
+        var button = e.currentTarget;
+        var open = button.getAttribute('aria-expanded') === 'true';
+        button.setAttribute('aria-expanded', open ? 'false' : 'true');
+        if (open) list.el.setAttribute('hidden', 'hidden');
+        else list.el.removeAttribute('hidden');
+      }
+    });
+    toggle.appendChild(chevron || el('span'));
+    toggle.appendChild(el('span', { text: label }));
+    if (list.fresh) toggle.appendChild(chip('NEW', 'accent'));
+
+    wrap.appendChild(toggle);
+    wrap.appendChild(list.el);
+    return wrap;
+  }
+
+  function buildDocumentList(entry, view) {
+    var docs = view.docs;
+    var fresh = 0;
     var historyList = getHistory(entry.number);
-    var wrap = el('div', { 'class': 'uscistr-documents' });
+    var wrap = el('div', { 'class': 'uscistr-documents', hidden: 'hidden' });
     for (var i = 0; i < docs.length; i++) {
       var doc = docs[i];
       var label = documentLabel(doc);
       var fileName = doc.name ? String(doc.name) : '';
+      var shownName = displayFileName(fileName);
+      var isNew = !!(doc.name && isRecentDocument(fileName, historyList));
+      if (isNew) fresh++;
 
       var iconWrap = el('span');
       var icon = buildIcon('doc');
@@ -4379,7 +4728,7 @@
       if (doc.name && isSafeDocUrl(doc.url)) {
         nameChildren.push(el('a', {
           'class': 'uscistr-link', href: doc.url, target: '_blank', rel: 'noopener noreferrer',
-          text: label, title: fileName
+          text: label, title: shownName
         }));
       } else {
         nameChildren.push(el('span', { text: label }));
@@ -4387,7 +4736,7 @@
 
       var meta = el('div', { 'class': 'uscistr-doc-meta' }, [
         doc.date ? el('span', { 'class': 'uscistr-doc-date', text: formatDate(doc.date) || String(doc.date) }) : null,
-        (doc.name && isRecentDocument(fileName, historyList)) ? chip('NEW', 'accent') : null
+        isNew ? chip('NEW', 'accent') : null
       ]);
 
       // One line per document. The human-readable source leads and the raw
@@ -4396,14 +4745,15 @@
       // timeline above them.
       var nameCell = el('div', { 'class': 'uscistr-doc-main' }, [
         el('span', {}, nameChildren),
-        fileName ? el('span', { 'class': 'uscistr-doc-name', title: fileName, text: middleTruncate(fileName, 30) }) : null
+        shownName ? el('span', { 'class': 'uscistr-doc-name', title: shownName,
+          text: middleTruncate(shownName, 30) }) : null
       ]);
 
       wrap.appendChild(el('div', { 'class': 'uscistr-doc-row' }, [iconWrap, nameCell, meta]));
     }
     wrap.appendChild(el('div', { 'class': 'uscistr-progress-label', text:
       'USCIS lists these files on this case. This panel can see that they exist but cannot open them — download them from my.uscis.gov.' }));
-    return wrap;
+    return { el: wrap, fresh: fresh };
   }
 
   function buildCopyButton(entry) {
@@ -4440,15 +4790,51 @@
     { key: 'location', label: '/receipt_info/{n}' }
   ];
 
+  // Five always-visible endpoint rows, each with its own HTTP badge, sat at the
+  // bottom of every card. On a failed check that was five red badges per case —
+  // twenty of them beside someone's immigration case, by default, with no
+  // interaction. The raw data is the audit trail and stays reachable; it is not
+  // something anyone needs to walk past to read their status.
   function buildRawJson(entry) {
+    var body = buildRawJsonBody(entry);
+    if (!body.rows) return el('span');
+
     var wrap = el('div', { 'class': 'uscistr-raw-wrap' });
+    var label = 'Raw data from USCIS · ' + plural(body.rows, 'response');
+    if (body.failed) label += ' · ' + body.failed + " couldn't be read";
+
+    var chevron = buildIcon('chevron');
+    var toggle = el('button', {
+      'class': 'uscistr-raw-toggle', type: 'button', 'aria-expanded': 'false',
+      onclick: function (e) {
+        var button = e.currentTarget;
+        var open = button.getAttribute('aria-expanded') === 'true';
+        button.setAttribute('aria-expanded', open ? 'false' : 'true');
+        if (open) body.el.setAttribute('hidden', 'hidden');
+        else body.el.removeAttribute('hidden');
+      }
+    });
+    toggle.appendChild(chevron || el('span'));
+    toggle.appendChild(el('span', { text: label }));
+
+    wrap.appendChild(toggle);
+    wrap.appendChild(body.el);
+    return wrap;
+  }
+
+  function buildRawJsonBody(entry) {
+    var wrap = el('div', { 'class': 'uscistr-raw-list', hidden: 'hidden' });
     var result = entry.result;
+    var rows = 0;
+    var failed = 0;
     for (var i = 0; i < RAW_JSON_SECTIONS.length; i++) {
       var section = RAW_JSON_SECTIONS[i];
       var data = result[section.key];
       if (data === null || data === undefined) continue;
+      rows++;
 
       var status = payloadStatus(data);
+      if (payloadFailed(data)) failed++;
       var pre = el('pre', { 'class': 'uscistr-raw', hidden: 'hidden' });
       var chevron = buildIcon('chevron');
 
@@ -4477,7 +4863,7 @@
       wrap.appendChild(summary);
       wrap.appendChild(pre);
     }
-    return wrap;
+    return { el: wrap, rows: rows, failed: failed };
   }
 
   function sectionTitle(text, count) {
@@ -4523,6 +4909,12 @@
     var coreFailed = payloadFailed(result.caseStatus) && payloadFailed(result.receiptNotice);
     if (!coreFailed) return null;
 
+    // The panel already carries this message once, above the list. Repeating
+    // it verbatim on every card turned one recoverable problem into five
+    // identical alarms, which is the shape of a catastrophe rather than of a
+    // session timeout.
+    if (auth && state.sessionExpired) return null;
+
     var snapshot = getSnapshot(entry.number);
     var lines = [];
     var title;
@@ -4563,92 +4955,67 @@
   // fields a second time, and tabs would make "anything new anywhere?" take
   // four clicks.
 
-  function expandedMap() {
-    var stored = load(STORAGE_KEYS.prefs, {});
-    var map = stored && stored.expanded;
-    return (map && typeof map === 'object') ? map : {};
-  }
-
   function setExpanded(number, isOpen) {
-    var map = expandedMap();
-    map[String(number).toUpperCase()] = !!isOpen;
-    state.prefs.expanded = map;
-    persistPrefs();
-  }
-
-  // The card opened by default, when the reader hasn't chosen for themselves.
-  // Obligations outrank everything: a deadline is the only thing on any card
-  // that can be missed. A concluded case is never the default.
-  function defaultExpandedNumber(ordered) {
-    var i, entry, view;
-    for (i = 0; i < ordered.length; i++) {
-      entry = ordered[i];
-      view = entry.result ? buildCaseView(entry) : null;
-      if (!view) continue;
-      if (view.upcoming.length || view.evidenceCount > 0 ||
-          (view.detail && view.detail.actionRequired === true)) return entry.number;
-    }
-    for (i = 0; i < ordered.length; i++) {
-      if (ordered[i].changedSince) return ordered[i].number;
-    }
-    for (i = 0; i < ordered.length; i++) {
-      entry = ordered[i];
-      view = entry.result ? buildCaseView(entry) : null;
-      if (view && view.detail && view.detail.closed === true) continue;
-      return entry.number;
-    }
-    return ordered.length ? ordered[0].number : null;
+    uiState.expanded[String(number).toUpperCase()] = !!isOpen;
   }
 
   function isCardExpanded(entry, ordered) {
-    var map = expandedMap();
     var key = String(entry.number).toUpperCase();
-    // An explicit choice always wins, and persists.
-    if (Object.prototype.hasOwnProperty.call(map, key)) return !!map[key];
+    // Opening a card is a reading state, not a preference, so it lasts as long
+    // as the page does and no longer. Persisting it meant a card opened once in
+    // March was still open in August — and worse, a case collapsed once stayed
+    // a one-line row on the day it was approved, because the stored choice
+    // outranked every rule below.
+    if (Object.prototype.hasOwnProperty.call(uiState.expanded, key)) {
+      return !!uiState.expanded[key];
+    }
     // With one case there is nothing to choose between, so opening it saves a
     // pointless click. With more than one, everything collapses: opening one
     // by rule guesses which case the reader came for and pushes the rest below
     // the fold. The collapsed rows carry enough — status, elapsed days, and any
     // deadline — to choose from without opening anything.
-    if (ordered.length === 1) return true;
-    return false;
+    return ordered.length === 1;
   }
 
   // One row: has it changed, what is it, what does it say, how old is that.
   // Never less — this row alone has to answer "anything new?".
   function buildCollapsedCard(entry, view, onToggle) {
-    var row = el('button', {
-      'class': 'uscistr-collapsed', type: 'button', onclick: onToggle,
-      title: 'Show the full record for this case'
-    });
+    var row = el('button', { 'class': 'uscistr-collapsed', type: 'button', onclick: onToggle });
 
     var formType = (view.detail && view.detail.formType) ||
       (view.notice && view.notice.formNumber) || null;
+    var name = entry.label || plainFormName(formType) ||
+      shortFormTitle(view) || displayNumber(entry.number);
+    var closed = !!(view.detail && view.detail.closed === true);
+    var spoken = [name];
 
-    // Line 1 — which case, and how long it has been running. Day N is the one
-    // figure that moves every day whether or not the case does.
+    // Line 1 — which case, and how long it has been running. Day N stops on a
+    // concluded case: a finished I-765 reading "Day 200" and still climbing is
+    // indistinguishable from one that has been waiting 200 days.
     var filedMs = (view.detail && view.detail.submissionDate)
       ? parseUscisDate(view.detail.submissionDate) : null;
-    var dayText = filedMs !== null
-      ? 'Day ' + daysBetween(filedMs, new Date().getTime()) : '';
+    var dayText = closed ? 'Closed'
+      : (filedMs !== null ? 'Day ' + daysBetween(filedMs, new Date().getTime()) : '');
+    if (dayText) spoken.push(closed ? 'case closed' : dayText);
 
     row.appendChild(el('div', { 'class': 'uscistr-collapsed-head' }, [
-      entry.changedSince
-        ? el('span', { 'class': 'uscistr-collapsed-dot',
-            title: 'Something changed since you last looked' })
-        : null,
+      entry.changedSince ? el('span', { 'class': 'uscistr-collapsed-dot' }) : null,
       formType ? el('span', { 'class': 'uscistr-chip uscistr-mono', text: String(formType) }) : null,
-      el('span', { 'class': 'uscistr-collapsed-name uscistr-truncate',
-        text: entry.label || plainFormName(formType) || displayNumber(entry.number) }),
-      dayText ? el('span', { 'class': 'uscistr-collapsed-day', text: dayText }) : null
+      el('span', { 'class': 'uscistr-collapsed-name uscistr-truncate', text: name }),
+      dayText ? el('span', {
+        'class': 'uscistr-collapsed-day' + (closed ? ' uscistr-collapsed-day-closed' : ''),
+        text: dayText
+      }) : null
     ]));
 
     // Line 2 — USCIS's own status and when it was set, truncated to one line.
     // The full sentence is one click away; this is a scanning surface.
     var statusText = view.notice && view.notice.status ? view.notice.status
-      : (view.state === 'stale' ? 'Showing the last copy we have' : 'No status published yet');
+      : (view.fromCache ? 'Showing the last copy we have'
+        : (view.hasData ? 'No status published yet' : "Couldn't read this case"));
     var statusMs = view.notice && view.notice.actionCodeDate
       ? parseUscisDate(view.notice.actionCodeDate) : null;
+    spoken.push(statusText);
 
     row.appendChild(el('div', { 'class': 'uscistr-collapsed-body' }, [
       el('span', { 'class': 'uscistr-collapsed-status uscistr-truncate', text: statusText }),
@@ -4661,32 +5028,75 @@
     // Line 3 — only when something is actually being asked of this person.
     // Collapsing every case is only safe if a deadline can never end up hidden
     // behind a click, so this is the one line a row must never omit.
-    var demand = collapsedDemand(view);
-    if (demand) {
+    var demands = collapsedDemands(view);
+    if (demands.length) {
+      // With three or more, the row states the most consequential one and
+      // counts the rest rather than growing without limit.
+      var lead = demands[0].text;
+      var rest = demands.length - 1;
+      var demandText = rest > 0 ? lead + '  +' + rest + ' more' : lead;
+      spoken.push(demandText);
       row.appendChild(el('div', { 'class': 'uscistr-collapsed-demand' }, [
         el('span', { 'class': 'uscistr-collapsed-demand-dot' }),
-        el('span', { text: demand })
+        el('span', { 'class': 'uscistr-truncate', text: demandText })
       ]));
     }
 
+    // A stale row is otherwise byte-identical to a fresh one.
+    if (view.fromCache && view.cachedAt) {
+      var asOf = 'Last read ' + relativeDate(view.cachedAt);
+      spoken.push(asOf);
+      row.appendChild(el('div', { 'class': 'uscistr-collapsed-stale', text: asOf }));
+    }
+
+    // Both dots are bare spans, so without this a screen reader hears the
+    // status prose and nothing about urgency, change, or staleness.
+    if (entry.changedSince) spoken.push('changed since you last looked');
+    row.setAttribute('aria-label', spoken.join('. ') + '. Open for the full record.');
     return row;
   }
 
+  // Falls back to USCIS's own form title when we have no short name for the
+  // form. One row reading `IOE0912345678` beside three reading "Green card
+  // application" looks like a data failure rather than an uncommon form.
+  function shortFormTitle(view) {
+    var full = (view.detail && view.detail.formName) ||
+      (view.lastKnown && view.lastKnown.formName) || null;
+    if (!full) return null;
+    full = String(full);
+    return full.length > 34 ? full.slice(0, 33).replace(/[\s,]+$/, '') + '…' : full;
+  }
+
   // The one thing that has to survive collapsing: anything with a date
-  // attached, or anything USCIS is waiting on. Null when the case asks nothing.
-  function collapsedDemand(view) {
-    if (view.upcoming && view.upcoming.length) {
-      var appt = view.upcoming[0];
-      var when = appt.displayAt !== null ? formatDayLabel(appt.displayAt) : null;
-      return (appt.label || 'Appointment') + (when ? ' · ' + when : '');
-    }
+  // attached, or anything USCIS is waiting on. Empty when the case asks
+  // nothing of this person.
+  //
+  // Ordered by consequence, not by date. A request for evidence carries a
+  // statutory deadline whose consequence is denial; an appointment can be
+  // rescheduled. An earlier version returned only the first match, so a case
+  // with both an appointment and an open evidence request showed only the
+  // appointment — the less serious of the two.
+  function collapsedDemands(view) {
+    var out = [];
     if (view.detail && view.detail.actionRequired === true) {
-      return 'USCIS is waiting for something from you';
+      out.push({ text: 'USCIS is waiting for something from you', at: null });
     }
     if (view.evidenceCount > 0) {
-      return plural(view.evidenceCount, 'evidence request') + ' on file';
+      out.push({ text: plural(view.evidenceCount, 'evidence request') + ' on file', at: null });
     }
-    return null;
+    var upcoming = view.upcoming || [];
+    for (var i = 0; i < upcoming.length; i++) {
+      var appt = upcoming[i];
+      var text = appt.label || 'Appointment';
+      if (appt.displayAt !== null && appt.displayAt !== undefined) {
+        // The absolute date says which day to keep free; the relative one is
+        // what makes it read as a deadline rather than a record.
+        text += ' · ' + formatDayLabel(appt.displayAt) +
+          ' · ' + relativeDate(new Date(appt.displayAt).toISOString());
+      }
+      out.push({ text: text, at: appt.displayAt || null });
+    }
+    return out;
   }
 
   // USCIS's own form names run to eleven words. The short name is what a
@@ -4887,13 +5297,32 @@
     return 2;
   }
 
+  // Within a rank, most recent activity first. The fallback used to be the
+  // order receipt numbers happen to appear on the account page, which for
+  // someone with a handful of open cases is most of the list and is arbitrary:
+  // a case whose status moved yesterday sat below one that had been silent for
+  // two months. Ties fall back to page order so the sort is still total.
+  function caseActivityMs(entry) {
+    var snap = getSnapshot(entry.number);
+    if (!snap) return 0;
+    var status = snap.lastUpdated ? parseUscisDate(snap.lastUpdated) : null;
+    var backend = snap.backendAt ? parseUscisDate(snap.backendAt) : null;
+    return Math.max(status || 0, backend || 0);
+  }
+
   function casesInReadingOrder() {
     var decorated = [];
     for (var i = 0; i < state.cases.length; i++) {
-      decorated.push({ entry: state.cases[i], rank: caseSortRank(state.cases[i]), pos: i });
+      decorated.push({
+        entry: state.cases[i],
+        rank: caseSortRank(state.cases[i]),
+        activity: caseActivityMs(state.cases[i]),
+        pos: i
+      });
     }
     decorated.sort(function (a, b) {
       if (a.rank !== b.rank) return a.rank - b.rank;
+      if (a.activity !== b.activity) return b.activity - a.activity;
       return a.pos - b.pos;   // stable: order never shuffles between renders
     });
     var out = [];
@@ -4915,7 +5344,11 @@
 
     var body = el('div', { 'class': 'uscistr-body' });
     if (state.sessionExpired) body.appendChild(buildSessionBanner());
-    body.appendChild(buildAddCaseForm());
+    var storageBanner = buildStorageBanner();
+    if (storageBanner) body.appendChild(storageBanner);
+    var failureBanner = buildFetchFailureBanner();
+    if (failureBanner) body.appendChild(failureBanner);
+    body.appendChild(buildAddCaseSection());
 
     if (state.cases.length === 0) {
       body.appendChild(buildEmptyState());
@@ -5009,6 +5442,7 @@
     var newScroller = ROOT.querySelector('.uscistr-body');
     if (newScroller && scrollTop) newScroller.scrollTop = scrollTop;
     if (focusKey) restoreFocus(focusKey);
+    reclampPanel();
   }
 
   // Identify the focused control well enough to find its replacement after the
@@ -5082,6 +5516,24 @@
       delete history[key];
       delete history[number];
       save(STORAGE_KEYS.history, history);
+    }
+
+    // Status wording learned from this case records which case it came from,
+    // so the receipt number outlived the removal that promised to delete it.
+    // The wording itself is kept — it is useful on other cases and says
+    // nothing about this one — but it stops naming a case that is gone.
+    var dict = load(STORAGE_KEYS.codeText, null);
+    if (dict && dict.byCode) {
+      var touched = false;
+      for (var code in dict.byCode) {
+        if (!Object.prototype.hasOwnProperty.call(dict.byCode, code)) continue;
+        var learned = dict.byCode[code];
+        if (!learned || !learned.from) continue;
+        if (String(learned.from).toUpperCase() !== key) continue;
+        delete learned.from;
+        touched = true;
+      }
+      if (touched) save(STORAGE_KEYS.codeText, dict);
     }
   }
 
@@ -5189,6 +5641,13 @@
         persistPrefs();
         render();
       });
+
+      // A panel dragged to the right of a wide window, or low on a tall one,
+      // is off-screen the moment the window narrows or an external monitor is
+      // unplugged — and position:fixed means the page cannot be scrolled to
+      // reach it. Nothing re-ran the clamp until the next render, which on a
+      // quiet case is fifteen minutes away.
+      window.addEventListener('resize', reclampPanel);
 
       // Escape closes the settings popover. Without this it covers the first
       // card until the user happens to find the same icon again.

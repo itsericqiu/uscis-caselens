@@ -34,7 +34,16 @@ var fs = require('fs');
 var path = require('path');
 
 var ROOT = path.join(__dirname, '..');
-var TARGET = path.join(ROOT, 'userscript', 'caselens.user.js');
+
+// Every file that actually ships to a user, not just the userscript. The
+// extensions carry their own copy of the core, and this gate never looked at
+// either of them — so the audit claim it exists to defend was only ever
+// checked on one of the three things people install.
+var TARGETS = [
+  path.join(ROOT, 'userscript', 'caselens.user.js'),
+  path.join(ROOT, 'extensions', 'chrome', 'content.js'),
+  path.join(ROOT, 'extensions', 'firefox', 'content.js')
+];
 
 var ALLOWED_HOSTS = ['my.uscis.gov', 'github.com', 'www.w3.org'];
 
@@ -49,40 +58,47 @@ function hostOf(url) {
   return m[1].replace(/^[^@]*@/, '').replace(/:\d+$/, '').toLowerCase();
 }
 
-function main() {
+function scan(target) {
   var content;
   try {
-    content = fs.readFileSync(TARGET, 'utf8');
+    content = fs.readFileSync(target, 'utf8');
   } catch (err) {
-    console.error('privacy-gate: could not read ' + TARGET + ' — run `node scripts/build.js` first.');
+    console.error('privacy-gate: could not read ' + target + ' — run `node scripts/build.js` first.');
     console.error(err.message);
     process.exit(1);
   }
 
-  var lines = content.split('\n');
   var offenders = [];
-
-  lines.forEach(function (line, idx) {
+  content.split('\n').forEach(function (line, idx) {
     if (/^\s*\/\//.test(line)) return; // full-line comment, not live code
     var matches = line.match(URL_RE);
     if (!matches) return;
     matches.forEach(function (url) {
       var host = hostOf(url);
       if (!host || ALLOWED_HOSTS.indexOf(host) === -1) {
-        offenders.push('line ' + (idx + 1) + ': ' + url + ' (host: ' + host + ')');
+        offenders.push('  ' + path.relative(ROOT, target) + ':' + (idx + 1) + ': ' +
+          url + ' (host: ' + host + ')');
       }
     });
+  });
+  return offenders;
+}
+
+function main() {
+  var offenders = [];
+  TARGETS.forEach(function (target) {
+    offenders = offenders.concat(scan(target));
   });
 
   if (offenders.length > 0) {
     console.error('privacy-gate: FAILED — found URL(s) outside the allow-list ' +
-      '(' + ALLOWED_HOSTS.join(', ') + ') in ' + path.relative(ROOT, TARGET) + ':');
-    offenders.forEach(function (o) { console.error('  ' + o); });
+      '(' + ALLOWED_HOSTS.join(', ') + '):');
+    offenders.forEach(function (o) { console.error(o); });
     process.exit(1);
   }
 
-  console.log('privacy-gate: OK — every URL in ' + path.relative(ROOT, TARGET) +
-    ' resolves to an allow-listed host (' + ALLOWED_HOSTS.join(', ') + ').');
+  console.log('privacy-gate: OK — every URL in all ' + TARGETS.length +
+    ' shipped files resolves to an allow-listed host (' + ALLOWED_HOSTS.join(', ') + ').');
 }
 
 main();

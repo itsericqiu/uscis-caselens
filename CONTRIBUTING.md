@@ -79,7 +79,7 @@ any of their shapes, know which are regenerable and which are not:
 | Key | If lost |
 |---|---|
 | `snapshots` | Rebuilt on the next refresh |
-| `codeText` | Re-harvested from the user's own cases |
+| `codeText` | Re-learned from the user's own cases |
 | `prefs` | Settings reset; annoying, not damaging |
 | `dismissed` | Removed cases reappear; the user removes them again |
 | **`history`** | **Gone.** This is the panel's own record of what changed and when — USCIS does not publish it and it cannot be recovered |
@@ -131,8 +131,8 @@ node --check core/uscis-codes.js
 node --check core/uscis-style.js
 node scripts/build.js          # regenerate userscript + extension copies
 node scripts/build.js --check  # must exit 0
-node scripts/privacy-gate.js   # no origin other than my.uscis.gov
-node scripts/pii-gate.js       # no real receipt numbers
+node scripts/privacy-gate.js   # no origin other than my.uscis.gov, in all 3 shipped files
+node scripts/pii-gate.js       # no real receipt numbers, any prefix
 node scripts/undefined-check.js # every called function is defined
 node scripts/css-check.js      # no orphaned CSS declarations
 node scripts/smoke-test.js     # starts its own server + headless Chrome

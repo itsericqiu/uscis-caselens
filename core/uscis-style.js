@@ -689,6 +689,16 @@ var CASELENS_STYLE = [
     "  width: 5px; height: 5px; flex: none; border-radius: var(--ust-r-full);",
     "  background: var(--ust-warn);",
     "}",
+    // A concluded case stops counting. Quieter still than Day N, because it is
+    // the one number on the row that will never change again.
+    ".uscistr-root .uscistr-collapsed-day-closed {",
+    "  font-variant-numeric: normal; letter-spacing: 0.02em;",
+    "}",
+    // A row drawn from a stored copy is otherwise identical to a fresh one.
+    ".uscistr-root .uscistr-collapsed-stale {",
+    "  margin-top: 3px; padding-left: calc(7px + var(--ust-s3));",
+    "  font-size: var(--ust-fs-micro); color: var(--ust-text-3);",
+    "}",
   ".uscistr-root .uscistr-card.uscistr-is-collapsed { padding: 0; }",
   ".uscistr-root .uscistr-card {",
   "  position: relative;",
@@ -986,6 +996,53 @@ var CASELENS_STYLE = [
   "  white-space: nowrap;",
   "}",
   ".uscistr-root .uscistr-raw-wrap { display: flex; flex-direction: column; gap: var(--ust-s3); }",
+  ".uscistr-root .uscistr-docs-wrap { display: flex; flex-direction: column; gap: var(--ust-s3); }",
+  ".uscistr-root .uscistr-raw-list { display: flex; flex-direction: column; gap: var(--ust-s3); }",
+  // The one summary row that stands in for a whole collapsed section. Sized
+  // like a control rather than like the mono endpoint rows beneath it, so the
+  // thing you click is legible at a glance and the paths stay subordinate.
+  ".uscistr-root .uscistr-raw-toggle {",
+  "  display: flex; align-items: center; gap: var(--ust-s3);",
+  "  width: calc(100% + var(--ust-s4) * 2);",
+  "  height: 26px;",
+  "  padding: 0 var(--ust-s4);",
+  "  margin: 0 calc(var(--ust-s4) * -1);",
+  "  border-radius: var(--ust-r-sm);",
+  "  background: transparent;",
+  "  color: var(--ust-text-3);",
+  "  font-size: var(--ust-fs-micro);",
+  "  text-align: left;",
+  "  cursor: pointer;",
+  "  transition: background-color var(--ust-d1) var(--ust-ease), color var(--ust-d1) var(--ust-ease);",
+  "}",
+  ".uscistr-root .uscistr-raw-toggle:hover { background: var(--ust-bg-hover); color: var(--ust-text-1); }",
+  ".uscistr-root .uscistr-raw-toggle svg {",
+  "  width: 12px; height: 12px; flex: none;",
+  "  transition: transform var(--ust-d2) var(--ust-ease);",
+  "}",
+  ".uscistr-root .uscistr-raw-toggle[aria-expanded=\"true\"] svg { transform: rotate(90deg); }",
+  ".uscistr-root .uscistr-raw-toggle[aria-expanded=\"true\"] { color: var(--ust-text-1); }",
+  // Collapsed by default, and the only thing above the case list when open.
+  ".uscistr-root .uscistr-add-toggle {",
+  "  display: flex; align-items: center;",
+  "  width: 100%; padding: var(--ust-s3) var(--ust-s5);",
+  "  background: transparent; color: var(--ust-text-3);",
+  "  font-size: var(--ust-fs-meta); text-align: left; cursor: pointer;",
+  "  border-bottom: 1px solid var(--ust-border-1);",
+  "  transition: color var(--ust-d1) var(--ust-ease);",
+  "}",
+  ".uscistr-root .uscistr-add-toggle:hover { color: var(--ust-text-1); }",
+  // Both of these were emitted by the core with no rule anywhere, so they
+  // inherited body size and colour. On the timeline that made the footnote
+  // saying we cannot explain a code the loudest text in the section — the
+  // exact outcome consolidating it to one line existed to prevent.
+  ".uscistr-root .uscistr-timeline-footnote {",
+  "  margin-top: var(--ust-s3);",
+  "  font-size: var(--ust-fs-micro);",
+  "  line-height: 1.45;",
+  "  color: var(--ust-text-3);",
+  "}",
+  ".uscistr-root .uscistr-is-passed { opacity: 0.75; }",
   ".uscistr-root .uscistr-raw-summary {",
   "  display: grid;",
   "  grid-template-columns: 12px minmax(0, 1fr) auto;",
@@ -1039,6 +1096,11 @@ var CASELENS_STYLE = [
   "  border-radius: var(--ust-r-full);",
   "}",
   ".uscistr-root .uscistr-raw[hidden] { display: none; }",
+  // The `hidden` attribute only sets `display: none` from the user-agent
+  // stylesheet, so any author rule setting `display` beats it — which is every
+  // collapsible container here, since they are all flex. Without this the
+  // collapse toggles rotate their chevron and change nothing.
+  ".uscistr-root [hidden] { display: none; }",
   ".uscistr-root .uscistr-empty {",
   "  display: flex;",
   "  flex-direction: column;",

@@ -4,6 +4,84 @@ Notable changes per release. The section matching a tag becomes that release's
 notes on GitHub, so keep entries written for someone deciding whether to update
 — not for someone reading a commit log.
 
+## 1.7.0
+
+**A failed check is no longer invisible**
+
+Collapsing every case in 1.6.0 had a consequence we missed: every failure
+message lived *inside* an expanded card, so a check that failed for all of your
+cases produced a panel that looked completely healthy. Rows drew from the last
+saved copy, the header said the last check succeeded, and the one message that
+mattered — "your USCIS sign-in has timed out, sign in again and choose
+Refresh" — was unreachable. That message is now a banner above the case list,
+along with a separate one for read failures that aren't sign-in related.
+
+Two more consequences of the same shape. A collapsed row's deadline line was
+built from the live response, so a single dropped request silently deleted a
+scheduled appointment from the row — the one line collapsing everything depends
+on being unmissable. Deadlines, evidence requests and whether a case is closed
+are now saved with each check and drawn from that copy, dated. And because
+"is this case closed" was also lost on a failed check, the list re-sorted
+itself on a dropped request; it no longer does.
+
+**Less on screen, and the important things louder**
+
+- The five API responses at the bottom of each card collapse to one row. On a
+  failed check that had been five red `HTTP 404` badges per case.
+- Documents collapse to a count, with anything new named on the summary row.
+- The add-a-case form is behind a link. Cases are found automatically, so a
+  returning reader was meeting two empty text boxes before their own case.
+- Three rows restating dates already given above the fold are gone, along with
+  the "newer than status" chip that was the third statement of one fact.
+- A finished case shows `Closed` instead of a day counter still climbing.
+- Rows drawn from a saved copy now say so.
+
+**Privacy and data**
+
+- "Hide receipt numbers" now covers document filenames, which USCIS names after
+  the receipt number — so the number was printed in full while the setting that
+  exists for screen sharing was on. It also covers desktop notifications, which
+  persist outside the browser entirely.
+- Settings has **Erase everything**, which deletes every trace from this
+  browser and names exactly what that is. A tool whose promise is that your data
+  stays with you should be able to hand it back.
+- Removing a case now also clears the receipt number from the status wording
+  learned from it. The confirmation promised deletion; a copy was surviving.
+- Backups now include your removals, so restoring one no longer silently
+  un-removes every case you removed.
+- If the browser refuses to save, the panel says so. It had been detecting a
+  change, failing to record it, and never mentioning it — a change tracker that
+  had silently stopped tracking changes.
+
+**Fixes**
+
+- A change marker survives a page reload. It was being dropped, so closing the
+  tab before marking a change seen lost it permanently.
+- A receipt number that isn't `IOE` is no longer rejected by a rule the error
+  message itself contradicted. It's accepted, with an accurate note that these
+  endpoints only cover cases filed through a USCIS online account.
+- The panel can no longer be dragged off-screen, is re-clamped when the window
+  resizes, and Settings has a Reset for a panel stranded by an older version.
+- The add-case error can be dismissed, and clears when you edit the field.
+- Opening a case now lasts for the visit rather than forever. A case opened once
+  stayed open for months; worse, a case collapsed once stayed a one-line row on
+  the day it was approved.
+- The Settings icon is a cog. It was a circle with eight rays — the universal
+  light/dark glyph — so people opened it looking for a theme toggle.
+- An appointment's letter is labelled instead of appearing as a bare 9-digit
+  number in parentheses, which read as a leaked internal id.
+- Within a group, cases sort by most recent activity rather than by the order
+  they happen to appear on the account page.
+- Fields that arrive as objects rather than strings can no longer be recorded as
+  a status change and pushed as a notification.
+
+**Build and release**
+
+- The privacy gate now scans all three shipped files. It had only ever read the
+  userscript, so the audit claim it defends was unchecked on both extensions.
+- The PII gate matches every receipt prefix USCIS issues, not just `IOE`.
+- Release tooling is pinned to exact versions rather than caret ranges.
+
 ## 1.6.1
 
 **A stylesheet bug was making the tool's own disclaimers louder than USCIS's words**
@@ -74,8 +152,9 @@ Two permanent guards were added rather than just the three definitions:
 
 - Scroll position and keyboard focus survive a re-render. Previously every
   disclosure click and every background refresh threw you back to the top.
-- A refused write to browser storage now says so, and no longer causes the same
-  change to be re-detected and re-notified on every refresh.
+- A refused write to browser storage no longer causes the same change to be
+  re-detected and re-notified on every refresh. (This entry also claimed the
+  panel says so when a write is refused. It did not; that landed in 1.7.0.)
 - The stylesheet moved to `core/uscis-style.js`. The file people install is
   still one file; the core is 1,378 lines shorter, so the parts an auditor
   needs are easier to find.

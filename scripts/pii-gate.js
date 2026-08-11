@@ -22,7 +22,10 @@ var execFileSync = require('child_process').execFileSync;
 
 var ROOT = path.join(__dirname, '..');
 
-var RECEIPT_RE = /IOE[0-9]{10}/g;
+// Every prefix USCIS issues, not just the online-filing one. Paper-filed
+// receipts (EAC, WAC, LIN, SRC, MSC, YSC and others) are exactly as sensitive,
+// and an IOE-only pattern would have waved one straight into a public repo.
+var RECEIPT_RE = /\b[A-Z]{3}[0-9]{10}\b/g;
 
 var ALLOWED = {};
 for (var i = 0; i <= 9; i++) {

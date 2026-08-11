@@ -228,8 +228,11 @@ jobs:
         env:
           WEB_EXT_API_KEY: ${{ secrets.AMO_JWT_ISSUER }}
           WEB_EXT_API_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+        # Pinned exactly, not to a caret range. This step holds AMO signing
+        # credentials, so "whatever npm resolves at run time" is a package the
+        # credentials are handed to without anyone having looked at it.
         run: |
-          npx --yes web-ext@^8 sign \
+          npx --yes web-ext@8.10.0 sign \
             --source-dir=extensions/firefox \
             --channel=listed \
             --artifacts-dir=web-ext-artifacts
@@ -289,13 +292,13 @@ jobs:
           CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
           REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
         run: |
-          npx --yes chrome-webstore-upload-cli@^3 upload \
+          npx --yes chrome-webstore-upload-cli@3.5.0 upload \
             --source caselens-chrome.zip \
             --extension-id "$EXTENSION_ID" \
             --client-id "$CLIENT_ID" \
             --client-secret "$CLIENT_SECRET" \
             --refresh-token "$REFRESH_TOKEN"
-          npx --yes chrome-webstore-upload-cli@^3 publish \
+          npx --yes chrome-webstore-upload-cli@3.5.0 publish \
             --extension-id "$EXTENSION_ID" \
             --client-id "$CLIENT_ID" \
             --client-secret "$CLIENT_SECRET" \
