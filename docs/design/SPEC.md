@@ -175,6 +175,17 @@ about whether documents exist. Say which of the two it is — "we don't know" an
 
 ## Staging: how a code becomes a stage, and what happens when it can't
 
+> **The derivation rule below was REVERSED** — see `REVIEW-TRIAGE.md`, "Explicitly
+> not doing", X-1. Stages come from a curated per-form code list
+> (`STAGE_SEQUENCES`), not from keyword-matching the NIEM text. Three reasons:
+> keyword-matching operations prose is exactly the inference this spec forbids
+> everywhere else; the rail is sticky, so one bad match mis-stages a case
+> irreversibly; and the two codes that actually mattered on live cases (`SA`,
+> `RCV0`) are absent from NIEM entirely, so the "covers every code" claim was
+> false for the cases we had. **Everything below this line about deriving stages
+> from description text is superseded.** The degradation cases and the hard
+> limits further down still bind.
+
 Stage membership is derived from the **NIEM description text**, not from a
 hand-written code list. With 492 official descriptions available, keyword rules
 over that text cover every code deterministically and auditably, instead of the

@@ -11,7 +11,7 @@ security) · a documentation review.
 
 Line numbers move, so citations use function names.
 
-**Baseline:** audited at v1.6.1.
+**Baseline:** audited at v1.6.1; statuses updated through v1.10.0.
 
 ## The table
 
@@ -37,7 +37,7 @@ Line numbers move, so citations use function names.
 | C-10 | "1 change since Aug 11" when today is Aug 11 | Triage · IA · #4 | **DONE** (1.7.0) — `sameLocalDay` check, falls back to "since you last looked" |
 | R-1 | Per-row "No published meaning" → one timeline footnote | Triage Removals | **DONE** — but see AR-11; the footnote class has no CSS rule |
 | R-2 | Per-row "Copy code details" → inside the expanded row | Triage Removals | **DONE** |
-| R-3 | Per-card "Why is there no estimate?" → one panel-level entry | Triage · IA | **PARTIAL** — button gone, replaced by a static label. The comment names `buildEstimateHelp`, which does not exist |
+| R-3 | Per-card "Why is there no estimate?" → one panel-level entry | Triage · IA | **DONE** (1.8.0) — the comment naming a function that never existed is gone |
 | R-4 | Remove the "newer than status" chip | Triage · IA | **DONE** (1.7.0) — chip removed with the row that carried it |
 | R-5 | Remove the gap label adjacent to a backend row | Triage · IA | **DONE** |
 | R-6 | Remove the quiet-streak bar, keep the sentence | Triage adjudication | **DONE** |
@@ -46,7 +46,7 @@ Line numbers move, so citations use function names.
 | X-1 | Swap the stage table to NIEM keyword derivation | Triage | **REJECTED** — keyword-matching operations prose is the forbidden move |
 | X-2 | Loosen the quiet-meter gate | Triage | **REJECTED** |
 | X-3 | Add a status board | Triage | **REJECTED** — the collapsed rows already are the board |
-| SP-1 | Derive stages from NIEM keywords + override map | SPEC | **REJECTED** — superseded by X-1, but `SPEC.md` §Staging still reads as binding |
+| SP-1 | Derive stages from NIEM keywords + override map | SPEC | **DONE** (1.10.0) — `SPEC.md` §Staging now marks the reversal in place |
 | SP-2 | Unknown form type → render no rail | SPEC | **DONE** |
 | SP-3 | Percentage bar only when USCIS returns an estimate | SPEC | **DONE** |
 | SP-4 | Replace source chips with node shape + meta suffix | SPEC | **DONE** |
@@ -56,53 +56,53 @@ Line numbers move, so citations use function names.
 | SP-8 | Panel renders nothing when not signed in | SPEC | **DONE** |
 | SP-9 | Unknown codes are first class | SPEC | **DONE** |
 | SP-10 | Co-filed group strip | SPEC · #5 | **REJECTED** — `concurrentCases` is empty on every real case |
-| FE-1 | The pill's numeric badge reads as an unread count | Fresh-eyes | **PARTIAL** — now a case count, but still an unlabelled numeral |
-| FE-2 | Disclosure toggles have no accessible name | Fresh-eyes · #4 | **PARTIAL** — `title` added; `aria-controls` still missing |
+| FE-1 | The pill's numeric badge reads as an unread count | Fresh-eyes | **DONE** (1.10.0) — numeral aria-hidden; accessible name states case count and changes |
+| FE-2 | Disclosure toggles have no accessible name | Fresh-eyes · #4 | **DONE** (1.10.0) — `linkDisclosure()` wires `aria-controls` on every disclosure |
 | FE-3 | Panel position not re-clamped on window resize | Fresh-eyes · #4 | **DONE** (1.7.0) — `resize` listener, full-panel clamp, and a Reset control |
 | FE-4 | Timeline "logged 9:58 PM" minute precision is noise | Fresh-eyes | **DONE** (1.7.0) — the logged-time suffix is gone |
 | FE-5 | Truncated `.tif` filenames can't be matched to anything | Fresh-eyes | **DONE** |
-| FE-6 | No first-run explanation | Fresh-eyes | **NOT DONE** |
+| FE-6 | No first-run explanation | Fresh-eyes | **DONE** (1.10.0) — `buildFirstRunNote()`, shown once and dismissed for good |
 | AR-1 | `String(x)` on possibly-object fields should use `flattenValue` | Architecture | **DONE** (1.7.0) — `normalize` uses `flattenValue` throughout |
 | AR-2 | `changedSince` does not survive a page reload | Architecture | **DONE** (1.7.0) — `changedSince` and `lastLookedAt` are persisted |
 | AR-3 | Documents render unbounded with no fold | Architecture | **DONE** (1.7.0) — collapsed to a count row |
-| AR-4 | `ATTENTION_CODES` is an unsourced 9-code list driving a red banner | Architecture | **NOT DONE** |
-| AR-5 | `ENDPOINTS.caseStatus` / `receiptNotice` are named for the wrong endpoints | Architecture | **NOT DONE** |
-| AR-6 | Three names for the same value across normalize/summarize | Architecture | **NOT DONE** |
-| AR-7 | `caseRenderState` defines six states, four never read | Architecture | **NOT DONE** |
-| AR-8 | `buildAttentionBanner` mutates timeline items, undocumented ordering | Architecture | **NOT DONE** |
+| AR-4 | `ATTENTION_CODES` is an unsourced 9-code list driving a red banner | Architecture | **DONE** (1.8.1) — `ACTION_CODES` categorised and cited; denials and holds excluded |
+| AR-5 | `ENDPOINTS.caseStatus` / `receiptNotice` are named for the wrong endpoints | Architecture | **DONE** (1.8.0) — `caseDetail` / `caseStatus` |
+| AR-6 | Three names for the same value across normalize/summarize | Architecture | **DONE** (1.8.0) — `statusAt` and `backendAt` across layers, with a read migration |
+| AR-7 | `caseRenderState` defines six states, four never read | Architecture | **DONE** (1.8.0) — `caseContentSource`, returning only what decides anything |
+| AR-8 | `buildAttentionBanner` mutates timeline items, undocumented ordering | Architecture | **DONE** (1.8.1) — the ordering dependency is documented at the function |
 | AR-9 | Notice-array index alignment is an implicit contract | Architecture | **PARTIAL** — commented, not enforced |
-| AR-10 | Two relative-time vocabularies on one card | Architecture | **NOT DONE** |
+| AR-10 | Two relative-time vocabularies on one card | Architecture | **DONE** (1.8.0) — one date implementation, three shapes |
 | AR-11 | `.uscistr-is-passed` and `.uscistr-timeline-footnote` have no CSS rules | Architecture | **DONE** (1.7.0) — both classes have rules; the footnote is micro/text-3 |
-| AR-12 | Stale section-header comments describe functions that changed | Architecture | **NOT DONE** |
-| AR-13 | Duplicated clipboard buttons | Architecture | **NOT DONE** |
-| AR-14 | Three date formatters | Architecture | **NOT DONE** |
-| AR-15 | Four "is payload usable" idioms | Architecture | **NOT DONE** |
-| AR-16 | Three receipt-number regexes, which disagree | Architecture | **NOT DONE** |
+| AR-12 | Stale section-header comments describe functions that changed | Architecture | **DONE** (1.8.0) — skeleton comments corrected |
+| AR-13 | Duplicated clipboard buttons | Architecture | **DONE** (1.8.0) — one `copyButton()` |
+| AR-14 | Three date formatters | Architecture | **DONE** (1.8.0) — `formatDateAs(value, shape)` |
+| AR-15 | Four "is payload usable" idioms | Architecture | **DONE** (1.8.0) — `payloadUsable()` replaces eight inline copies |
+| AR-16 | Three receipt-number regexes, which disagree | Architecture | **DONE** (1.8.0) — one shape, plus a documented narrowing for discovery |
 | AR-17 | Dead code: `isEmptyPayload` | Architecture | **DONE** |
 | AR-18 | Dead code: unreachable `provenance === 'document'` | Architecture | **DONE** (1.7.0) — `document: 3` removed from `PROV_RANK` |
-| AR-19 | Dead code: five unread `FIELDS` entries | Architecture | **NOT DONE** |
-| AR-20 | Dead code: unused CSS classes | Architecture | **PARTIAL** — down to seven |
+| AR-19 | Dead code: five unread `FIELDS` entries | Architecture | **DONE** (1.8.0) — five unread entries deleted |
+| AR-20 | Dead code: unused CSS classes | Architecture | **DONE** (1.8.0) — seven dead rules deleted whole, verified by css-check |
 | SE-1 | Desktop notification body uses the unredacted receipt number | Security | **DONE** (1.7.0) — `displayNumber` in the notification body |
 | SE-2 | "Remove" leaves the receipt number behind | Security | **DONE** (1.7.0) — `forgetCase` clears the receipt number from learned wording |
 | SE-3 | `privacy-gate.js` greps one file and is bypassable | Security | **DONE** (1.7.0) — scans all three shipped files |
-| SE-4 | `package.js` zips whole directories | Security | **NOT DONE** |
+| SE-4 | `package.js` zips whole directories | Security | **DONE** (1.10.0) — explicit file list; refuses to build with anything extra present |
 | SE-5 | `release-on-bump` auto-publishes with no review gate | Security | **ACCEPTED RISK** — auto-tag-on-merge is the chosen release model, and the job runs only after `verify`, `version-bump-check` and `package` all pass. Revisit if the project takes outside contributors |
 | SE-6 | `npx` tools unpinned in the release workflow | Security | **DONE** (1.7.0) — pinned to exact versions |
-| SE-7 | Unbounded growth in learned code text | Security | **PARTIAL** — `codeText` uncapped; `docNames` is not a live issue |
+| SE-7 | Unbounded growth in learned code text | Security | **DONE** (1.10.0) — capped at 400, dropped oldest-first |
 | SE-8 | Auto-discovery is uncapped and unconfirmed | Security | **DONE** (1.7.1) — `MAX_TRACKED_CASES = 25` ceiling on automatic discovery; manual adds uncapped |
-| SE-9 | `loadAll` doesn't validate what `mergeImport` does | Security | **PARTIAL** — `__proto__` closed; asymmetry stands |
-| SE-10 | `redactRawJson`'s regex breaks on escaped quotes | Security | **NOT DONE** |
+| SE-9 | `loadAll` doesn't validate what `mergeImport` does | Security | **DONE** (1.10.0) — `loadAll` validates exactly as `mergeImport` does |
+| SE-10 | `redactRawJson`'s regex breaks on escaped quotes | Security | **DONE** (1.8.0) — explicit field list, and a value pattern that consumes escapes |
 | SE-11 | `pii-gate.js` matches only `IOE` prefixes | Security | **DONE** (1.7.0) — matches every three-letter prefix |
 | SE-12 | `exportBackup` omits learned code text and `dismissed` | Security | **DONE** (1.7.0) — `dismissed` and learned wording are exported |
-| DC-1 | Design docs `01`/`02`/`03` still specify rejected designs | Docs | **PARTIAL** — banners added, nothing pruned |
-| DC-2 | `02` §6's stale ~1,350-line stylesheet | Docs | **NOT DONE** |
-| DC-3 | CHANGELOG 1.3.x is five entries arguing about one line | Docs | **NOT DONE** |
+| DC-1 | Design docs `01`/`02`/`03` still specify rejected designs | Docs | **DONE** (1.10.0) — rejected sections in `02` carry inline REJECTED markers |
+| DC-2 | `02` §6's stale ~1,350-line stylesheet | Docs | **DONE** (1.10.0) — the stale 1,350-line stylesheet copy is replaced by a pointer |
+| DC-3 | CHANGELOG 1.3.x is five entries arguing about one line | Docs | **DONE** (1.10.0) — a "where 1.3.x landed" summary heads the sequence |
 | DC-4 | Various README trims | Docs | **PARTIAL** |
 | GH-1 | "Erase all CaseLens data" in Settings | #4 | **DONE** (1.7.0) — "Erase everything" in Settings, naming what is stored |
-| GH-2 | Refresh resets scroll; entry animation replays every render | #4 | **PARTIAL** — scroll fixed, animation untouched |
-| GH-3 | Pill `aria-label` is just "Open CaseLens" | #4 | **NOT DONE** |
+| GH-2 | Refresh resets scroll; entry animation replays every render | #4 | **DONE** (1.9.0) — entry animation only on mount; both split-pane scrollers restored |
+| GH-3 | Pill `aria-label` is just "Open CaseLens" | #4 | **DONE** (1.10.0) — accessible name names the count and the changes |
 | GH-4 | Backend callout leads with "Their website does not show this" | #4 | **DONE** |
-| GH-5 | Stage abbreviations don't survive translation | #4 | **NOT DONE** |
+| GH-5 | Stage abbreviations don't survive translation | #4 | **DONE** (1.10.0) — full stage names; the duplicate `label` field is gone |
 | GH-6 | Authority sentence buried | #4 | **DONE** |
 | GH-7 | Global Spanish setting instead of per-card toggle | #1 | **NOT DONE** |
 | GH-8 | Localize CaseLens's own microcopy | #2 | **NOT DONE** — needs a human Spanish speaker |
@@ -112,21 +112,37 @@ Line numbers move, so citations use function names.
 
 90 findings, de-duplicated across six reviews, two design docs and five issues.
 
-| Status | At audit (1.6.1) | After 1.7.0 |
+| Status | At audit (1.6.1) | Now (1.10.0) |
 |---|---|---|
-| DONE | 30 | 50 |
-| PARTIAL | 11 | 8 |
-| NOT DONE | 42 | 25 |
-| REJECTED | 6 | 6 |
+| DONE | 30 | 79 |
+| PARTIAL | 11 | 2 |
+| NOT DONE | 42 | 2 |
+| REJECTED | 6 | 5 |
+| ACCEPTED RISK | 0 | 1 |
 | OBSOLETE | 1 | 1 |
 
-**Outstanding: 53 at audit, 33 after 1.7.0.**
+**Outstanding: 53 at audit, 4 now.**
 
-1.7.0 also closed all four items found during the audit itself, and the three
-regressions that collapse-all introduced (found by the interaction review, not
-listed above because they postdate the audit): the panel-level failure banner,
+Also closed, and not counted above because they postdate the audit: all four
+items the audit itself turned up, and the three regressions collapse-all
+introduced (found by the interaction review) — the panel-level failure banner,
 obligation facts surviving a failed check, and the list no longer re-sorting on
 a dropped request.
+
+### What is left, and why
+
+- **GH-7 / GH-8 — Spanish.** The status wording USCIS publishes can already be
+  shown in Spanish, because USCIS writes it. Translating CaseLens's *own*
+  microcopy is a different job: it needs a string-table refactor and a human
+  Spanish speaker, and machine-translating a panel that people rely on for
+  immigration deadlines is not an acceptable shortcut. Open by design.
+- **AR-9 — notice-array index alignment.** The contract is documented at the
+  call site but not enforced by the code. Enforcing it means carrying `letterId`
+  on the event itself, which is a data-layer change worth doing when that layer
+  is next opened.
+- **DC-4 — README trims.** Never written down as specific edits, so there is
+  nothing concrete to verify against. The README was rewritten ~45% shorter in
+  1.2.0; treat this as closed unless someone names a section.
 
 Where the DONEs cluster matters more than the total. All eight HARMFUL items
 are genuinely fixed, and so are eight of the ten binding SPEC decisions (the

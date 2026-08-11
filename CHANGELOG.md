@@ -390,6 +390,17 @@ one, without rendering every case's identity a second time) and a case
 switcher (tabs would make "anything new anywhere?" take four clicks instead of
 one glance).
 
+> **Where 1.3.0–1.3.4 landed.** Five releases in a row argued with each other
+> about one line: how to print an appointment time. Reading them in order is
+> confusing, so here is the conclusion. USCIS sends appointments as correctly
+> converted UTC instants — a 3:00 PM Eastern appointment arrives as `19:00Z` —
+> so showing it in the viewer's own clock is the same moment, not a different
+> one. 1.3.0 printed raw UTC and 1.3.1 removed the time entirely; both were
+> overcorrections for a problem the data does not have. **The settled behaviour
+> is 1.3.4's:** the local time, its zone named so a mismatch is visible, and the
+> notice named as the authority. (The exact wording changed once more in 1.7.0,
+> which labelled the letter number instead of leaving it bare in parentheses.)
+
 ## 1.3.4
 
 **Appointments say which source wins**
