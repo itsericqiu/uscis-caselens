@@ -219,28 +219,23 @@ form:
 
 ## After the first store listing goes live
 
-Flip the README's install recommendation. Today the userscript leads only
-because unpacked extensions need developer mode — not because it is the better
-option. Once the store listing exists, the extension is:
+Add the store links to the README's install section as a third option. The
+README deliberately does not name a recommended path — it states what each one
+is and lets the reader choose — so this is an addition, not a reordering.
 
-- one click, versus install a manager → enable Chrome's "Allow user scripts" →
-  install the script
-- **zero permissions**, versus a userscript manager that needs access to every
-  site the person visits
-- auto-updating through the store, with no third party in the trust chain
+Facts worth stating for the store option, since they're what differ:
 
-Lead with the store links. **Keep the userscript as a clearly-labelled second
-path** — not buried — for four reasons that survive publication:
+- One click, versus install a manager → enable Chrome's "Allow user scripts" →
+  install the script.
+- Zero permissions, versus a userscript manager that needs access to every site
+  the person visits.
+- Updates automatically through the store, with no third party involved.
+- Store review takes days, so a fix for a broken endpoint reaches userscript
+  users first.
 
-1. **Safari.** There is no Safari extension, so the Userscripts app plus the
-   userscript is the only path there.
-2. **Reading before installing.** The userscript is one file someone can read
-   before it runs. `build --check` proves the packaged extension is identical,
-   but "read it yourself" is the assurance this project is built on.
-3. **Update speed.** GitHub releases are immediate; store review takes days. If
-   USCIS changes an endpoint, the userscript carries the fix first.
-4. People who already run a manager and want their scripts in one place.
+Keep the userscript path fully documented. It remains the only option on
+Safari, it's the one where someone can read the entire thing before it runs,
+and it gets fixes immediately.
 
-Also update the "Store listings are planned" line, and drop the Chrome
-"Allow user scripts" troubleshooting note from the extension path — it applies
-only to userscript managers.
+Also update the "Store listings are planned" line, and note that the Chrome
+"Allow user scripts" troubleshooting step applies only to userscript managers.

@@ -45,21 +45,19 @@ Technical detail — permissions, untrusted-input handling, threat model — is 
 
 ## Install
 
-| | Recommended | Fewest permissions |
-|---|---|---|
-| **How** | A userscript manager | Load the extension unpacked |
-| **Steps** | Install [Violentmonkey](https://violentmonkey.github.io/) (Chrome/Edge/Firefox) or **Userscripts** by quoid (Safari), open the [**latest release build**](https://github.com/itsericqiu/uscis-caselens/releases/latest/download/caselens.user.js), confirm the install | Turn on developer mode, then load the `extensions/chrome` or `extensions/firefox` folder |
-| **Tradeoff** | Userscript managers need access to every site you visit — that's how they inject scripts | Zero permissions, runs only on my.uscis.gov, but no auto-update |
+Two ways to install it. Both run the same code — pick whichever suits you.
+
+**As a userscript.** Install [Violentmonkey](https://violentmonkey.github.io/) (Chrome, Edge, Firefox) or **Userscripts** by quoid (Safari), then open the [latest release build](https://github.com/itsericqiu/uscis-caselens/releases/latest/download/caselens.user.js) and confirm the install. That link always points at the newest tagged release, and installed copies update themselves from it. The script is a single file you can read in full before it runs. The manager itself needs access to every site you visit — that's how it injects scripts — so you're trusting it as well as this.
+
+Tampermonkey works too, but it's been closed-source since 2013 and collects anonymous usage statistics; turn off "Anonymous statistics" in its settings.
+
+**If nothing appears after installing:** recent versions of Chrome require user scripts to be allowed explicitly. Go to `chrome://extensions`, open your userscript manager's details, and switch on **Allow user scripts**. Until that's on, the script silently never runs — no error, no pill.
+
+**As a browser extension.** Turn on developer mode in `chrome://extensions` (or use `about:debugging` in Firefox) and load the `extensions/chrome` or `extensions/firefox` folder from this repo. It declares zero permissions and runs only on my.uscis.gov, with no third party involved. Loading it this way is manual, and it won't update itself.
 
 Then log in at [my.uscis.gov](https://my.uscis.gov). A **CaseLens** pill appears bottom-right.
 
-**If nothing appears:** recent versions of Chrome require user scripts to be allowed explicitly. Go to `chrome://extensions`, open your userscript manager's details, and switch on **Allow user scripts**. Until that's on, the script silently never runs — no error, no pill.
-
-That link always points at the newest tagged release, and installed copies update themselves from it — so you stay on versions that passed CI rather than whatever is mid-work on `main`.
-
-Tampermonkey works too, but it's been closed-source since 2013 and collects anonymous usage statistics — turn off "Anonymous statistics" in its settings.
-
-Store listings (Firefox Add-ons, Chrome Web Store) are planned, which will give one-click install with automatic updates.
+Store listings (Firefox Add-ons, Chrome Web Store) are planned, which would add a third option: one click, zero permissions, and automatic updates.
 
 ## Using it
 
