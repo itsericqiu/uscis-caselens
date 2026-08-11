@@ -4,6 +4,24 @@ Notable changes per release. The section matching a tag becomes that release's
 notes on GitHub, so keep entries written for someone deciding whether to update
 — not for someone reading a commit log.
 
+## 1.6.0
+
+**Every case collapses; you choose which to open**
+
+With more than one case the panel now opens as a list of one-line rows rather
+than opening a case for you. Deciding which case someone came to see is a guess,
+and getting it wrong pushed the other three below the fold. A single case still
+opens, because there is nothing to choose between.
+
+Each row carries enough to choose from without opening anything: the form, a
+plain-language name, how many days the case has been running, USCIS's own status
+and when it was set. Anything with a deadline — an appointment, an action USCIS
+is waiting on, an open evidence request — gets its own line on the row, because
+collapsing everything is only safe if a deadline can never be hidden behind a
+click.
+
+Four cases now fit in roughly one screen instead of six.
+
 ## 1.5.2
 
 **Firefox add-on submission now passes Mozilla's validator**

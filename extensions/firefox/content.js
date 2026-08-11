@@ -1210,6 +1210,25 @@ var CASELENS_STYLE = [
   "}",
   ".uscistr-root .uscistr-collapsed-status { font-size: var(--ust-fs-meta); color: var(--ust-text-2); min-width: 0; flex: 1 1 auto; }",
   ".uscistr-root .uscistr-collapsed-age { font-size: var(--ust-fs-micro); color: var(--ust-text-3); flex: none; }",
+    // Day N sits at the right of the identity line: a number that moves daily,
+    // kept deliberately quiet so it never competes with the status.
+    ".uscistr-root .uscistr-collapsed-day {",
+    "  margin-left: auto; flex: none;",
+    "  font-size: var(--ust-fs-micro); color: var(--ust-text-3);",
+    "  font-variant-numeric: tabular-nums;",
+    "}",
+    // The only line on a collapsed row allowed to raise its voice, because it
+    // is the only content that can be time-critical.
+    ".uscistr-root .uscistr-collapsed-demand {",
+    "  display: flex; align-items: center; gap: var(--ust-s3);",
+    "  margin-top: 3px; padding-left: calc(7px + var(--ust-s3));",
+    "  font-size: var(--ust-fs-micro); font-weight: 600;",
+    "  color: var(--ust-warn-text);",
+    "}",
+    ".uscistr-root .uscistr-collapsed-demand-dot {",
+    "  width: 5px; height: 5px; flex: none; border-radius: var(--ust-r-full);",
+    "  background: var(--ust-warn);",
+    "}",
   ".uscistr-root .uscistr-card.uscistr-is-collapsed { padding: 0; }",
   ".uscistr-root .uscistr-card {",
   "  position: relative;",
@@ -1947,7 +1966,7 @@ var CASELENS_STYLE = [
   // SECTION 1: Constants
   // ==========================================================================
 
-  var VERSION = '1.5.2';
+  var VERSION = '1.6.0';
 
   var STORAGE_KEYS = {
     cases: 'uscisTracker.cases.v1',      // [{ number, label, addedAt }]
@@ -6518,7 +6537,13 @@ var CASELENS_STYLE = [
     var key = String(entry.number).toUpperCase();
     // An explicit choice always wins, and persists.
     if (Object.prototype.hasOwnProperty.call(map, key)) return !!map[key];
-    return entry.number === defaultExpandedNumber(ordered);
+    // With one case there is nothing to choose between, so opening it saves a
+    // pointless click. With more than one, everything collapses: opening one
+    // by rule guesses which case the reader came for and pushes the rest below
+    // the fold. The collapsed rows carry enough — status, elapsed days, and any
+    // deadline — to choose from without opening anything.
+    if (ordered.length === 1) return true;
+    return false;
   }
 
   // One row: has it changed, what is it, what does it say, how old is that.
@@ -6529,27 +6554,71 @@ var CASELENS_STYLE = [
       title: 'Show the full record for this case'
     });
 
-    var formType = (view.detail && view.detail.formType) || (view.notice && view.notice.formNumber) || null;
-    var head = el('div', { 'class': 'uscistr-collapsed-head' }, [
-      entry.changedSince ? el('span', { 'class': 'uscistr-collapsed-dot', title: 'Something changed since you last looked' }) : null,
+    var formType = (view.detail && view.detail.formType) ||
+      (view.notice && view.notice.formNumber) || null;
+
+    // Line 1 — which case, and how long it has been running. Day N is the one
+    // figure that moves every day whether or not the case does.
+    var filedMs = (view.detail && view.detail.submissionDate)
+      ? parseUscisDate(view.detail.submissionDate) : null;
+    var dayText = filedMs !== null
+      ? 'Day ' + daysBetween(filedMs, new Date().getTime()) : '';
+
+    row.appendChild(el('div', { 'class': 'uscistr-collapsed-head' }, [
+      entry.changedSince
+        ? el('span', { 'class': 'uscistr-collapsed-dot',
+            title: 'Something changed since you last looked' })
+        : null,
       formType ? el('span', { 'class': 'uscistr-chip uscistr-mono', text: String(formType) }) : null,
       el('span', { 'class': 'uscistr-collapsed-name uscistr-truncate',
-        text: entry.label || plainFormName(formType) || displayNumber(entry.number) })
-    ]);
+        text: entry.label || plainFormName(formType) || displayNumber(entry.number) }),
+      dayText ? el('span', { 'class': 'uscistr-collapsed-day', text: dayText }) : null
+    ]));
 
+    // Line 2 — USCIS's own status and when it was set, truncated to one line.
+    // The full sentence is one click away; this is a scanning surface.
     var statusText = view.notice && view.notice.status ? view.notice.status
-      : (view.state === 'stale' ? 'Last known status unavailable' : 'No status published');
-    var statusMs = view.notice && view.notice.actionCodeDate ? parseUscisDate(view.notice.actionCodeDate) : null;
-    var age = statusMs !== null ? relativeDate(new Date(statusMs).toISOString()) : '';
+      : (view.state === 'stale' ? 'Showing the last copy we have' : 'No status published yet');
+    var statusMs = view.notice && view.notice.actionCodeDate
+      ? parseUscisDate(view.notice.actionCodeDate) : null;
 
-    var body = el('div', { 'class': 'uscistr-collapsed-body' }, [
+    row.appendChild(el('div', { 'class': 'uscistr-collapsed-body' }, [
       el('span', { 'class': 'uscistr-collapsed-status uscistr-truncate', text: statusText }),
-      age ? el('span', { 'class': 'uscistr-collapsed-age', text: age }) : null
-    ]);
+      statusMs !== null
+        ? el('span', { 'class': 'uscistr-collapsed-age',
+            text: relativeDate(new Date(statusMs).toISOString()) })
+        : null
+    ]));
 
-    row.appendChild(head);
-    row.appendChild(body);
+    // Line 3 — only when something is actually being asked of this person.
+    // Collapsing every case is only safe if a deadline can never end up hidden
+    // behind a click, so this is the one line a row must never omit.
+    var demand = collapsedDemand(view);
+    if (demand) {
+      row.appendChild(el('div', { 'class': 'uscistr-collapsed-demand' }, [
+        el('span', { 'class': 'uscistr-collapsed-demand-dot' }),
+        el('span', { text: demand })
+      ]));
+    }
+
     return row;
+  }
+
+  // The one thing that has to survive collapsing: anything with a date
+  // attached, or anything USCIS is waiting on. Null when the case asks nothing.
+  function collapsedDemand(view) {
+    if (view.upcoming && view.upcoming.length) {
+      var appt = view.upcoming[0];
+      var when = appt.displayAt !== null ? formatDayLabel(appt.displayAt) : null;
+      return (appt.label || 'Appointment') + (when ? ' · ' + when : '');
+    }
+    if (view.detail && view.detail.actionRequired === true) {
+      return 'USCIS is waiting for something from you';
+    }
+    if (view.evidenceCount > 0) {
+      return plural(view.evidenceCount, 'evidence request') + ' on file';
+    }
+    return null;
   }
 
   // USCIS's own form names run to eleven words. The short name is what a
