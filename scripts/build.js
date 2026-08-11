@@ -44,6 +44,10 @@ const VERSION = versionMatch[1];
 const combinedContent = codesContent + '\n' + coreContent;
 
 // Userscript header template
+// download/updateURL point at the latest tagged release rather than the raw
+// file on main: GitHub keeps that redirect current, and it means an installed
+// copy only ever moves between versions that passed CI, never to whatever is
+// mid-work on the default branch.
 const userscriptHeader = `// ==UserScript==
 // @name         CaseLens — USCIS Case Tracker
 // @namespace    https://github.com/itsericqiu/uscis-caselens
@@ -52,6 +56,10 @@ const userscriptHeader = `// ==UserScript==
 // @match        https://my.uscis.gov/*
 // @run-at       document-idle
 // @noframes
+// @homepageURL  https://github.com/itsericqiu/uscis-caselens
+// @supportURL   https://github.com/itsericqiu/uscis-caselens/issues
+// @downloadURL  https://github.com/itsericqiu/uscis-caselens/releases/latest/download/caselens.user.js
+// @updateURL    https://github.com/itsericqiu/uscis-caselens/releases/latest/download/caselens.user.js
 // @grant        none
 // ==/UserScript==
 `;

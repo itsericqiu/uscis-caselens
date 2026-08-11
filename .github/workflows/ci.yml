@@ -203,6 +203,28 @@ jobs:
         with:
           name: caselens-extension-artifacts
 
+      - name: Build release notes from CHANGELOG.md
+        id: notes
+        if: steps.check.outputs.exists == 'false'
+        shell: bash
+        run: |
+          # Handwritten notes when the version has a CHANGELOG section; fall
+          # back to GitHub's generated commit list when it doesn't, so a
+          # release never ships with empty notes.
+          if node scripts/release-notes.js "${{ steps.version.outputs.version || env.VERSION }}" > /tmp/notes.md 2>/dev/null; then
+            echo "Using CHANGELOG.md section for ${{ steps.version.outputs.version || env.VERSION }}"
+            {
+              echo 'body<<CASELENS_NOTES_EOF'
+              cat /tmp/notes.md
+              echo 'CASELENS_NOTES_EOF'
+            } >> "$GITHUB_OUTPUT"
+            echo "generate=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "No CHANGELOG section for ${{ steps.version.outputs.version || env.VERSION }} — falling back to generated notes."
+            echo "body=" >> "$GITHUB_OUTPUT"
+            echo "generate=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Create tag and GitHub Release
         if: steps.check.outputs.exists == 'false'
         uses: softprops/action-gh-release@v2
@@ -212,7 +234,8 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag }}
           name: CaseLens ${{ steps.version.outputs.tag }}
           target_commitish: ${{ github.sha }}
-          generate_release_notes: true
+          generate_release_notes: ${{ steps.notes.outputs.generate == 'true' }}
+          body: ${{ steps.notes.outputs.body }}
           files: |
             caselens-chrome.zip
             caselens-firefox.zip
