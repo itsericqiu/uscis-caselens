@@ -216,3 +216,31 @@ form:
 > (`core/uscis-tracker-core.js`); nothing is fetched or evaluated at
 > runtime, and the extension makes no requests other than the read-only
 > my.uscis.gov API calls described above.
+
+## After the first store listing goes live
+
+Flip the README's install recommendation. Today the userscript leads only
+because unpacked extensions need developer mode — not because it is the better
+option. Once the store listing exists, the extension is:
+
+- one click, versus install a manager → enable Chrome's "Allow user scripts" →
+  install the script
+- **zero permissions**, versus a userscript manager that needs access to every
+  site the person visits
+- auto-updating through the store, with no third party in the trust chain
+
+Lead with the store links. **Keep the userscript as a clearly-labelled second
+path** — not buried — for four reasons that survive publication:
+
+1. **Safari.** There is no Safari extension, so the Userscripts app plus the
+   userscript is the only path there.
+2. **Reading before installing.** The userscript is one file someone can read
+   before it runs. `build --check` proves the packaged extension is identical,
+   but "read it yourself" is the assurance this project is built on.
+3. **Update speed.** GitHub releases are immediate; store review takes days. If
+   USCIS changes an endpoint, the userscript carries the fix first.
+4. People who already run a manager and want their scripts in one place.
+
+Also update the "Store listings are planned" line, and drop the Chrome
+"Allow user scripts" troubleshooting note from the extension path — it applies
+only to userscript managers.
