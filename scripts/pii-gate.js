@@ -4,11 +4,15 @@
 // CONTRIBUTING.md requires every example receipt number to be an
 // IOE0000000000-style placeholder ("Never commit real case data"). This is
 // the automated check for that rule: it scans every git-tracked file for
-// anything matching the receipt-number shape (IOE followed by 10 digits)
-// and fails unless it's on the small allow-list of known placeholders used
-// throughout the docs, fixtures, and source comments.
+// anything matching the receipt-number shape (any three letters followed by
+// ten digits) and fails unless it's on the small allow-list of known
+// placeholders used throughout the docs, fixtures, and source comments.
 //
 //   node scripts/pii-gate.js
+//
+// It scans TRACKED files, so run it after `git add`. Running it on a new,
+// still-untracked file passes vacuously for that file — which is how a test
+// placeholder once reached CI before it reached this gate locally.
 //
 // Scans git-tracked files (via `git ls-files`). Before the first commit
 // there are none, which would let the gate pass without inspecting anything —
@@ -32,6 +36,11 @@ for (var i = 0; i <= 9; i++) {
   ALLOWED['IOE000000000' + i] = true;
 }
 ALLOWED['IOE0912345678'] = true;
+// A non-IOE placeholder. The tool accepts any three-letter prefix as a valid
+// receipt-number *shape* while only IOE cases are reachable, and that
+// distinction needs a test — which needs a paper-filed number to test with.
+// Invented, and deliberately not a real service-centre sequence.
+ALLOWED['EAC2412345678'] = true;
 
 // Skip binaries — receipt numbers only ever appear as text, and reading
 // PNG/zip bytes as utf8 just risks noisy false "matches" on decoded bytes.
@@ -116,7 +125,7 @@ function main() {
   if (offenders.length > 0) {
     console.error('pii-gate: FAILED — receipt number(s) found that are not on the placeholder allow-list:');
     offenders.forEach(function (o) { console.error('  ' + o); });
-    console.error('\nAllowed placeholders: IOE0000000000-IOE0000000009, IOE0912345678.');
+    console.error('\nAllowed placeholders: IOE0000000000-IOE0000000009, IOE0912345678, EAC2412345678.');
     console.error('If this is real case data, remove it. If it is a new placeholder, add it to the allow-list in scripts/pii-gate.js.');
     process.exit(1);
   }

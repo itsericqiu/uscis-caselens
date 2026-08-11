@@ -133,7 +133,7 @@ node scripts/build.js          # regenerate userscript + extension copies
 node scripts/build.js --check  # must exit 0
 node test/unit.js              # pure functions: dates, diffing, redaction
 node scripts/privacy-gate.js   # no origin other than my.uscis.gov, in all 3 shipped files
-node scripts/pii-gate.js       # no real receipt numbers, any prefix
+node scripts/pii-gate.js       # no real receipt numbers, any prefix — run after `git add`
 node scripts/undefined-check.js # every called function is defined
 node scripts/css-check.js      # no orphaned CSS declarations
 node scripts/smoke-test.js     # starts its own server + headless Chrome
