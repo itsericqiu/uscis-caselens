@@ -219,23 +219,19 @@ form:
 
 ## After the first store listing goes live
 
-Add the store links to the README's install section as a third option. The
-README deliberately does not name a recommended path — it states what each one
-is and lets the reader choose — so this is an addition, not a reordering.
+The README currently frames install as "it's a userscript today, store versions
+are planned". Once a listing is live, replace that with the store link as the
+normal install, and keep the userscript documented below it.
 
-Facts worth stating for the store option, since they're what differ:
+Keep the userscript path — it doesn't become obsolete:
 
-- One click, versus install a manager → enable Chrome's "Allow user scripts" →
-  install the script.
-- Zero permissions, versus a userscript manager that needs access to every site
-  the person visits.
-- Updates automatically through the store, with no third party involved.
+- It's the only option on Safari; there is no Safari extension.
+- It's the version someone can read in full before it runs. `build --check`
+  proves the packaged extension is identical, but "read it yourself" is a
+  different kind of assurance and it's the one this project rests on.
 - Store review takes days, so a fix for a broken endpoint reaches userscript
   users first.
 
-Keep the userscript path fully documented. It remains the only option on
-Safari, it's the one where someone can read the entire thing before it runs,
-and it gets fixes immediately.
-
-Also update the "Store listings are planned" line, and note that the Chrome
-"Allow user scripts" troubleshooting step applies only to userscript managers.
+Also drop the Chrome "Allow user scripts" troubleshooting note from the store
+instructions — it applies only to userscript managers, and it's the single
+worst piece of onboarding friction the tool has today.
