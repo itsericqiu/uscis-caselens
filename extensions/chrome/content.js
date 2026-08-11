@@ -574,7 +574,7 @@ var USCIS_CODE_SOURCE = 'NIEM scr:BenefitDocumentStatusCategoryCodeSimpleType';
   // SECTION 1: Constants
   // ==========================================================================
 
-  var VERSION = '1.3.0';
+  var VERSION = '1.3.1';
 
   var STORAGE_KEYS = {
     cases: 'uscisTracker.cases.v1',      // [{ number, label, addedAt }]
@@ -3648,31 +3648,6 @@ var USCIS_CODE_SOURCE = 'NIEM scr:BenefitDocumentStatusCategoryCodeSimpleType';
 
   // "5:58 PM" in the viewer's own zone. Only ever called for values that
   // actually carried a time — never for day-precision entries.
-  // Appointment values arrive as a bare UTC instant with no office timezone.
-  // Converting them to the viewer's clock moves an early-morning appointment a
-  // whole calendar day, and no caveat makes a wrong date safe — this is the
-  // one value where being off by one could cause someone to miss biometrics.
-  // So we read the UTC calendar fields verbatim and print exactly what USCIS
-  // recorded, converting nothing.
-  function utcAppointmentParts(value) {
-    if (!value) return null;
-    var m = String(value).match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
-    if (!m) return null;
-    var hours = parseInt(m[4], 10);
-    var suffix = hours >= 12 ? 'PM' : 'AM';
-    var display = hours % 12;
-    if (display === 0) display = 12;
-    var months = ['January','February','March','April','May','June','July',
-      'August','September','October','November','December'];
-    var weekdays = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-    var asUtc = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
-    return {
-      weekday: weekdays[asUtc.getUTCDay()],
-      date: months[+m[2] - 1] + ' ' + (+m[3]) + ', ' + m[1],
-      time: display + ':' + m[5] + ' ' + suffix
-    };
-  }
-
   function formatTimeOfDay(ms) {
     if (ms === null || ms === undefined) return '';
     var d = new Date(ms);
@@ -4463,10 +4438,6 @@ var USCIS_CODE_SOURCE = 'NIEM scr:BenefitDocumentStatusCategoryCodeSimpleType';
           code: null,
           label: ev.text || 'Notice on file',
           generatedAt: ev.at,
-          // Kept verbatim: the appointment is rendered from these UTC fields
-          // directly rather than from a converted instant, so the calendar day
-          // USCIS recorded cannot shift with the viewer's timezone.
-          rawAppointmentAt: ev.appointmentAt || null,
           letterId: raw ? pick(raw, FIELDS.noticeItem.letterId) : null
         });
       }
@@ -5830,7 +5801,6 @@ var USCIS_CODE_SOURCE = 'NIEM scr:BenefitDocumentStatusCategoryCodeSimpleType';
     var now = new Date().getTime();
     for (var u = 0; u < view.upcoming.length; u++) {
       var appt = view.upcoming[u];
-      var apptParts = utcAppointmentParts(appt.rawAppointmentAt || appt.appointmentAt);
       var iconWrap = el('span');
       var calIcon = buildIcon('calendar');
       if (calIcon) iconWrap.appendChild(calIcon);
@@ -5841,9 +5811,7 @@ var USCIS_CODE_SOURCE = 'NIEM scr:BenefitDocumentStatusCategoryCodeSimpleType';
         iconWrap,
         el('div', {}, [
           el('div', { 'class': 'uscistr-upcoming-title', text:
-            appt.label + ' · ' + (apptParts
-              ? apptParts.weekday + ', ' + apptParts.date
-              : formatWeekday(appt.displayAt) + ', ' + formatDateFull(appt.displayAt)) }),
+            appt.label + ' · ' + formatWeekday(appt.displayAt) + ', ' + formatDateFull(appt.displayAt) }),
           // USCIS sends this as a UTC instant with no office timezone, so the
           // time we can render is whatever this computer's clock makes of it —
           // a laptop still set to another zone shows a different hour, and near
@@ -5851,11 +5819,14 @@ var USCIS_CODE_SOURCE = 'NIEM scr:BenefitDocumentStatusCategoryCodeSimpleType';
           // office, which we cannot know. For a biometrics appointment that is
           // a costly thing to get wrong, so the label says what it actually is
           // and points at the notice.
+          // No time is shown. USCIS sends the appointment as an instant but
+          // never says which timezone the office is in, so any clock time we
+          // print is only right if this computer happens to be set to that
+          // zone — and a wrong time on a biometrics appointment is the most
+          // expensive thing this panel could get wrong. The notice has it.
           el('div', { 'class': 'uscistr-upcoming-meta', text:
-            (apptParts ? apptParts.time : formatTimeOfDay(appt.displayAt)) +
-            ' as recorded by USCIS · time zone not stated' +
-            (appt.letterId ? ' · notice ' + appt.letterId : '') +
-            ' · check your mailed notice' })
+            'The time is on your appointment notice' +
+            (appt.letterId ? ' (notice ' + appt.letterId + ')' : '') + '.' })
         ]),
         el('span', { 'class': 'uscistr-upcoming-meta', text:
           'in ' + plural(daysBetween(now, appt.displayAt), 'day') })

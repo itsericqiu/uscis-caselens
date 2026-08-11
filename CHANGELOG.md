@@ -4,6 +4,24 @@ Notable changes per release. The section matching a tag becomes that release's
 notes on GitHub, so keep entries written for someone deciding whether to update
 — not for someone reading a commit log.
 
+## 1.3.1
+
+**Appointment times are no longer shown at all**
+
+1.3.0 printed the appointment time exactly as USCIS recorded it, in UTC. That
+was worse than the bug it replaced: a 3:00 PM Eastern appointment displayed as
+7:00 PM.
+
+USCIS sends the appointment as a genuine instant but never says which timezone
+the office is in. Converting it is right only if your computer's clock matches
+the office's zone; printing the raw UTC is wrong for everyone. There is no
+correct answer available, so the time is gone — the date is shown, and the
+panel points at the notice, which is authoritative.
+
+This also removed the bespoke date formatter added in 1.3.0. There is now one
+date rule in the codebase: values that are calendar dates (`2026-05-29`, or the
+same day as UTC midnight) are read as dates; everything else is an instant.
+
 ## 1.3.0
 
 **The header could give a false all-clear**
