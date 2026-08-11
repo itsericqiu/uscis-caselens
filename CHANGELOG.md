@@ -4,6 +4,17 @@ Notable changes per release. The section matching a tag becomes that release's
 notes on GitHub, so keep entries written for someone deciding whether to update
 — not for someone reading a commit log.
 
+## 1.4.1
+
+**Irreplaceable stored data is no longer dropped on a shape mismatch**
+
+`load()` falls back to a default when a stored value doesn't match the expected
+shape. That's harmless for settings or snapshots, both of which regenerate —
+but the change history is this panel's own record of what moved and when, and
+USCIS does not publish it. A future shape change would have deleted it
+silently. History and the tracked case list are now copied aside before any
+fallback is used.
+
 ## 1.4.0
 
 **Cases collapse to a row, one opens**
