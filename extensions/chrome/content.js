@@ -1947,7 +1947,7 @@ var CASELENS_STYLE = [
   // SECTION 1: Constants
   // ==========================================================================
 
-  var VERSION = '1.5.1';
+  var VERSION = '1.5.2';
 
   var STORAGE_KEYS = {
     cases: 'uscisTracker.cases.v1',      // [{ number, label, addedAt }]

@@ -4,6 +4,15 @@ Notable changes per release. The section matching a tag becomes that release's
 notes on GitHub, so keep entries written for someone deciding whether to update
 — not for someone reading a commit log.
 
+## 1.5.2
+
+**Firefox add-on submission now passes Mozilla's validator**
+
+AMO requires every add-on to declare what user data it collects. The manifest
+had no such declaration, so uploads were rejected. It now declares `none`,
+which is literally accurate. Mozilla's own linter reports zero errors and zero
+warnings.
+
 ## 1.5.1
 
 **Fixes the panel disappearing shortly after it loads**

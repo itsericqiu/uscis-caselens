@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "CaseLens — USCIS Case Tracker",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "description": "See all your USCIS cases in one place. Everything stays in your browser.",
   "content_scripts": [
     {
@@ -22,7 +22,12 @@
   "browser_specific_settings": {
     "gecko": {
       "id": "caselens@itsericqiu.github.io",
-      "strict_min_version": "109.0"
+      "strict_min_version": "109.0",
+      "data_collection_permissions": {
+        "required": [
+          "none"
+        ]
+      }
     }
   }
 }
