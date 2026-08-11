@@ -1,0 +1,219 @@
+name: CI
+
+# Runs on every push and pull request, and is also called directly by
+# release.yml (via workflow_call) so a manually-tagged release can never
+# ship anything that didn't pass this exact same verification.
+on:
+  push:
+  pull_request:
+  workflow_call:
+
+jobs:
+  verify:
+    name: Verify
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # No `npm install` step on purpose — CaseLens has zero npm
+      # dependencies (see CONTRIBUTING.md "Code style"). Everything below
+      # runs on Node's built-ins only.
+
+      - name: Syntax-check every JavaScript file in core/, scripts/, test/
+        shell: bash
+        run: |
+          status=0
+          while IFS= read -r -d '' f; do
+            echo "node --check $f"
+            node --check "$f" || status=1
+          done < <(find core scripts test -name '*.js' -print0)
+          exit "$status"
+
+      - name: Build audit gate — shipped files must match source exactly
+        run: node scripts/build.js --check
+
+      - name: Validate manifest.json files parse as JSON
+        run: |
+          node -e "JSON.parse(require('fs').readFileSync('extensions/chrome/manifest.json', 'utf8')); console.log('extensions/chrome/manifest.json: valid JSON')"
+          node -e "JSON.parse(require('fs').readFileSync('extensions/firefox/manifest.json', 'utf8')); console.log('extensions/firefox/manifest.json: valid JSON')"
+
+      - name: Privacy gate — only my.uscis.gov may appear as a live URL
+        run: node scripts/privacy-gate.js
+
+      - name: PII gate — no real receipt numbers committed
+        run: node scripts/pii-gate.js
+
+      - name: Set up Chrome for the smoke test
+        id: setup-chrome
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+
+      - name: Smoke test — drive test/harness.html in headless Chrome
+        env:
+          CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
+        run: node scripts/smoke-test.js
+
+  # Protects the auto-update path. Userscript managers (Violentmonkey,
+  # Tampermonkey) and the browser extensions all key off VERSION (stamped
+  # from core/uscis-tracker-core.js into the userscript @version and every
+  # manifest.json by scripts/build.js) to decide whether an update exists.
+  # If a change to the shipped bundle merges without a version bump, every
+  # existing install silently never sees it — that failure doesn't show up
+  # as a bug report, it shows up as nothing happening. This job makes that
+  # impossible to merge by accident.
+  version-bump-check:
+    name: Version bump required for shipped-code changes
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    steps:
+      - name: Checkout with full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compare VERSION against the base commit
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+          else
+            BASE="${{ github.event.before }}"
+          fi
+
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            echo "No base commit to diff against (new branch / first push) — skipping version-bump check."
+            exit 0
+          fi
+
+          if ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            echo "Base commit $BASE isn't available in this checkout — skipping version-bump check."
+            exit 0
+          fi
+
+          CHANGED=$(git diff --name-only "$BASE" HEAD -- core/uscis-tracker-core.js core/uscis-codes.js)
+          if [ -z "$CHANGED" ]; then
+            echo "Neither core/uscis-tracker-core.js nor core/uscis-codes.js changed — version-bump check not applicable."
+            exit 0
+          fi
+          echo "Shipped source changed:"
+          echo "$CHANGED"
+
+          OLD_VERSION=$(git show "$BASE:core/uscis-tracker-core.js" 2>/dev/null | grep -oE "var VERSION = '[^']+'" | sed -E "s/var VERSION = '([^']+)'/\1/")
+          NEW_VERSION=$(grep -oE "var VERSION = '[^']+'" core/uscis-tracker-core.js | sed -E "s/var VERSION = '([^']+)'/\1/")
+
+          echo "VERSION at base: ${OLD_VERSION:-<none>}"
+          echo "VERSION at HEAD: ${NEW_VERSION:-<none>}"
+
+          if [ -z "$NEW_VERSION" ]; then
+            echo "::error::Could not read VERSION from core/uscis-tracker-core.js at HEAD."
+            exit 1
+          fi
+
+          if [ "$OLD_VERSION" = "$NEW_VERSION" ]; then
+            echo "::error::core/uscis-tracker-core.js or core/uscis-codes.js changed but VERSION did not (still $NEW_VERSION). Existing installs will never receive this update — userscript managers and the browser extensions both decide there's an update by comparing VERSION. Bump VERSION in core/uscis-tracker-core.js and re-run \`node scripts/build.js\` before merging."
+            exit 1
+          fi
+
+          echo "VERSION changed ($OLD_VERSION -> $NEW_VERSION) alongside the shipped source — OK."
+
+  # Convenience artifacts: build the same zips/userscript a tagged release
+  # would produce on every ordinary push to main, so there's always
+  # something installable to hand to a store even before the first tag
+  # exists (or between releases). The tagged GitHub Release remains the
+  # durable, publicly linkable copy — these CI artifacts expire per the
+  # retention setting below. See docs/PUBLISHING.md.
+  package:
+    name: Package extension artifacts
+    needs: verify
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Package extension zips + userscript
+        run: node scripts/package.js
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: caselens-extension-artifacts
+          path: |
+            caselens-chrome.zip
+            caselens-firefox.zip
+            caselens.user.js
+          if-no-files-found: error
+          retention-days: 90
+
+  # Automatic tag + GitHub Release on a VERSION bump reaching main. This is
+  # deliberately separate from store publishing, which stays fully manual
+  # (workflow_dispatch with publish_stores: true in release.yml) — a GitHub
+  # Release is easy to delete or supersede, a store submission enters a
+  # public review queue and isn't.
+  release-on-bump:
+    name: Auto-tag & release on VERSION bump
+    needs: [verify, version-bump-check, package]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read VERSION from core
+        id: version
+        shell: bash
+        run: |
+          VERSION=$(grep -oE "var VERSION = '[^']+'" core/uscis-tracker-core.js | sed -E "s/var VERSION = '([^']+)'/\1/")
+          if [ -z "$VERSION" ]; then
+            echo "::error::Could not read VERSION from core/uscis-tracker-core.js"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Check whether the tag already exists
+        id: check
+        shell: bash
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Tag ${{ steps.version.outputs.tag }} already exists — this merge didn't bump VERSION further. Nothing to do."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "Tag ${{ steps.version.outputs.tag }} does not exist yet — creating it and a GitHub Release."
+          fi
+
+      - name: Download packaged artifacts
+        if: steps.check.outputs.exists == 'false'
+        uses: actions/download-artifact@v4
+        with:
+          name: caselens-extension-artifacts
+
+      - name: Create tag and GitHub Release
+        if: steps.check.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: CaseLens ${{ steps.version.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          generate_release_notes: true
+          files: |
+            caselens-chrome.zip
+            caselens-firefox.zip
+            caselens.user.js

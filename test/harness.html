@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>CaseLens — local test harness</title>
+<style>
+  /* Keep styling minimal and the page background plain so the tracker
+     panel/pill (which renders itself, bottom-right) is clearly visible
+     and never fights with harness chrome for space. */
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #fafafa;
+    color: #222;
+    font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  /* Fixed control strip pinned to the TOP of the viewport. The tracker's
+     own UI (launcher pill / panel) renders bottom-right, so a top strip
+     never overlaps it. */
+  #harness-strip {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 999999;
+    background: #1f2430;
+    color: #eee;
+    padding: 8px 12px;
+    box-sizing: border-box;
+    border-bottom: 2px solid #444;
+  }
+
+  #harness-strip h1 {
+    font-size: 13px;
+    margin: 0 0 6px 0;
+    font-weight: 600;
+    color: #fff;
+  }
+
+  #harness-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 14px;
+  }
+
+  #harness-scenarios {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  #harness-scenarios button {
+    font: 12px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    padding: 5px 9px;
+    border: 1px solid #555;
+    background: #2b3040;
+    color: #ddd;
+    border-radius: 3px;
+    cursor: pointer;
+  }
+
+  #harness-scenarios button[aria-pressed="true"] {
+    background: #3a7afe;
+    border-color: #3a7afe;
+    color: #fff;
+    font-weight: 600;
+  }
+
+  #harness-clear {
+    font: 12px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    padding: 5px 9px;
+    border: 1px solid #8a4b4b;
+    background: #4a2626;
+    color: #f6dede;
+    border-radius: 3px;
+    cursor: pointer;
+  }
+
+  #harness-note {
+    color: #aab0bf;
+    font-size: 11px;
+  }
+
+  #harness-current {
+    color: #9fe39f;
+    font-size: 11px;
+    font-family: ui-monospace, Menlo, monospace;
+  }
+
+  /* Push page content below the fixed strip. Height is generous because
+     the strip wraps on narrow windows. */
+  #harness-body {
+    padding: 96px 16px 16px 16px;
+  }
+
+  /* ---- mock "Your Cases" account-page block --------------------------
+     Real my.uscis.gov server-renders receipt numbers into the account
+     page as plain text ("Receipt # IOE#########"). The core's
+     discoverFromPage() reads document.body.innerText looking for those,
+     so this block has to actually contain the fixture receipt numbers as
+     visible text — it is not just decoration. */
+  #harness-mock-account {
+    background: #ffffff;
+    border: 1px solid #d7dbe0;
+    border-radius: 6px;
+    padding: 14px 16px;
+    margin-bottom: 16px;
+    max-width: 720px;
+  }
+
+  #harness-mock-account h2 {
+    margin: 0 0 10px 0;
+    font-size: 15px;
+    color: #0b4778;
+  }
+
+  .harness-mock-case {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid #eef0f2;
+  }
+
+  .harness-mock-case:last-child { border-bottom: none; }
+
+  .harness-mock-case .form-type {
+    font-weight: 600;
+    color: #1a1a1a;
+    min-width: 70px;
+  }
+
+  .harness-mock-case .receipt {
+    font-family: ui-monospace, Menlo, monospace;
+    color: #444;
+  }
+
+  .harness-mock-case .form-name {
+    color: #666;
+    font-size: 12px;
+  }
+
+  #harness-log-label {
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  #harness-log {
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 8px;
+    max-height: 320px;
+    overflow-y: auto;
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 11px;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+
+  #harness-log .log-line {
+    padding: 1px 0;
+    border-bottom: 1px dotted #eee;
+  }
+
+  #harness-log .log-scenario {
+    color: #8a6d00;
+    font-weight: 600;
+  }
+
+  #harness-log .log-status-200 { color: #1a7a1a; }
+  #harness-log .log-status-204 { color: #1a5a9a; }
+  #harness-log .log-status-401 { color: #b02525; }
+  #harness-log .log-status-404 { color: #b06a25; }
+  #harness-log .log-status-unmatched { color: #999; font-style: italic; }
+</style>
+</head>
+<body>
+
+<div id="harness-strip">
+  <h1>CaseLens — local test harness (no network; window.fetch is stubbed)</h1>
+  <div id="harness-controls">
+    <div id="harness-scenarios">
+      <button type="button" data-scenario="normal" aria-pressed="true">normal</button>
+      <button type="button" data-scenario="changed" aria-pressed="false">changed</button>
+      <button type="button" data-scenario="expired" aria-pressed="false">expired</button>
+      <button type="button" data-scenario="notFound" aria-pressed="false">notFound</button>
+      <button type="button" data-scenario="malformed" aria-pressed="false">malformed</button>
+      <button type="button" data-scenario="loggedOut" aria-pressed="false">loggedOut</button>
+      <button type="button" data-scenario="emptyEnvelope" aria-pressed="false">emptyEnvelope</button>
+    </div>
+    <button type="button" id="harness-clear">Clear localStorage</button>
+    <span id="harness-current">scenario: normal</span>
+    <span id="harness-note">Scenario changes take effect on the NEXT fetch — click Refresh in the tracker panel to see them.</span>
+  </div>
+</div>
+
+<div id="harness-body">
+
+  <!-- Realistic mock of the my.uscis.gov account page. The core's
+       auto-discovery reads receipt numbers straight out of this block's
+       rendered text (document.body.innerText), exactly like it would on
+       the real /account/applicant page. -->
+  <div id="harness-mock-account">
+    <h2>Your Cases</h2>
+    <div class="harness-mock-case">
+      <span class="form-type">I-485</span>
+      <span class="receipt">Receipt # IOE0000000001</span>
+      <span class="form-name">Application to Register Permanent Residence or Adjust Status</span>
+    </div>
+    <div class="harness-mock-case">
+      <span class="form-type">I-765</span>
+      <span class="receipt">Receipt # IOE0000000002</span>
+      <span class="form-name">Application for Employment Authorization</span>
+    </div>
+    <div class="harness-mock-case">
+      <span class="form-type">I-131</span>
+      <span class="receipt">Receipt # IOE0000000003</span>
+      <span class="form-name">Application for Travel Document</span>
+    </div>
+    <div class="harness-mock-case">
+      <span class="form-type">I-485J</span>
+      <span class="receipt">Receipt # IOE0000000004</span>
+      <span class="form-name">Confirmation of Bona Fide Job Offer or Request for Job Portability</span>
+    </div>
+  </div>
+
+  <div id="harness-log-label">Stubbed fetch log (url + scenario + status at request time):</div>
+  <div id="harness-log"></div>
+</div>
+
+<!-- 1. Fixtures must load first: defines window.USCIS_FIXTURES. -->
+<script src="fixtures.js"></script>
+
+<!-- 2. Install the window.fetch stub BEFORE the core loads. -->
+<script>
+(function () {
+  'use strict';
+
+  var scenarioButtons = document.querySelectorAll('#harness-scenarios button');
+  var currentScenarioEl = document.getElementById('harness-current');
+  var logEl = document.getElementById('harness-log');
+  var clearBtn = document.getElementById('harness-clear');
+
+  var VALID_SCENARIOS = ['normal', 'changed', 'expired', 'notFound', 'malformed', 'loggedOut', 'emptyEnvelope'];
+  var currentScenario = 'normal';
+
+  // Optional ?scenario=<name> query param picks the scenario active from
+  // the very first fetch (i.e. before init()'s checkAuthenticated() call),
+  // which a post-load button click can never do — the auth probe fires
+  // synchronously as the core script evaluates. Falls back to 'normal' for
+  // anything unrecognized.
+  (function () {
+    var params = new URLSearchParams(window.location.search);
+    var requested = params.get('scenario');
+    if (requested && VALID_SCENARIOS.indexOf(requested) !== -1) {
+      setScenario(requested); // function declaration, hoisted — safe to call here
+    }
+  })();
+
+  function setScenario(name) {
+    currentScenario = name;
+    currentScenarioEl.textContent = 'scenario: ' + name;
+    scenarioButtons.forEach(function (btn) {
+      btn.setAttribute('aria-pressed', String(btn.getAttribute('data-scenario') === name));
+    });
+  }
+
+  scenarioButtons.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      setScenario(btn.getAttribute('data-scenario'));
+    });
+  });
+
+  clearBtn.addEventListener('click', function () {
+    var removed = [];
+    for (var i = localStorage.length - 1; i >= 0; i--) {
+      var key = localStorage.key(i);
+      if (key && key.indexOf('uscisTracker.') === 0) {
+        removed.push(key);
+      }
+    }
+    removed.forEach(function (key) { localStorage.removeItem(key); });
+    logLine('Cleared ' + removed.length + ' localStorage key(s): ' + removed.join(', '), 'unmatched');
+  });
+
+  function logLine(text, statusClass) {
+    var line = document.createElement('div');
+    line.className = 'log-line' + (statusClass ? ' log-status-' + statusClass : '');
+    var ts = new Date().toISOString().slice(11, 19);
+    line.textContent = '[' + ts + '] ' + text;
+    logEl.appendChild(line);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  // ---- endpoint matching --------------------------------------------
+  // Mirrors ENDPOINTS in core/uscis-tracker-core.js SECTION 1. There is
+  // NO /history route — that endpoint 404s live and the core never
+  // requests it (see docs/API-SCHEMA.md #7). Order matters: more specific
+  // (longer) paths are checked before the shorter /cases/{num} pattern
+  // they'd otherwise be swallowed by.
+
+  function matchEndpoint(pathname) {
+    if (pathname === '/account/case-service/api/cases') {
+      return { type: 'caseList' };
+    }
+
+    var m;
+    m = pathname.match(/^\/account\/case-service\/api\/cases\/([^/]+)\/documents$/);
+    if (m) return { type: 'documents', num: m[1] };
+
+    m = pathname.match(/^\/account\/case-service\/api\/cases\/([^/]+)\/processing_times\/([^/]+)$/);
+    if (m) return { type: 'processingTimes', form: m[1], num: m[2] };
+
+    m = pathname.match(/^\/secure-messaging\/api\/case-service\/receipt_info\/([^/]+)$/);
+    if (m) return { type: 'location', num: m[1] };
+
+    m = pathname.match(/^\/account\/case-service\/api\/case_status\/([^/]+)$/);
+    if (m) return { type: 'caseStatus', num: m[1] };
+
+    m = pathname.match(/^\/account\/case-service\/api\/cases\/([^/]+)$/);
+    if (m) return { type: 'caseDetail', num: m[1] };
+
+    return null;
+  }
+
+  function jsonResponse(status, body) {
+    return new Response(JSON.stringify(body), {
+      status: status,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  function noContentResponse() {
+    // Real 204 responses carry no body at all — do NOT attach a
+    // Content-Type or any JSON, that's the whole point of this scenario.
+    return new Response(null, { status: 204 });
+  }
+
+  // Builds the Response for one matched endpoint under the active
+  // scenario. Scenario semantics:
+  //   normal        -> 200, USCIS_FIXTURES.normal data, wrapped in {"data": ...}
+  //                    exactly like the real API. processing_times is 204
+  //                    empty for every case except IOE0000000002 (data
+  //                    supplied), and location is always {"data": null}.
+  //   changed        -> 200, USCIS_FIXTURES.changed data (case 1 advanced)
+  //   expired        -> every endpoint 401 (session expired mid-session)
+  //   notFound       -> caseList still 200 (auth still works, {"data": []}
+  //                    as always), every per-case endpoint 404 (unknown
+  //                    or withdrawn case)
+  //   malformed      -> 200 with a JSON content-type but a body that isn't
+  //                    valid JSON, to exercise the fetch layer's parse
+  //                    error handling
+  //   loggedOut      -> caseList itself 401, so checkAuthenticated() fails
+  //                    and the core must render NOTHING
+  //   emptyEnvelope  -> every endpoint answers 200 with literally
+  //                    {"data": null}, to exercise the fetchJSON __empty
+  //                    path everywhere at once (not just processing_times)
+  function buildResponse(match) {
+    var fixtures = window.USCIS_FIXTURES;
+
+    if (currentScenario === 'expired') {
+      return jsonResponse(401, { message: 'Your session has expired. Please sign in again.' });
+    }
+
+    if (currentScenario === 'loggedOut') {
+      return jsonResponse(401, { message: 'Not authenticated.' });
+    }
+
+    if (currentScenario === 'notFound') {
+      if (match.type === 'caseList') {
+        return jsonResponse(200, { data: [] });
+      }
+      return jsonResponse(404, { message: 'Case not found.' });
+    }
+
+    if (currentScenario === 'malformed') {
+      return new Response('this is not json {{{', {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    if (currentScenario === 'emptyEnvelope') {
+      // Every endpoint, including caseList, answers with a null-data
+      // envelope. checkAuthenticated() only needs res.ok + a JSON
+      // content-type to consider the session live, so auth still
+      // succeeds; there's just nothing usable in any body.
+      return jsonResponse(200, { data: null });
+    }
+
+    // normal / changed
+    var dataset = currentScenario === 'changed' ? fixtures.changed : fixtures.normal;
+
+    if (match.type === 'caseList') {
+      // Real API shape: an empty array even though cases exist. Never
+      // usable for discovery — see docs/API-SCHEMA.md #1.
+      return jsonResponse(200, { data: dataset.caseList });
+    }
+
+    var caseEntry = dataset.cases[match.num];
+    if (!caseEntry) {
+      return jsonResponse(404, { message: 'Case not found.' });
+    }
+
+    switch (match.type) {
+      case 'caseDetail':
+        return jsonResponse(200, { data: caseEntry.detail });
+      case 'caseStatus':
+        return jsonResponse(200, { data: caseEntry.status });
+      case 'documents':
+        return jsonResponse(200, { data: caseEntry.documents });
+      case 'location':
+        // Always null in reality, for every case — see
+        // docs/API-SCHEMA.md #4.
+        return jsonResponse(200, { data: null });
+      case 'processingTimes':
+        var pt = dataset.processingTimes ? dataset.processingTimes[match.num] : undefined;
+        if (pt === null || pt === undefined) {
+          // The realistic default: HTTP 204, no body at all.
+          return noContentResponse();
+        }
+        return jsonResponse(200, { data: pt });
+      default:
+        return jsonResponse(404, { message: 'Not found.' });
+    }
+  }
+
+  window.fetch = function (input, init) {
+    var urlStr = typeof input === 'string' ? input :
+      (input && typeof input.url === 'string') ? input.url : String(input);
+
+    var pathname;
+    try {
+      pathname = new URL(urlStr, window.location.href).pathname;
+    } catch (e) {
+      pathname = urlStr;
+    }
+
+    var match = matchEndpoint(pathname);
+
+    if (!match) {
+      logLine(urlStr + '  [scenario=' + currentScenario + ']  -> 404 (unmatched)', 'unmatched');
+      return Promise.resolve(jsonResponse(404, { message: 'Not found.' }));
+    }
+
+    var response = buildResponse(match);
+    logLine(urlStr + '  [scenario=' + currentScenario + ']  -> ' + response.status, statusClassFor(response.status));
+    return Promise.resolve(response);
+  };
+
+  function statusClassFor(status) {
+    if (status === 200) return '200';
+    if (status === 204) return '204';
+    if (status === 401) return '401';
+    if (status === 404) return '404';
+    return 'unmatched';
+  }
+
+  logLine('Fetch stub installed. Fixtures: ' + (window.USCIS_FIXTURES ? window.USCIS_FIXTURES.caseNumbers.join(', ') : '(missing!)'), 'unmatched');
+})();
+</script>
+
+<!-- 3. Core loads AFTER the stub is in place. Constructed Response
+     objects above have res.url === '' — the core's auth check in
+     checkAuthenticated() tolerates that (it only rejects URLs that
+     look like a sign-in redirect). Auto-discovery reads receipt numbers
+     out of #harness-mock-account's rendered text above, exactly like it
+     would scrape the real my.uscis.gov account page. -->
+<!-- Load order matters and mirrors what scripts/build.js concatenates: the
+     event-code dictionary must define USCIS_CODE_MEANINGS before the core
+     IIFE runs. Without this the harness silently loses tier-2 code
+     descriptions and shows "no published meaning" for codes that do have
+     official ones — a false statement, and one the real build never makes. -->
+<script src="../core/uscis-codes.js"></script>
+<script src="../core/uscis-tracker-core.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,249 @@
+name: Release
+
+# Two ways to run this:
+#   1. `git tag vX.Y.Z && git push origin vX.Y.Z` — builds artifacts and
+#      creates a GitHub Release. Never publishes to any store on its own.
+#   2. Manually, via "Run workflow" in the Actions tab, with the ref set to
+#      an existing tag — the same build/release runs again, and if you also
+#      set publish_stores to true, the opt-in store-publishing jobs run too
+#      (each still individually skips if its secrets aren't configured).
+#      See docs/PUBLISHING.md for the full runbook.
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      publish_stores:
+        description: 'Submit this release to Firefox AMO / Chrome Web Store (requires store secrets to be configured)'
+        type: boolean
+        default: false
+
+jobs:
+  # Re-run the exact same checks CI runs on every push/PR. A release is
+  # never built from anything that hasn't passed this.
+  verify:
+    name: Verify
+    uses: ./.github/workflows/ci.yml
+
+  version-check:
+    name: Check version consistency
+    needs: verify
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.resolve.outputs.tag }}
+      version: ${{ steps.resolve.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Resolve tag, VERSION, and manifest versions; fail on any disagreement
+        id: resolve
+        shell: bash
+        run: |
+          set -e
+
+          CORE_VERSION=$(node -e "
+            var fs = require('fs');
+            var m = fs.readFileSync('core/uscis-tracker-core.js', 'utf8').match(/var VERSION = '([^']+)'/);
+            if (!m) { console.error('VERSION not found in core/uscis-tracker-core.js'); process.exit(1); }
+            console.log(m[1]);
+          ")
+          CHROME_VERSION=$(node -e "console.log(require('./extensions/chrome/manifest.json').version)")
+          FIREFOX_VERSION=$(node -e "console.log(require('./extensions/firefox/manifest.json').version)")
+
+          echo "core/uscis-tracker-core.js VERSION: $CORE_VERSION"
+          echo "extensions/chrome/manifest.json version: $CHROME_VERSION"
+          echo "extensions/firefox/manifest.json version: $FIREFOX_VERSION"
+
+          mismatch=0
+          if [ "$CHROME_VERSION" != "$CORE_VERSION" ]; then
+            echo "::error::extensions/chrome/manifest.json version ($CHROME_VERSION) does not match core VERSION ($CORE_VERSION)"
+            mismatch=1
+          fi
+          if [ "$FIREFOX_VERSION" != "$CORE_VERSION" ]; then
+            echo "::error::extensions/firefox/manifest.json version ($FIREFOX_VERSION) does not match core VERSION ($CORE_VERSION)"
+            mismatch=1
+          fi
+
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+            TAG_VERSION="${TAG#v}"
+            echo "Git tag: $TAG (version $TAG_VERSION)"
+            if [ "$TAG_VERSION" != "$CORE_VERSION" ]; then
+              echo "::error::Tag $TAG does not match VERSION in core/uscis-tracker-core.js ($CORE_VERSION). Bump VERSION, rebuild, and re-tag."
+              mismatch=1
+            fi
+            echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          else
+            echo "This run is not on a 'v*' tag ref (manual dispatch on a branch) — skipping tag-vs-VERSION comparison. No GitHub Release will be created; only the checks above run."
+            echo "tag=" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "version=$CORE_VERSION" >> "$GITHUB_OUTPUT"
+
+          if [ "$mismatch" != "0" ]; then
+            echo "::error::Version mismatch detected — see above. Refusing to build release artifacts."
+            exit 1
+          fi
+          echo "All versions agree: $CORE_VERSION"
+
+  build:
+    name: Build release artifacts
+    needs: version-check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Defensive: CI's build-audit gate already proved these are
+      # byte-identical to source, but regenerate anyway so the packaged
+      # artifacts are built from a known-fresh write rather than whatever
+      # happens to be checked in.
+      - name: Regenerate build output
+        run: node scripts/build.js
+
+      # scripts/package.js is the single place that defines the archive
+      # layout (manifest.json at the zip root, which browser directory maps
+      # to which zip name) — ci.yml's convenience-artifact job uses the same
+      # script, so the two can never drift apart.
+      - name: Package extension zips + userscript
+        run: node scripts/package.js
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: caselens-release-artifacts
+          path: |
+            caselens-chrome.zip
+            caselens-firefox.zip
+            caselens.user.js
+          if-no-files-found: error
+          retention-days: 90
+
+  release:
+    name: Create GitHub Release
+    needs: [version-check, build]
+    if: needs.version-check.outputs.tag != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: caselens-release-artifacts
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ needs.version-check.outputs.tag }}
+          name: CaseLens ${{ needs.version-check.outputs.tag }}
+          generate_release_notes: true
+          files: |
+            caselens-chrome.zip
+            caselens-firefox.zip
+            caselens.user.js
+
+  # ---------------------------------------------------------------------
+  # Store publishing below is OPT-IN and SKIPS CLEANLY when either the
+  # human didn't ask for it (publish_stores must be explicitly true on a
+  # manual dispatch — a tag push alone never triggers these) or the
+  # relevant secrets haven't been configured yet. See docs/PUBLISHING.md
+  # for how to obtain and set each secret.
+  # ---------------------------------------------------------------------
+
+  publish-firefox:
+    name: Publish to Firefox AMO (opt-in)
+    needs: [version-check, build, release]
+    if: >-
+      needs.version-check.outputs.tag != '' &&
+      github.event.inputs.publish_stores == 'true' &&
+      secrets.AMO_JWT_ISSUER != '' &&
+      secrets.AMO_JWT_SECRET != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Sign and publish to addons.mozilla.org
+        env:
+          WEB_EXT_API_KEY: ${{ secrets.AMO_JWT_ISSUER }}
+          WEB_EXT_API_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+        run: |
+          npx --yes web-ext@^8 sign \
+            --source-dir=extensions/firefox \
+            --channel=listed \
+            --artifacts-dir=web-ext-artifacts
+        # `web-ext sign --channel=listed` uploads the extension to AMO for
+        # human review; it does not bypass review. First-time submissions
+        # may need the listing created once by hand in the AMO developer
+        # hub before this command has anything to attach to — see
+        # docs/PUBLISHING.md.
+
+  publish-chrome:
+    name: Publish to Chrome Web Store (opt-in)
+    needs: [version-check, build, release]
+    if: >-
+      needs.version-check.outputs.tag != '' &&
+      github.event.inputs.publish_stores == 'true' &&
+      secrets.CWS_CLIENT_ID != '' &&
+      secrets.CWS_CLIENT_SECRET != '' &&
+      secrets.CWS_REFRESH_TOKEN != '' &&
+      secrets.CWS_EXTENSION_ID != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: caselens-release-artifacts
+
+      - name: Upload and publish via the Chrome Web Store API
+        env:
+          EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
+          CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+          REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+        run: |
+          npx --yes chrome-webstore-upload-cli@^3 upload \
+            --source caselens-chrome.zip \
+            --extension-id "$EXTENSION_ID" \
+            --client-id "$CLIENT_ID" \
+            --client-secret "$CLIENT_SECRET" \
+            --refresh-token "$REFRESH_TOKEN"
+          npx --yes chrome-webstore-upload-cli@^3 publish \
+            --extension-id "$EXTENSION_ID" \
+            --client-id "$CLIENT_ID" \
+            --client-secret "$CLIENT_SECRET" \
+            --refresh-token "$REFRESH_TOKEN"
+        # Publishing this way submits for Google's standard review; it does
+        # not bypass it. The CWS developer account (one-time $5 fee) and
+        # OAuth credentials must already exist — see docs/PUBLISHING.md.

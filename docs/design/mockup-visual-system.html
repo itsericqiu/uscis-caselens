@@ -1,0 +1,2598 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>USCIS Case Tracker — Visual System Mockup</title>
+
+<!-- =========================================================================
+     PRODUCTION STYLESHEET
+     This block is the deliverable. It is byte-identical to the block in
+     docs/design/02-visual-system.md and is what gets injected as one <style>
+     element by the userscript / extension.
+     ====================================================================== -->
+<style id="uscistr-style">
+/* ============================================================================
+   USCIS Case Tracker — visual system v2  ("Quiet Instrument")
+   One injected <style> block. No frameworks, no external assets, no images,
+   system font stack only. Dark mode = .uscistr-dark on the root container.
+
+   CASCADE CONTRACT
+   1. `.uscistr-root { all: initial }` severs inheritance at the boundary.
+   2. A universal descendant reset neutralises host tag/descendant rules.
+   3. Every component rule uses >= 2 classes (0,2,0) so it outranks both the
+      reset and essentially any host selector that isn't `!important`.
+   4. The only unguarded hole is a host `!important` rule on a bare tag. The
+      real fix is Shadow DOM — this sheet is written to work unchanged inside
+      one (no :root selectors, no reliance on page inheritance).
+
+   NEVER put transform / filter / backdrop-filter / contain / will-change on
+   .uscistr-root: each makes it a containing block for its position:fixed
+   children and breaks panel placement.
+   ========================================================================= */
+
+/* ---------------------------------------------------------------------------
+   0 · BOUNDARY + TOKENS (light)
+   `all: initial` does not touch custom properties, so the token block below
+   survives it. `direction` is excluded from `all`, so it is reset explicitly.
+--------------------------------------------------------------------------- */
+.uscistr-root {
+  all: initial;
+
+  /* — type ------------------------------------------------------------- */
+  --ust-font: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", system-ui, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --ust-mono: ui-monospace, SFMono-Regular, "SF Mono", "Cascadia Mono", "Segoe UI Mono", Menlo, Consolas, "Liberation Mono", monospace;
+
+  --ust-fs-title: 13px;      --ust-lh-title: 1.25;
+  --ust-fs-heading: 13.5px;  --ust-lh-heading: 1.35;
+  --ust-fs-body: 12.5px;     --ust-lh-body: 1.55;
+  --ust-fs-meta: 11.5px;     --ust-lh-meta: 1.45;
+  --ust-fs-label: 10.5px;    --ust-lh-label: 1.2;
+  --ust-fs-mono: 12px;       --ust-lh-mono: 1.4;
+  --ust-fs-micro: 10.5px;    --ust-lh-micro: 1.35;
+
+  /* — space ------------------------------------------------------------ */
+  --ust-s1: 2px;  --ust-s2: 4px;  --ust-s3: 6px;  --ust-s4: 8px;  --ust-s5: 10px;
+  --ust-s6: 12px; --ust-s7: 16px; --ust-s8: 20px; --ust-s9: 24px; --ust-s10: 32px;
+
+  /* — radii ------------------------------------------------------------ */
+  --ust-r-xs: 4px; --ust-r-sm: 6px; --ust-r-md: 8px;
+  --ust-r-lg: 10px; --ust-r-xl: 14px; --ust-r-full: 999px;
+
+  /* — surfaces --------------------------------------------------------- */
+  --ust-bg-panel: #FFFFFF;
+  --ust-bg-raised: rgba(255, 255, 255, 0.84);
+  --ust-bg-raised-solid: #FFFFFF;
+  --ust-bg-sunken: #F6F7F9;
+  --ust-bg-inset: #F0F2F5;
+  --ust-bg-hover: rgba(16, 19, 24, 0.045);
+  --ust-bg-active: rgba(16, 19, 24, 0.085);
+  --ust-tint-accent: rgba(79, 70, 229, 0.045);
+
+  /* — text ------------------------------------------------------------- */
+  --ust-text-1: #101318;   /* 18.61:1 on panel */
+  --ust-text-2: #3F4756;   /*  9.35:1 */
+  --ust-text-3: #5F6776;   /*  5.69:1 panel · 5.08:1 inset */
+  --ust-text-inv: #FFFFFF;
+
+  /* — lines ------------------------------------------------------------ */
+  --ust-border-1: #E8EAEE;   /* hairline / decorative */
+  --ust-border-2: #D8DCE3;   /* visible separator, panel edge */
+  --ust-border-field: #868E9F; /* 3.29:1 — form-control boundary, WCAG 1.4.11 */
+
+  /* — accent (interaction only, never a status) ------------------------ */
+  --ust-accent: #4F46E5;              /* 6.29:1 on panel */
+  --ust-accent-solid: #4F46E5;
+  --ust-accent-solid-hover: #4338CA;
+  --ust-accent-solid-active: #3730A3;
+  --ust-accent-on: #FFFFFF;           /* 6.29:1 on accent-solid */
+  --ust-accent-soft: #EEEDFD;
+  --ust-accent-soft-text: #3B33C4;    /* 7.40:1 on accent-soft */
+  --ust-accent-soft-border: #D7D4FB;
+
+  /* — semantics (status only, never interaction) ----------------------- */
+  --ust-success: #067647; --ust-success-soft: #E6F6EE; --ust-success-text: #05603A; --ust-success-border: #B3E2CB;
+  --ust-warn:    #B54708; --ust-warn-soft:    #FDF3E4; --ust-warn-text:    #93370D; --ust-warn-border:    #F0D9AE;
+  --ust-danger:  #B42318; --ust-danger-soft:  #FEEDEB; --ust-danger-text:  #912018; --ust-danger-border:  #F6CCC6;
+  --ust-info:    #175CD3; --ust-info-soft:    #EAF1FE; --ust-info-text:    #0B4A9E; --ust-info-border:    #C3D8F8;
+
+  /* — misc ------------------------------------------------------------- */
+  --ust-track: #E7E9EF;
+  --ust-scroll-thumb: #C9CED8;
+  --ust-scroll-thumb-hover: #AEB5C2;
+  --ust-focus: #4F46E5;
+  --ust-focus-halo: rgba(79, 70, 229, 0.30);
+
+  /* — elevation -------------------------------------------------------- */
+  --ust-sh-1: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 1px rgba(16, 24, 40, 0.04);
+  --ust-sh-2: 0 2px 4px -1px rgba(16, 24, 40, 0.07), 0 4px 10px -2px rgba(16, 24, 40, 0.08);
+  --ust-sh-3: 0 1px 2px rgba(16, 24, 40, 0.06), 0 8px 16px -6px rgba(16, 24, 40, 0.12), 0 24px 48px -16px rgba(16, 24, 40, 0.20);
+  --ust-sh-pop: 0 2px 6px rgba(16, 24, 40, 0.08), 0 14px 30px -10px rgba(16, 24, 40, 0.22);
+  --ust-sh-inner: none;
+
+  /* — motion ----------------------------------------------------------- */
+  --ust-d1: 90ms;  --ust-d2: 150ms; --ust-d3: 220ms; --ust-d4: 320ms;
+  --ust-ease: cubic-bezier(0.2, 0, 0, 1);
+  --ust-ease-out: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --ust-ease-in: cubic-bezier(0.3, 0, 0.8, 0.15);
+  --ust-ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+
+  /* — root box --------------------------------------------------------- */
+  color-scheme: light;
+  direction: ltr;
+  display: block;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  overflow: visible;
+  z-index: 2147483647;
+  pointer-events: none;          /* the page underneath stays fully usable */
+  isolation: isolate;
+  font-family: var(--ust-font);
+  font-size: var(--ust-fs-body);
+  line-height: var(--ust-lh-body);
+  font-weight: 400;
+  color: var(--ust-text-1);
+  text-align: left;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-variant-ligatures: none;
+}
+
+/* ---------------------------------------------------------------------------
+   0b · TOKENS (dark). Dark is not "light inverted": surfaces stay warm-neutral,
+   borders get lighter rather than darker, shadows are supplemented by a 1px
+   top highlight, and every semantic hue is re-picked for a dark backdrop.
+--------------------------------------------------------------------------- */
+.uscistr-root.uscistr-dark {
+  color-scheme: dark;
+
+  --ust-bg-panel: #191A1F;
+  --ust-bg-raised: rgba(29, 30, 36, 0.84);
+  --ust-bg-raised-solid: #1D1E24;
+  --ust-bg-sunken: #131418;
+  --ust-bg-inset: #212329;
+  --ust-bg-hover: rgba(255, 255, 255, 0.055);
+  --ust-bg-active: rgba(255, 255, 255, 0.10);
+  --ust-tint-accent: rgba(139, 136, 247, 0.075);
+
+  --ust-text-1: #EBECF0;   /* 14.72:1 on panel */
+  --ust-text-2: #ADB2BF;   /*  8.19:1 */
+  --ust-text-3: #8B92A1;   /*  5.56:1 panel · 5.03:1 inset */
+  --ust-text-inv: #FFFFFF;
+
+  --ust-border-1: #2A2D35;
+  --ust-border-2: #3A3E49;
+  --ust-border-field: #666D7D;  /* 3.35:1 */
+
+  --ust-accent: #A5A2FA;              /* 7.57:1 on panel */
+  --ust-accent-solid: #5D5AE8;
+  --ust-accent-solid-hover: #6E6BF0;
+  --ust-accent-solid-active: #4F4CD9;
+  --ust-accent-on: #FFFFFF;           /* 5.13:1 on accent-solid */
+  --ust-accent-soft: #24243A;
+  --ust-accent-soft-text: #B7B4FC;    /* 7.96:1 */
+  --ust-accent-soft-border: #37356B;
+
+  --ust-success: #5FD3A0; --ust-success-soft: #14241E; --ust-success-text: #7FE3B5; --ust-success-border: #21493A;
+  --ust-warn:    #F5B860; --ust-warn-soft:    #26200F; --ust-warn-text:    #FAC97E; --ust-warn-border:    #4A3A18;
+  --ust-danger:  #FF9A90; --ust-danger-soft:  #271817; --ust-danger-text:  #FFA79E; --ust-danger-border:  #4E2A27;
+  --ust-info:    #8FBBF7; --ust-info-soft:    #141F2E; --ust-info-text:    #9CC4F8; --ust-info-border:    #23405E;
+
+  --ust-track: #2A2D35;
+  --ust-scroll-thumb: #3E434F;
+  --ust-scroll-thumb-hover: #545B6A;
+  --ust-focus: #8B88F7;
+  --ust-focus-halo: rgba(139, 136, 247, 0.34);
+
+  --ust-sh-1: 0 1px 2px rgba(0, 0, 0, 0.45);
+  --ust-sh-2: 0 2px 6px rgba(0, 0, 0, 0.5);
+  --ust-sh-3: 0 0 0 1px rgba(0, 0, 0, 0.55), 0 12px 28px -8px rgba(0, 0, 0, 0.7), 0 32px 64px -24px rgba(0, 0, 0, 0.65);
+  --ust-sh-pop: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 14px 30px -10px rgba(0, 0, 0, 0.7);
+  --ust-sh-inner: inset 0 1px 0 rgba(255, 255, 255, 0.055);
+}
+
+/* ---------------------------------------------------------------------------
+   0c · UNIVERSAL DESCENDANT RESET
+   Neutralises everything a hostile host stylesheet commonly hands down.
+   Deliberately NOT `!important` — component rules below are (0,2,0) and win.
+--------------------------------------------------------------------------- */
+.uscistr-root *,
+.uscistr-root *::before,
+.uscistr-root *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border: 0 solid transparent;
+  border-radius: 0;
+  background: none;
+  background-color: transparent;
+  font: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  font-style: normal;
+  font-variant: normal;
+  line-height: inherit;
+  color: inherit;
+  letter-spacing: normal;
+  word-spacing: normal;
+  text-align: inherit;
+  text-decoration: none;
+  text-indent: 0;
+  text-shadow: none;
+  text-transform: none;
+  white-space: normal;
+  vertical-align: baseline;
+  list-style: none;
+  float: none;
+  clear: none;
+  position: static;
+  inset: auto;
+  box-shadow: none;
+  outline: none;
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  filter: none;
+  animation: none;
+  transition: none;
+  mix-blend-mode: normal;
+  clip-path: none;
+  pointer-events: auto;
+  cursor: inherit;
+  -webkit-appearance: none;
+  appearance: none;
+  -webkit-tap-highlight-color: transparent;
+}
+/* Sizing is reset separately and MUST skip SVG subtrees: in SVG 2 `width` and
+   `height` are geometry properties, so a blanket `width: auto` would resolve to
+   0 and silently collapse every <rect> we draw. */
+.uscistr-root *:not(svg):not(svg *),
+.uscistr-root *::before,
+.uscistr-root *::after {
+  width: auto;
+  height: auto;
+  min-width: 0;
+  min-height: 0;
+  max-width: none;
+  max-height: none;
+}
+
+/* Host pages love to write `svg path { fill: #fff }`. Kill that, then re-arm
+   our own icons through a class so the (0,2,0) rules below always win — note
+   that CSS beats SVG presentation attributes, so icon paint MUST be declared
+   here and not as fill=/stroke= attributes. */
+.uscistr-root svg { display: block; overflow: visible; }
+.uscistr-root svg * { fill: none; stroke: none; }
+.uscistr-root .uscistr-ico {
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.uscistr-root .uscistr-ico * { fill: none; stroke: currentColor; }
+
+/* ---------------------------------------------------------------------------
+   0d · FOCUS. One ring, everywhere, keyboard-only.
+--------------------------------------------------------------------------- */
+.uscistr-root :focus { outline: none; }
+.uscistr-root .uscistr-focusable:focus-visible,
+.uscistr-root .uscistr-btn:focus-visible,
+.uscistr-root .uscistr-icon-btn:focus-visible,
+.uscistr-root .uscistr-input:focus-visible,
+.uscistr-root .uscistr-select:focus-visible,
+.uscistr-root .uscistr-switch:focus-visible,
+.uscistr-root .uscistr-pill:focus-visible,
+.uscistr-root .uscistr-raw-summary:focus-visible,
+.uscistr-root .uscistr-receipt:focus-visible,
+.uscistr-root .uscistr-link:focus-visible {
+  outline: 2px solid var(--ust-focus);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--ust-focus-halo);
+}
+/* forced-colors: let the OS draw everything */
+@media (forced-colors: active) {
+  .uscistr-root .uscistr-panel,
+  .uscistr-root .uscistr-pill,
+  .uscistr-root .uscistr-card,
+  .uscistr-root .uscistr-chip { border: 1px solid CanvasText; }
+  .uscistr-root .uscistr-btn:focus-visible,
+  .uscistr-root .uscistr-icon-btn:focus-visible { outline: 3px solid Highlight; }
+}
+
+/* ---------------------------------------------------------------------------
+   1 · LAUNCHER PILL
+   Anatomy: [mark 16] [label] [count chip] [change dot?]  ·  h 36 · r full
+--------------------------------------------------------------------------- */
+.uscistr-root .uscistr-pill {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ust-s3);
+  height: 36px;
+  padding: 0 var(--ust-s5) 0 var(--ust-s4);
+  border: 1px solid var(--ust-border-2);
+  border-radius: var(--ust-r-full);
+  background: var(--ust-bg-panel);
+  color: var(--ust-text-1);
+  font-family: var(--ust-font);
+  font-size: var(--ust-fs-title);
+  font-weight: 560;
+  line-height: 1;
+  letter-spacing: -0.005em;
+  box-shadow: var(--ust-sh-2), var(--ust-sh-inner);
+  cursor: pointer;
+  transition: transform var(--ust-d1) var(--ust-ease),
+              box-shadow var(--ust-d2) var(--ust-ease),
+              background-color var(--ust-d1) var(--ust-ease),
+              border-color var(--ust-d1) var(--ust-ease);
+}
+.uscistr-root .uscistr-pill:hover {
+  background: var(--ust-bg-panel);
+  border-color: var(--ust-border-field);
+  box-shadow: var(--ust-sh-3), var(--ust-sh-inner);
+  transform: translateY(-1px);
+}
+.uscistr-root .uscistr-pill:active { transform: translateY(0) scale(0.985); box-shadow: var(--ust-sh-1); }
+.uscistr-root .uscistr-pill-label { white-space: nowrap; }
+.uscistr-root .uscistr-pill-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--ust-r-full);
+  background: var(--ust-bg-inset);
+  color: var(--ust-text-2);
+  font-family: var(--ust-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.uscistr-root .uscistr-pill-dot {
+  position: relative;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--ust-r-full);
+  background: var(--ust-accent-solid);
+  flex: none;
+}
+.uscistr-root .uscistr-pill-dot::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: var(--ust-r-full);
+  border: 1px solid var(--ust-accent-solid);
+  opacity: 0;
+  animation: ust-ping 2.4s var(--ust-ease-out) infinite;
+}
+.uscistr-root .uscistr-pill-mark { width: 18px; height: 18px; flex: none; }
+
+/* ---------------------------------------------------------------------------
+   2 · PANEL SHELL
+--------------------------------------------------------------------------- */
+.uscistr-root .uscistr-panel {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  width: 400px;
+  max-width: calc(100vw - 24px);
+  max-height: 85vh;
+  border: 1px solid var(--ust-border-2);
+  border-radius: var(--ust-r-xl);
+  background: var(--ust-bg-panel);
+  color: var(--ust-text-1);
+  box-shadow: var(--ust-sh-3);
+  overflow: hidden;                /* clips the header/footer to the radius */
+  animation: ust-panel-in var(--ust-d4) var(--ust-ease-out) both;
+}
+.uscistr-root .uscistr-panel.uscistr-is-dragging {
+  box-shadow: var(--ust-sh-3), 0 0 0 1px var(--ust-accent-soft-border);
+  cursor: grabbing;
+  user-select: none;
+}
+
+/* — header ---------------------------------------------------------------- */
+.uscistr-root .uscistr-header {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  flex: none;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--ust-s4);
+  height: 46px;
+  padding: 0 var(--ust-s3) 0 var(--ust-s6);
+  background: var(--ust-bg-raised);
+  -webkit-backdrop-filter: blur(14px) saturate(180%);
+  backdrop-filter: blur(14px) saturate(180%);
+  box-shadow: inset 0 -1px 0 var(--ust-border-1);
+  cursor: grab;
+  user-select: none;
+}
+.uscistr-root .uscistr-header:active { cursor: grabbing; }
+.uscistr-root .uscistr-brand { display: flex; align-items: center; gap: var(--ust-s3); min-width: 0; }
+.uscistr-root .uscistr-mark {
+  width: 22px; height: 22px; flex: none;
+  border-radius: var(--ust-r-sm);
+  box-shadow: var(--ust-sh-1);
+}
+.uscistr-root .uscistr-titles { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.uscistr-root .uscistr-title {
+  font-size: var(--ust-fs-title);
+  line-height: var(--ust-lh-title);
+  font-weight: 600;
+  letter-spacing: -0.008em;
+  color: var(--ust-text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.uscistr-root .uscistr-subtitle {
+  font-size: 10.5px;
+  line-height: 1.2;
+  color: var(--ust-text-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.uscistr-root .uscistr-header-actions { display: flex; align-items: center; gap: var(--ust-s1); }
+
+/* — body ------------------------------------------------------------------ */
+.uscistr-root .uscistr-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;    /* never scroll-chains into the host page */
+  scrollbar-width: thin;
+  scrollbar-color: var(--ust-scroll-thumb) transparent;
+}
+.uscistr-root .uscistr-body::-webkit-scrollbar { width: 11px; height: 11px; }
+.uscistr-root .uscistr-body::-webkit-scrollbar-track { background: transparent; }
+.uscistr-root .uscistr-body::-webkit-scrollbar-thumb {
+  background-color: var(--ust-scroll-thumb);
+  border: 3px solid transparent;
+  background-clip: padding-box;
+  border-radius: var(--ust-r-full);
+}
+.uscistr-root .uscistr-body::-webkit-scrollbar-thumb:hover { background-color: var(--ust-scroll-thumb-hover); }
+
+/* — footer ---------------------------------------------------------------- */
+.uscistr-root .uscistr-footer {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ust-s4);
+  height: 34px;
+  padding: 0 var(--ust-s6);
+  background: var(--ust-bg-raised);
+  -webkit-backdrop-filter: blur(14px) saturate(180%);
+  backdrop-filter: blur(14px) saturate(180%);
+  box-shadow: inset 0 1px 0 var(--ust-border-1);
+  font-size: 10.5px;
+  line-height: 1.2;
+  color: var(--ust-text-3);
+  font-variant-numeric: tabular-nums;
+}
+.uscistr-root .uscistr-footer-left,
+.uscistr-root .uscistr-footer-right { display: flex; align-items: center; gap: var(--ust-s3); min-width: 0; }
+.uscistr-root .uscistr-footer-sep { color: var(--ust-border-2); }
+.uscistr-root .uscistr-footer svg { width: 12px; height: 12px; color: var(--ust-text-3); }
+
+/* ---------------------------------------------------------------------------
+   3 · BUTTONS
+--------------------------------------------------------------------------- */
+.uscistr-root .uscistr-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ust-s3);
+  height: 28px;
+  padding: 0 var(--ust-s5);
+  border: 1px solid transparent;
+  border-radius: var(--ust-r-md);
+  background: transparent;
+  color: var(--ust-text-2);
+  font-family: var(--ust-font);
+  font-size: 12px;
+  font-weight: 560;
+  line-height: 1;
+  letter-spacing: -0.003em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--ust-d1) var(--ust-ease),
+              color var(--ust-d1) var(--ust-ease),
+              border-color var(--ust-d1) var(--ust-ease),
+              box-shadow var(--ust-d1) var(--ust-ease),
+              transform var(--ust-d1) var(--ust-ease);
+}
+.uscistr-root .uscistr-btn svg { width: 14px; height: 14px; flex: none; }
+.uscistr-root .uscistr-btn:active { transform: translateY(0.5px); }
+.uscistr-root .uscistr-btn:disabled,
+.uscistr-root .uscistr-btn[aria-disabled="true"] {
+  opacity: 0.42;
+  cursor: not-allowed;
+  transform: none;
+  pointer-events: none;
+}
+.uscistr-root .uscistr-btn-sm { height: 24px; padding: 0 var(--ust-s4); font-size: 11.5px; border-radius: var(--ust-r-sm); }
+.uscistr-root .uscistr-btn-sm svg { width: 12px; height: 12px; }
+.uscistr-root .uscistr-btn-block { width: 100%; }
+
+/* primary */
+.uscistr-root .uscistr-btn-primary {
+  background: var(--ust-accent-solid);
+  border-color: transparent;
+  color: var(--ust-accent-on);
+  box-shadow: var(--ust-sh-1);
+  font-weight: 600;
+}
+.uscistr-root .uscistr-btn-primary:hover { background: var(--ust-accent-solid-hover); box-shadow: var(--ust-sh-2); }
+.uscistr-root .uscistr-btn-primary:active { background: var(--ust-accent-solid-active); box-shadow: none; }
+
+/* outline (default secondary) */
+.uscistr-root .uscistr-btn-outline {
+  background: var(--ust-bg-panel);
+  border-color: var(--ust-border-2);
+  color: var(--ust-text-1);
+  box-shadow: var(--ust-sh-1);
+}
+.uscistr-root .uscistr-btn-outline:hover { background: var(--ust-bg-sunken); border-color: var(--ust-border-field); }
+.uscistr-root .uscistr-btn-outline:active { background: var(--ust-bg-inset); box-shadow: none; }
+
+/* ghost */
+.uscistr-root .uscistr-btn-ghost { background: transparent; border-color: transparent; color: var(--ust-text-2); }
+.uscistr-root .uscistr-btn-ghost:hover { background: var(--ust-bg-hover); color: var(--ust-text-1); }
+.uscistr-root .uscistr-btn-ghost:active { background: var(--ust-bg-active); }
+
+/* danger — soft at rest, solid on commit */
+.uscistr-root .uscistr-btn-danger {
+  background: transparent;
+  border-color: transparent;
+  color: var(--ust-danger-text);
+}
+.uscistr-root .uscistr-btn-danger:hover { background: var(--ust-danger-soft); border-color: var(--ust-danger-border); }
+.uscistr-root .uscistr-btn-danger:active { background: var(--ust-danger); border-color: transparent; color: #FFFFFF; }
+.uscistr-root.uscistr-dark .uscistr-btn-danger:active { color: #1A0F0E; }
+.uscistr-root .uscistr-btn-danger-solid { background: var(--ust-danger); border-color: transparent; color: #FFFFFF; }
+.uscistr-root.uscistr-dark .uscistr-btn-danger-solid { color: #1A0F0E; font-weight: 600; }
+
+/* icon */
+.uscistr-root .uscistr-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid transparent;
+  border-radius: var(--ust-r-md);
+  background: transparent;
+  color: var(--ust-text-3);
+  cursor: pointer;
+  transition: background-color var(--ust-d1) var(--ust-ease), color var(--ust-d1) var(--ust-ease);
+}
+.uscistr-root .uscistr-icon-btn svg { width: 15px; height: 15px; }
+.uscistr-root .uscistr-icon-btn:hover { background: var(--ust-bg-hover); color: var(--ust-text-1); }
+.uscistr-root .uscistr-icon-btn:active { background: var(--ust-bg-active); }
+.uscistr-root .uscistr-icon-btn.uscistr-is-on { background: var(--ust-accent-soft); color: var(--ust-accent-soft-text); }
+.uscistr-root .uscistr-icon-btn:disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
+.uscistr-root .uscistr-icon-btn.uscistr-is-busy svg { animation: ust-spin 900ms linear infinite; }
+
+/* ---------------------------------------------------------------------------
+   4 · INPUTS · SELECT · SWITCH
+--------------------------------------------------------------------------- */
+.uscistr-root .uscistr-input,
+.uscistr-root .uscistr-select {
+  display: block;
+  width: 100%;
+  height: 30px;
+  padding: 0 var(--ust-s4);
+  border: 1px solid var(--ust-border-field);
+  border-radius: var(--ust-r-md);
+  background: var(--ust-bg-panel);
+  color: var(--ust-text-1);
+  font-family: var(--ust-font);
+  font-size: 12.5px;
+  line-height: 28px;
+  transition: border-color var(--ust-d1) var(--ust-ease), box-shadow var(--ust-d1) var(--ust-ease), background-color var(--ust-d1) var(--ust-ease);
+}
+.uscistr-root .uscistr-input::placeholder { color: var(--ust-text-3); opacity: 1; }
+.uscistr-root .uscistr-input:hover,
+.uscistr-root .uscistr-select:hover { border-color: var(--ust-text-3); }
+.uscistr-root .uscistr-input:focus-visible,
+.uscistr-root .uscistr-select:focus-visible { border-color: var(--ust-accent); outline-offset: 1px; }
+.uscistr-root .uscistr-input:disabled { background: var(--ust-bg-inset); color: var(--ust-text-3); cursor: not-allowed; }
+.uscistr-root .uscistr-input.uscistr-is-invalid { border-color: var(--ust-danger); }
+.uscistr-root .uscistr-input.uscistr-mono { font-family: var(--ust-mono); font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; }
+.uscistr-root .uscistr-select {
+  padding-right: 26px;
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: calc(100% - 14px) 13px, calc(100% - 9px) 13px;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+.uscistr-root .uscistr-field { display: flex; flex-direction: column; gap: var(--ust-s2); min-width: 0; }
+.uscistr-root .uscistr-field-hint { font-size: var(--ust-fs-micro); line-height: 1.4; color: var(--ust-text-3); }
+.uscistr-root .uscistr-field-error { font-size: var(--ust-fs-micro); line-height: 1.4; color: var(--ust-danger-text); }
+
+.uscistr-root .uscistr-add-form {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr auto;
+  gap: var(--ust-s3);
+  align-items: center;
+  padding: var(--ust-s5) var(--ust-s6);
+  background: var(--ust-bg-sunken);
+  box-shadow: inset 0 -1px 0 var(--ust-border-1);
+}
+
+.uscistr-root .uscistr-switch {
+  position: relative;
+  flex: none;
+  width: 32px;
+  height: 19px;
+  border: 1px solid var(--ust-border-field);
+  border-radius: var(--ust-r-full);
+  background: var(--ust-bg-inset);
+  cursor: pointer;
+  transition: background-color var(--ust-d2) var(--ust-ease), border-color var(--ust-d2) var(--ust-ease);
+}
+.uscistr-root .uscistr-switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 13px;
+  height: 13px;
+  border-radius: var(--ust-r-full);
+  background: var(--ust-bg-panel);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.35);
+  transition: transform var(--ust-d2) var(--ust-ease-spring);
+}
+.uscistr-root .uscistr-switch[aria-checked="true"] { background: var(--ust-accent-solid); border-color: var(--ust-accent-solid); }
+.uscistr-root .uscistr-switch[aria-checked="true"]::after { transform: translateX(13px); background: #FFFFFF; }
+.uscistr-root .uscistr-switch:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ---------------------------------------------------------------------------
+   5 · CHIPS / BADGES
+   Rule: accent = interaction, semantic hues = state. Never mixed.
+--------------------------------------------------------------------------- */
+.uscistr-root .uscistr-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ust-s2);
+  height: 20px;
+  padding: 0 var(--ust-s3);
+  border: 1px solid transparent;
+  border-radius: var(--ust-r-sm);
+  background: var(--ust-bg-inset);
+  color: var(--ust-text-2);
+  font-size: var(--ust-fs-micro);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.005em;
+  white-space: nowrap;
+  flex: none;
+}
+.uscistr-root .uscistr-chip svg { width: 11px; height: 11px; }
+.uscistr-root .uscistr-chip-dot { width: 6px; height: 6px; border-radius: var(--ust-r-full); background: currentColor; flex: none; }
+.uscistr-root .uscistr-chip-success { background: var(--ust-success-soft); border-color: var(--ust-success-border); color: var(--ust-success-text); }
+.uscistr-root .uscistr-chip-warn    { background: var(--ust-warn-soft);    border-color: var(--ust-warn-border);    color: var(--ust-warn-text); }
+.uscistr-root .uscistr-chip-danger  { background: var(--ust-danger-soft);  border-color: var(--ust-danger-border);  color: var(--ust-danger-text); }
+.uscistr-root .uscistr-chip-info    { background: var(--ust-info-soft);    border-color: var(--ust-info-border);    color: var(--ust-info-text); }
+.uscistr-root .uscistr-chip-accent  { background: var(--ust-accent-soft);  border-color: var(--ust-accent-soft-border); color: var(--ust-accent-soft-text); }
+.uscistr-root .uscistr-chip-neutral { background: var(--ust-bg-inset); border-color: var(--ust-border-1); color: var(--ust-text-2); }
+.uscistr-root .uscistr-chip-quiet   { background: transparent; border-color: var(--ust-border-2); color: var(--ust-text-3); }
+
+/* form-type chip — mono, the one place a code is the headline */
+.uscistr-root .uscistr-chip-form {
+  font-family: var(--ust-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  background: var(--ust-bg-inset);
+  border-color: var(--ust-border-1);
+  color: var(--ust-text-1);
+}
+/* event-code chip — smaller, quieter, always shown next to any decoded label */
+.uscistr-root .uscistr-code {
+  display: inline-flex;
+  align-items: center;
+  height: 16px;
+  padding: 0 var(--ust-s2);
+  border: 1px solid var(--ust-border-1);
+  border-radius: var(--ust-r-xs);
+  background: var(--ust-bg-inset);
+  color: var(--ust-text-3);
+  font-family: var(--ust-mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  flex: none;
+}
+.uscistr-root .uscistr-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 var(--ust-s2);
+  border-radius: var(--ust-r-full);
+  background: var(--ust-accent-solid);
+  color: var(--ust-accent-on);
+  font-family: var(--ust-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+/* ---------------------------------------------------------------------------
+   6 · BANNER
+--------------------------------------------------------------------------- */
+.uscistr-root .uscistr-banner {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: start;
+  gap: var(--ust-s4);
+  margin: var(--ust-s5) var(--ust-s6) 0;
+  padding: var(--ust-s5);
+  border: 1px solid var(--ust-warn-border);
+  border-radius: var(--ust-r-lg);
+  background: var(--ust-warn-soft);
+  color: var(--ust-warn-text);
+}
+.uscistr-root .uscistr-banner svg { width: 15px; height: 15px; margin-top: 1px; flex: none; }
+.uscistr-root .uscistr-banner-body { display: flex; flex-direction: column; gap: var(--ust-s2); min-width: 0; }
+.uscistr-root .uscistr-banner-title { font-size: 12px; font-weight: 600; line-height: 1.35; }
+.uscistr-root .uscistr-banner-text { font-size: var(--ust-fs-meta); line-height: 1.45; color: var(--ust-warn-text); opacity: 0.92; }
+.uscistr-root .uscistr-banner-actions { display: flex; align-items: center; gap: var(--ust-s2); }
+.uscistr-root .uscistr-banner-danger { border-color: var(--ust-danger-border); background: var(--ust-danger-soft); color: var(--ust-danger-text); }
+.uscistr-root .uscistr-banner-danger .uscistr-banner-text { color: var(--ust-danger-text); }
+.uscistr-root .uscistr-banner-info { border-color: var(--ust-info-border); background: var(--ust-info-soft); color: var(--ust-info-text); }
+.uscistr-root .uscistr-banner-info .uscistr-banner-text { color: var(--ust-info-text); }
+.uscistr-root .uscistr-banner .uscistr-btn-sm {
+  border-color: currentColor;
+  color: inherit;
+  background: transparent;
+  box-shadow: none;
+  opacity: 0.95;
+}
+.uscistr-root .uscistr-banner .uscistr-btn-sm:hover { background: rgba(0, 0, 0, 0.06); }
+.uscistr-root.uscistr-dark .uscistr-banner .uscistr-btn-sm:hover { background: rgba(255, 255, 255, 0.08); }
+
+/* ---------------------------------------------------------------------------
+   7 · CASE LIST + CARD
+--------------------------------------------------------------------------- */
+.uscistr-root .uscistr-case-list { display: block; }
+.uscistr-root .uscistr-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ust-s5);
+  padding: var(--ust-s6) var(--ust-s6) var(--ust-s6) var(--ust-s6);
+  box-shadow: inset 0 -1px 0 var(--ust-border-1);
+  transition: background-color var(--ust-d2) var(--ust-ease);
+}
+.uscistr-root .uscistr-card:last-child { box-shadow: none; }
+.uscistr-root .uscistr-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: var(--ust-s6);
+  bottom: var(--ust-s6);
+  width: 2px;
+  border-radius: 0 var(--ust-r-full) var(--ust-r-full) 0;
+  background: transparent;
+  transition: background-color var(--ust-d2) var(--ust-ease);
+}
+.uscistr-root .uscistr-card.uscistr-is-changed { background: var(--ust-tint-accent); }
+.uscistr-root .uscistr-card.uscistr-is-changed::before { background: var(--ust-accent-solid); }
+.uscistr-root .uscistr-card.uscistr-is-attention::before { background: var(--ust-warn); }
+.uscistr-root .uscistr-card.uscistr-is-error::before { background: var(--ust-danger); }
+.uscistr-root .uscistr-card.uscistr-is-closed .uscistr-card-label { color: var(--ust-text-2); }
+
+/* — card header ----------------------------------------------------------- */
+.uscistr-root .uscistr-card-header {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: start;
+  gap: var(--ust-s4);
+}
+.uscistr-root .uscistr-card-title { display: flex; flex-direction: column; gap: var(--ust-s2); min-width: 0; }
+.uscistr-root .uscistr-card-eyebrow { display: flex; align-items: center; gap: var(--ust-s3); min-width: 0; }
+.uscistr-root .uscistr-card-label {
+  font-size: var(--ust-fs-heading);
+  line-height: var(--ust-lh-heading);
+  font-weight: 600;
+  letter-spacing: -0.008em;
+  color: var(--ust-text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.uscistr-root .uscistr-card-actions { display: flex; align-items: center; gap: var(--ust-s1); flex: none; }
+
+/* — receipt number -------------------------------------------------------- */
+.uscistr-root .uscistr-receipt {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ust-s3);
+  align-self: flex-start;
+  max-width: 100%;
+  height: 22px;
+  margin-left: -4px;
+  padding: 0 var(--ust-s2);
+  border: 1px solid transparent;
+  border-radius: var(--ust-r-sm);
+  background: transparent;
+  color: var(--ust-text-2);
+  font-family: var(--ust-mono);
+  font-size: var(--ust-fs-mono);
+  font-weight: 500;
+  letter-spacing: 0.035em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color var(--ust-d1) var(--ust-ease), color var(--ust-d1) var(--ust-ease), border-color var(--ust-d1) var(--ust-ease);
+}
+.uscistr-root .uscistr-receipt svg { width: 12px; height: 12px; opacity: 0; transition: opacity var(--ust-d1) var(--ust-ease); }
+.uscistr-root .uscistr-receipt:hover { background: var(--ust-bg-inset); border-color: var(--ust-border-1); color: var(--ust-text-1); }
+.uscistr-root .uscistr-receipt:hover svg { opacity: 1; }
+.uscistr-root .uscistr-receipt.uscistr-is-redacted { letter-spacing: 0.08em; }
+
+/* — card footer: the three per-case actions ------------------------------- */
+.uscistr-root .uscistr-card-footer {
+  display: flex;
+  align-items: center;
+  gap: var(--ust-s2);
+  flex-wrap: wrap;
+  padding-top: var(--ust-s1);
+}
+.uscistr-root .uscistr-card-footer .uscistr-btn-danger { margin-left: auto; }
+
+/* ---------------------------------------------------------------------------
+   8 · STATUS BLOCK
+--------------------------------------------------------------------------- */
+.uscistr-root .uscistr-status-block { display: flex; flex-direction: column; gap: var(--ust-s3); }
+.uscistr-root .uscistr-status-row { display: flex; align-items: center; gap: var(--ust-s3); flex-wrap: wrap; }
+.uscistr-root .uscistr-status-text {
+  font-size: 13px;
+  line-height: 1.4;
+  font-weight: 600;
+  letter-spacing: -0.006em;
+  color: var(--ust-text-1);
+  text-wrap: balance;
+}
+.uscistr-root .uscistr-status-desc {
+  font-size: var(--ust-fs-body);
+  line-height: var(--ust-lh-body);
+  color: var(--ust-text-2);
+}
+.uscistr-root .uscistr-status-desc.uscistr-is-clamped {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.uscistr-root .uscistr-more {
+  align-self: flex-start;
+  border: 0;
+  background: none;
+  color: var(--ust-accent);
+  font-size: var(--ust-fs-meta);
+  font-weight: 560;
+  line-height: 1.2;
+  cursor: pointer;
+  border-radius: var(--ust-r-xs);
+}
+.uscistr-root .uscistr-more:hover { text-decoration: underline; text-underline-offset: 2px; }
+
+/* — change notice --------------------------------------------------------- */
+.uscistr-root .uscistr-change {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--ust-s3);
+  padding: var(--ust-s3) var(--ust-s4);
+  border: 1px solid var(--ust-accent-soft-border);
+  border-radius: var(--ust-r-md);
+  background: var(--ust-accent-soft);
+  color: var(--ust-accent-soft-text);
+  font-size: var(--ust-fs-meta);
+  line-height: 1.4;
+  font-weight: 500;
+}
+.uscistr-root .uscistr-change svg { width: 13px; height: 13px; flex: none; }
+.uscistr-root .uscistr-change b { font-weight: 650; }
+
+/* ---------------------------------------------------------------------------
+   9 · FIELD GRID (dates, service center)
+--------------------------------------------------------------------------- */
+.uscistr-root .uscistr-fields {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: var(--ust-s6);
+  row-gap: var(--ust-s3);
+  align-items: baseline;
+}
+.uscistr-root .uscistr-field-label {
+  font-size: var(--ust-fs-meta);
+  line-height: var(--ust-lh-meta);
+  font-weight: 500;
+  color: var(--ust-text-3);
+  white-space: nowrap;
+}
+.uscistr-root .uscistr-field-value {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--ust-s3);
+  font-size: var(--ust-fs-meta);
+  line-height: var(--ust-lh-meta);
+  color: var(--ust-text-1);
+  font-variant-numeric: tabular-nums;
+  min-width: 0;
+}
+.uscistr-root .uscistr-field-value.uscistr-is-empty { color: var(--ust-text-3); }
+.uscistr-root .uscistr-rel { color: var(--ust-text-3); }
+
+/* ---------------------------------------------------------------------------
+   10 · ELAPSED / PROGRESS
+--------------------------------------------------------------------------- */
+.uscistr-root .uscistr-progress { display: flex; flex-direction: column; gap: var(--ust-s3); }
+.uscistr-root .uscistr-progress-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--ust-s4);
+  font-size: var(--ust-fs-meta);
+  line-height: 1.3;
+}
+.uscistr-root .uscistr-progress-head b { font-weight: 600; color: var(--ust-text-1); }
+.uscistr-root .uscistr-progress-track {
+  position: relative;
+  height: 6px;
+  border-radius: var(--ust-r-full);
+  background: var(--ust-track);
+  overflow: hidden;
+}
+.uscistr-root .uscistr-progress-fill {
+  height: 100%;
+  border-radius: var(--ust-r-full);
+  background: var(--ust-accent-solid);
+  transition: width var(--ust-d4) var(--ust-ease-out);
+}
+.uscistr-root .uscistr-progress-fill.uscistr-is-success { background: var(--ust-success); }
+.uscistr-root .uscistr-progress-fill.uscistr-is-unknown {
+  background: repeating-linear-gradient(115deg,
+    var(--ust-accent-solid) 0 8px,
+    color-mix(in srgb, var(--ust-accent-solid) 55%, transparent) 8px 16px);
+  background-size: 200% 100%;
+  animation: ust-drift 1.6s linear infinite;
+}
+.uscistr-root .uscistr-progress-label { font-size: var(--ust-fs-micro); line-height: 1.4; color: var(--ust-text-3); }
+
+/* ---------------------------------------------------------------------------
+   11 · SECTION HEADS + NOTES
+--------------------------------------------------------------------------- */
+.uscistr-root .uscistr-section { display: flex; flex-direction: column; gap: var(--ust-s4); }
+.uscistr-root .uscistr-section-title {
+  display: flex;
+  align-items: center;
+  gap: var(--ust-s3);
+  font-size: var(--ust-fs-label);
+  line-height: var(--ust-lh-label);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.075em;
+  color: var(--ust-text-3);
+}
+.uscistr-root .uscistr-section-title::after {
+  content: "";
+  flex: 1 1 auto;
+  height: 1px;
+  background: var(--ust-border-1);
+}
+.uscistr-root .uscistr-note {
+  padding: var(--ust-s4) var(--ust-s5);
+  border: 1px dashed var(--ust-border-2);
+  border-radius: var(--ust-r-md);
+  background: var(--ust-bg-sunken);
+  color: var(--ust-text-3);
+  font-size: var(--ust-fs-meta);
+  line-height: 1.5;
+}
+
+/* ---------------------------------------------------------------------------
+   12 · TIMELINE
+--------------------------------------------------------------------------- */
+.uscistr-root .uscistr-timeline { position: relative; display: flex; flex-direction: column; padding-left: 14px; }
+.uscistr-root .uscistr-timeline::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 10px;
+  bottom: 10px;
+  width: 1px;
+  background: var(--ust-border-2);
+}
+.uscistr-root .uscistr-timeline-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  column-gap: var(--ust-s4);
+  padding: var(--ust-s3) 0;
+}
+.uscistr-root .uscistr-timeline-row::before {
+  content: "";
+  position: absolute;
+  left: -14px;
+  top: 11px;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--ust-r-full);
+  background: var(--ust-border-field);
+  box-shadow: 0 0 0 3px var(--ust-bg-panel);
+}
+.uscistr-root .uscistr-card.uscistr-is-changed .uscistr-timeline-row::before { box-shadow: none; }
+.uscistr-root .uscistr-timeline-row.uscistr-is-current::before {
+  background: var(--ust-accent-solid);
+  box-shadow: 0 0 0 3px var(--ust-bg-panel), 0 0 0 5px var(--ust-accent-soft);
+}
+.uscistr-root .uscistr-timeline-row.uscistr-is-good::before { background: var(--ust-success); }
+.uscistr-root .uscistr-timeline-date {
+  font-family: var(--ust-mono);
+  font-size: 10.5px;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  color: var(--ust-text-3);
+  white-space: nowrap;
+  padding-top: 1px;
+}
+.uscistr-root .uscistr-timeline-body { display: flex; flex-direction: column; gap: var(--ust-s2); min-width: 0; }
+.uscistr-root .uscistr-timeline-text {
+  font-size: var(--ust-fs-meta);
+  line-height: 1.5;
+  color: var(--ust-text-1);
+}
+.uscistr-root .uscistr-timeline-row.uscistr-is-current .uscistr-timeline-text { font-weight: 560; }
+.uscistr-root .uscistr-timeline-meta { display: flex; align-items: center; gap: var(--ust-s3); flex-wrap: wrap; }
+.uscistr-root .uscistr-timeline-guess {
+  font-size: var(--ust-fs-micro);
+  line-height: 1.4;
+  color: var(--ust-text-3);
+}
+.uscistr-root .uscistr-timeline-guess::after {
+  content: "unofficial";
+  display: inline-block;
+  margin-left: var(--ust-s3);
+  padding: 0 4px;
+  border: 1px solid var(--ust-border-1);
+  border-radius: var(--ust-r-xs);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ust-text-3);
+  vertical-align: 1px;
+}
+
+/* ---------------------------------------------------------------------------
+   13 · DOCUMENTS
+--------------------------------------------------------------------------- */
+.uscistr-root .uscistr-documents { display: flex; flex-direction: column; gap: var(--ust-s1); }
+.uscistr-root .uscistr-doc-row {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--ust-s4);
+  padding: var(--ust-s3) var(--ust-s4);
+  margin: 0 calc(var(--ust-s4) * -1);
+  border-radius: var(--ust-r-md);
+  transition: background-color var(--ust-d1) var(--ust-ease);
+}
+.uscistr-root .uscistr-doc-row:hover { background: var(--ust-bg-hover); }
+.uscistr-root .uscistr-doc-row svg { width: 14px; height: 14px; color: var(--ust-text-3); }
+.uscistr-root .uscistr-doc-name {
+  font-family: var(--ust-mono);
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--ust-text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: ltr;
+}
+.uscistr-root .uscistr-doc-date {
+  font-size: var(--ust-fs-micro);
+  line-height: 1.4;
+  color: var(--ust-text-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------------------
+   14 · COLLAPSIBLE / RAW JSON
+--------------------------------------------------------------------------- */
+.uscistr-root .uscistr-raw-wrap { display: flex; flex-direction: column; gap: var(--ust-s3); }
+.uscistr-root .uscistr-raw-summary {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--ust-s3);
+  width: calc(100% + var(--ust-s4) * 2);
+  height: 26px;
+  padding: 0 var(--ust-s4);
+  margin: 0 calc(var(--ust-s4) * -1);
+  border-radius: var(--ust-r-sm);
+  background: transparent;
+  color: var(--ust-text-3);
+  font-family: var(--ust-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: background-color var(--ust-d1) var(--ust-ease), color var(--ust-d1) var(--ust-ease);
+}
+.uscistr-root .uscistr-raw-summary:hover { background: var(--ust-bg-hover); color: var(--ust-text-1); }
+.uscistr-root .uscistr-raw-summary svg {
+  width: 12px;
+  height: 12px;
+  transition: transform var(--ust-d2) var(--ust-ease);
+}
+.uscistr-root .uscistr-raw-summary[aria-expanded="true"] svg { transform: rotate(90deg); }
+.uscistr-root .uscistr-raw-summary[aria-expanded="true"] { color: var(--ust-text-1); }
+.uscistr-root .uscistr-raw-path { text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.uscistr-root .uscistr-raw {
+  max-height: 200px;
+  padding: var(--ust-s5);
+  border: 1px solid var(--ust-border-1);
+  border-radius: var(--ust-r-md);
+  background: var(--ust-bg-inset);
+  color: var(--ust-text-2);
+  font-family: var(--ust-mono);
+  font-size: 10.5px;
+  line-height: 1.55;
+  white-space: pre;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ust-scroll-thumb) transparent;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.uscistr-root .uscistr-raw::-webkit-scrollbar { width: 10px; height: 10px; }
+.uscistr-root .uscistr-raw::-webkit-scrollbar-thumb {
+  background-color: var(--ust-scroll-thumb);
+  border: 3px solid transparent;
+  background-clip: padding-box;
+  border-radius: var(--ust-r-full);
+}
+.uscistr-root .uscistr-raw[hidden] { display: none; }
+
+/* ---------------------------------------------------------------------------
+   15 · EMPTY STATE
+--------------------------------------------------------------------------- */
+.uscistr-root .uscistr-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--ust-s4);
+  padding: var(--ust-s10) var(--ust-s8);
+}
+.uscistr-root .uscistr-empty-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--ust-r-full);
+  background: var(--ust-bg-inset);
+  color: var(--ust-text-3);
+  margin-bottom: var(--ust-s1);
+}
+.uscistr-root .uscistr-empty-icon svg { width: 18px; height: 18px; }
+.uscistr-root .uscistr-empty-title { font-size: 13px; line-height: 1.35; font-weight: 600; color: var(--ust-text-1); }
+.uscistr-root .uscistr-empty-text { font-size: var(--ust-fs-body); line-height: 1.55; color: var(--ust-text-3); max-width: 30ch; }
+.uscistr-root .uscistr-empty .uscistr-btn { margin-top: var(--ust-s2); }
+
+/* ---------------------------------------------------------------------------
+   16 · POPOVER (settings)
+--------------------------------------------------------------------------- */
+.uscistr-root .uscistr-popover {
+  position: absolute;
+  top: 42px;
+  right: var(--ust-s5);
+  z-index: 6;
+  width: 262px;
+  padding: var(--ust-s3);
+  border: 1px solid var(--ust-border-2);
+  border-radius: var(--ust-r-lg);
+  background: var(--ust-bg-raised-solid);
+  box-shadow: var(--ust-sh-pop), var(--ust-sh-inner);
+  animation: ust-pop-in var(--ust-d3) var(--ust-ease-out) both;
+  transform-origin: top right;
+}
+.uscistr-root .uscistr-popover-head {
+  padding: var(--ust-s2) var(--ust-s4) var(--ust-s4);
+  font-size: var(--ust-fs-label);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.075em;
+  color: var(--ust-text-3);
+}
+.uscistr-root .uscistr-popover-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--ust-s5);
+  padding: var(--ust-s4);
+  border-radius: var(--ust-r-md);
+  transition: background-color var(--ust-d1) var(--ust-ease);
+}
+.uscistr-root .uscistr-popover-row:hover { background: var(--ust-bg-hover); }
+.uscistr-root .uscistr-popover-label { font-size: 12.5px; line-height: 1.3; font-weight: 500; color: var(--ust-text-1); }
+.uscistr-root .uscistr-popover-desc { font-size: var(--ust-fs-micro); line-height: 1.4; color: var(--ust-text-3); margin-top: 2px; }
+.uscistr-root .uscistr-popover-sep { height: 1px; margin: var(--ust-s2) var(--ust-s4); background: var(--ust-border-1); }
+.uscistr-root .uscistr-popover .uscistr-select { width: 104px; height: 26px; line-height: 24px; font-size: 11.5px; }
+
+/* ---------------------------------------------------------------------------
+   17 · UTILITIES
+--------------------------------------------------------------------------- */
+.uscistr-root .uscistr-mono { font-family: var(--ust-mono); font-variant-numeric: tabular-nums; }
+.uscistr-root .uscistr-muted { color: var(--ust-text-3); }
+.uscistr-root .uscistr-small { font-size: var(--ust-fs-meta); line-height: var(--ust-lh-meta); }
+.uscistr-root .uscistr-truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.uscistr-root .uscistr-error { color: var(--ust-danger-text); font-size: var(--ust-fs-meta); line-height: 1.45; }
+.uscistr-root .uscistr-link { color: var(--ust-accent); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; border-radius: var(--ust-r-xs); }
+.uscistr-root .uscistr-sr {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+.uscistr-root .uscistr-skeleton {
+  border-radius: var(--ust-r-xs);
+  background: linear-gradient(90deg, var(--ust-bg-inset) 25%, var(--ust-bg-hover) 37%, var(--ust-bg-inset) 63%);
+  background-size: 400% 100%;
+  animation: ust-shimmer 1.4s ease-in-out infinite;
+  color: transparent;
+}
+.uscistr-root .uscistr-hidden-file { display: none; }
+
+/* ---------------------------------------------------------------------------
+   18 · LEGACY ALIASES
+   The class names the current core file emits, mapped onto the new system so
+   this sheet is drop-in and the markup can be migrated incrementally. Delete
+   this block once §5.3 of the spec is fully adopted.
+--------------------------------------------------------------------------- */
+.uscistr-root .uscistr-btn-small { height: 24px; padding: 0 var(--ust-s4); font-size: 11.5px; border-radius: var(--ust-r-sm); }
+.uscistr-root .uscistr-btn-small svg { width: 12px; height: 12px; }
+.uscistr-root .uscistr-card-number {
+  font-family: var(--ust-mono);
+  font-size: var(--ust-fs-mono);
+  letter-spacing: 0.035em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ust-text-2);
+}
+.uscistr-root .uscistr-tag {
+  display: inline-flex;
+  align-items: center;
+  height: 16px;
+  padding: 0 var(--ust-s2);
+  border: 1px solid var(--ust-border-1);
+  border-radius: var(--ust-r-xs);
+  background: var(--ust-bg-inset);
+  color: var(--ust-text-3);
+  font-family: var(--ust-mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  flex: none;
+}
+.uscistr-root .uscistr-tag-uscis { background: var(--ust-accent-soft); border-color: var(--ust-accent-soft-border); color: var(--ust-accent-soft-text); }
+.uscistr-root .uscistr-tag-detected { background: var(--ust-warn-soft); border-color: var(--ust-warn-border); color: var(--ust-warn-text); }
+.uscistr-root .uscistr-badge-btn { border: 0; cursor: pointer; }
+.uscistr-root .uscistr-checkbox-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--ust-s5);
+  padding: var(--ust-s4);
+  border-radius: var(--ust-r-md);
+  font-size: 12.5px;
+}
+.uscistr-root .uscistr-checkbox-row:hover { background: var(--ust-bg-hover); }
+.uscistr-root .uscistr-version { font-size: 10.5px; color: var(--ust-text-3); font-variant-numeric: tabular-nums; }
+
+/* ---------------------------------------------------------------------------
+   19 · MOTION
+--------------------------------------------------------------------------- */
+@keyframes ust-panel-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.985); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes ust-pop-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.97); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes ust-spin { to { transform: rotate(360deg); } }
+@keyframes ust-ping {
+  0%   { opacity: 0.7; transform: scale(0.8); }
+  70%  { opacity: 0;   transform: scale(1.9); }
+  100% { opacity: 0;   transform: scale(1.9); }
+}
+@keyframes ust-shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
+@keyframes ust-drift { to { background-position: -200% 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .uscistr-root,
+  .uscistr-root *,
+  .uscistr-root *::before,
+  .uscistr-root *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+  .uscistr-root .uscistr-pill:hover { transform: none; }
+  .uscistr-root .uscistr-btn:active { transform: none; }
+}
+</style>
+
+<!-- =========================================================================
+     MOCKUP-ONLY CHROME — not part of the deliverable stylesheet.
+     Namespaced `mk-` so it can never collide with `uscistr-`.
+     ====================================================================== -->
+<style id="mk-style">
+:root {
+  --mk-bg: #F4F5F7;
+  --mk-panel: #FFFFFF;
+  --mk-text: #14161B;
+  --mk-text-2: #5A6270;
+  --mk-line: #E1E4E9;
+  --mk-accent: #4F46E5;
+  --mk-code-bg: #F1F2F5;
+  --mk-font: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, Roboto, Helvetica, Arial, sans-serif;
+  --mk-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+html[data-theme="dark"] {
+  --mk-bg: #0F1013;
+  --mk-panel: #17181C;
+  --mk-text: #ECEDF1;
+  --mk-text-2: #9AA0AD;
+  --mk-line: #262931;
+  --mk-accent: #A5A2FA;
+  --mk-code-bg: #1E2026;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--mk-bg);
+  color: var(--mk-text);
+  font-family: var(--mk-font);
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+.mk-wrap { max-width: 1400px; margin: 0 auto; padding: 40px 32px 96px; }
+
+/* — page header ------------------------------------------------------- */
+.mk-top { display: flex; align-items: flex-end; justify-content: space-between; gap: 32px; flex-wrap: wrap; margin-bottom: 8px; }
+.mk-kicker { font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--mk-accent); margin-bottom: 8px; }
+.mk-h1 { font-size: 30px; font-weight: 660; letter-spacing: -.02em; line-height: 1.15; margin: 0; }
+.mk-lede { color: var(--mk-text-2); font-size: 15px; max-width: 62ch; margin: 12px 0 0; }
+.mk-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.mk-seg { display: inline-flex; padding: 3px; border: 1px solid var(--mk-line); border-radius: 10px; background: var(--mk-panel); gap: 2px; }
+.mk-seg button {
+  appearance: none; border: 0; background: transparent; color: var(--mk-text-2);
+  font: inherit; font-size: 12.5px; font-weight: 550; padding: 5px 12px; border-radius: 7px; cursor: pointer;
+}
+.mk-seg button[aria-pressed="true"] { background: var(--mk-accent); color: #fff; }
+html[data-theme="dark"] .mk-seg button[aria-pressed="true"] { color: #14161B; }
+.mk-seg button:hover:not([aria-pressed="true"]) { color: var(--mk-text); }
+.mk-checks { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; font-size: 12.5px; color: var(--mk-text-2); }
+.mk-checks label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.mk-checks input { accent-color: var(--mk-accent); width: 14px; height: 14px; }
+
+/* — sections ---------------------------------------------------------- */
+.mk-section { margin-top: 64px; }
+.mk-section > h2 {
+  font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--mk-text-2); margin: 0 0 6px; display: flex; align-items: center; gap: 12px;
+}
+.mk-section > h2::after { content: ""; flex: 1; height: 1px; background: var(--mk-line); }
+.mk-section > p.mk-note { color: var(--mk-text-2); font-size: 13.5px; margin: 0 0 22px; max-width: 76ch; }
+
+/* — host page frames -------------------------------------------------- */
+.mk-frames { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+@media (max-width: 1080px) { .mk-frames { grid-template-columns: 1fr; } }
+.mk-frame {
+  position: relative;
+  height: 860px;
+  border: 1px solid var(--mk-line);
+  border-radius: 14px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(16,24,40,.06), 0 12px 28px -12px rgba(16,24,40,.18);
+}
+.mk-frame-tag {
+  position: absolute; z-index: 40; top: 12px; left: 12px;
+  font-family: var(--mk-mono); font-size: 10.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+  padding: 4px 8px; border-radius: 6px; background: rgba(16,24,40,.72); color: #fff; backdrop-filter: blur(6px);
+}
+
+/* faux my.uscis.gov — deliberately imitating the real thing's flavour */
+.mk-gov { font-family: "Source Sans Pro", "Source Sans 3", "Segoe UI", Tahoma, Verdana, sans-serif; height: 100%; background: #fff; color: #212121; overflow: hidden; }
+.mk-gov-band { background: #f0f0f0; border-bottom: 1px solid #dcdcdc; font-size: 11px; color: #5b616b; padding: 5px 20px; }
+.mk-gov-head { background: #0b4778; color: #fff; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; }
+.mk-gov-logo { font-size: 19px; font-weight: 700; letter-spacing: -.01em; }
+.mk-gov-logo span { font-weight: 300; }
+.mk-gov-nav { display: flex; gap: 20px; font-size: 13px; }
+.mk-gov-sub { background: #205493; color: #fff; padding: 9px 20px; display: flex; gap: 24px; font-size: 13.5px; }
+.mk-gov-body { padding: 26px 20px; }
+.mk-gov-body h1 { font-size: 27px; font-weight: 700; color: #212121; margin: 0 0 4px; }
+.mk-gov-body h2 { font-size: 17px; font-weight: 700; color: #0b4778; margin: 24px 0 8px; }
+.mk-gov-body p { font-size: 15px; line-height: 1.65; color: #323a45; margin: 0 0 12px; max-width: 60ch; }
+.mk-gov-card { border: 1px solid #d6d7d9; border-left: 4px solid #0b4778; padding: 14px 16px; margin: 12px 0; background: #fff; }
+.mk-gov-card b { display: block; font-size: 15px; color: #0b4778; }
+.mk-gov-card small { color: #5b616b; font-size: 13px; }
+.mk-gov-btn { display: inline-block; background: #0071bc; color: #fff; padding: 9px 18px; font-size: 14px; font-weight: 700; border-radius: 3px; margin-top: 6px; }
+.mk-gov-alert { background: #e7f4e4; border-left: 4px solid #2e8540; padding: 12px 16px; font-size: 14px; color: #212121; margin: 14px 0; }
+.mk-frame[data-dark="1"] .mk-gov { background: #14161a; color: #d8dbe0; }
+.mk-frame[data-dark="1"] .mk-gov-band { background: #1b1e23; border-bottom-color: #262a31; color: #8b919c; }
+.mk-frame[data-dark="1"] .mk-gov-body h1 { color: #e6e8ec; }
+.mk-frame[data-dark="1"] .mk-gov-body h2 { color: #6fa8dc; }
+.mk-frame[data-dark="1"] .mk-gov-body p { color: #a9aeb8; }
+.mk-frame[data-dark="1"] .mk-gov-card { background: #1a1d22; border-color: #2a2e36; border-left-color: #205493; }
+.mk-frame[data-dark="1"] .mk-gov-card b { color: #6fa8dc; }
+.mk-frame[data-dark="1"] .mk-gov-alert { background: #14251a; border-left-color: #2e8540; color: #b9c3ba; }
+
+/* the injected panel, re-anchored inside the frame for the mockup only */
+.mk-frame .uscistr-root { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+.mk-frame .uscistr-root .uscistr-panel {
+  position: absolute; top: 28px; right: 28px; bottom: auto; left: auto; max-height: 792px;
+}
+
+/* — galleries --------------------------------------------------------- */
+.mk-duo { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+@media (max-width: 900px) { .mk-duo { grid-template-columns: 1fr; } }
+.mk-cell {
+  position: relative; border: 1px solid var(--mk-line); border-radius: 12px; padding: 26px 22px 22px;
+  background: #FFFFFF; min-height: 90px;
+}
+.mk-cell[data-dark="1"] { background: #191A1F; border-color: #2A2D35; }
+.mk-cell::before {
+  content: attr(data-label); position: absolute; top: 8px; left: 12px;
+  font-family: var(--mk-mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: #98A0AE;
+}
+.mk-cell .uscistr-root { position: static; width: auto; height: auto; pointer-events: auto; }
+.mk-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.mk-stack { display: flex; flex-direction: column; gap: 14px; }
+.mk-sub { font-family: var(--mk-mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--mk-text-2); margin: 18px 0 8px; }
+.mk-sub:first-child { margin-top: 0; }
+
+/* — swatches ---------------------------------------------------------- */
+.mk-swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(188px, 1fr)); gap: 10px; }
+.mk-sw { border: 1px solid var(--mk-line); border-radius: 10px; overflow: hidden; background: var(--mk-panel); }
+.mk-sw-chip { height: 54px; display: flex; align-items: flex-end; padding: 8px 10px; font-size: 12px; font-weight: 600; }
+.mk-sw-meta { padding: 8px 10px; font-family: var(--mk-mono); font-size: 10.5px; line-height: 1.6; color: var(--mk-text-2); }
+.mk-sw-meta b { display: block; font-family: var(--mk-font); font-size: 11.5px; color: var(--mk-text); letter-spacing: .01em; }
+.mk-ratio { display: inline-block; margin-left: 6px; padding: 0 5px; border-radius: 4px; background: var(--mk-code-bg); font-size: 9.5px; }
+
+/* — type specimen ----------------------------------------------------- */
+.mk-type-row { display: grid; grid-template-columns: 220px 1fr; gap: 24px; padding: 16px 0; border-bottom: 1px solid var(--mk-line); align-items: baseline; }
+.mk-type-row:last-child { border-bottom: 0; }
+.mk-type-spec { font-family: var(--mk-mono); font-size: 11px; color: var(--mk-text-2); line-height: 1.7; }
+.mk-type-spec b { display: block; font-family: var(--mk-font); font-size: 12.5px; color: var(--mk-text); }
+
+/* — misc -------------------------------------------------------------- */
+.mk-grid3 { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+.mk-tile { border: 1px solid var(--mk-line); border-radius: 10px; padding: 16px; background: var(--mk-panel); }
+.mk-tile h4 { margin: 0 0 6px; font-size: 12.5px; font-weight: 640; }
+.mk-tile p { margin: 0; font-size: 12.5px; color: var(--mk-text-2); line-height: 1.55; }
+.mk-tile code { font-family: var(--mk-mono); font-size: 11px; background: var(--mk-code-bg); padding: 1px 5px; border-radius: 4px; }
+.mk-elev { height: 62px; border-radius: 12px; background: var(--mk-panel); border: 1px solid var(--mk-line); margin-bottom: 10px; }
+.mk-ease { height: 42px; border-radius: 8px; background: var(--mk-code-bg); position: relative; overflow: hidden; margin-bottom: 8px; }
+.mk-ease i { position: absolute; top: 11px; left: 6px; width: 20px; height: 20px; border-radius: 6px; background: var(--mk-accent); animation: mk-slide 2.4s infinite alternate; }
+@keyframes mk-slide { to { left: calc(100% - 26px); } }
+.mk-foot { margin-top: 72px; padding-top: 22px; border-top: 1px solid var(--mk-line); color: var(--mk-text-2); font-size: 12.5px; }
+</style>
+
+<!-- hostile-host-CSS demo, injected on demand -->
+<style id="mk-hostile"></style>
+</head>
+<body>
+<div class="mk-wrap">
+
+  <div class="mk-top">
+    <div>
+      <div class="mk-kicker">USCIS Case Tracker · Visual system</div>
+      <h1 class="mk-h1">Quiet Instrument</h1>
+      <p class="mk-lede">A floating panel that reads like a well-made desktop tool, not a browser hack and not a government form. Shown here injected over a facsimile of my.uscis.gov, in light and dark, with fabricated case data.</p>
+    </div>
+    <div class="mk-controls">
+      <div class="mk-seg" role="group" aria-label="Theme">
+        <button type="button" data-mode="split" aria-pressed="true">Side by side</button>
+        <button type="button" data-mode="light" aria-pressed="false">Light</button>
+        <button type="button" data-mode="dark" aria-pressed="false">Dark</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="mk-checks" style="margin-top:22px">
+    <label><input type="checkbox" id="mk-banner"> Session-expired banner</label>
+    <label><input type="checkbox" id="mk-popover"> Settings popover</label>
+    <label><input type="checkbox" id="mk-add"> Add-case form</label>
+    <label><input type="checkbox" id="mk-redact"> Redact receipt numbers</label>
+    <label><input type="checkbox" id="mk-raw"> Expand raw JSON</label>
+    <label><input type="checkbox" id="mk-hostile-toggle"> Inject hostile host CSS</label>
+  </div>
+
+  <!-- ================= PANELS IN SITU ================= -->
+  <section class="mk-section" style="margin-top:28px">
+    <h2>The panel, in place</h2>
+    <p class="mk-note">Three cases: an active I-485 with a full timeline and a change since last look, a closed I-765 that has been approved and the card mailed, and a sparse I-131 where the API returned almost nothing. Everything below the header scrolls; the header and footer do not.</p>
+    <div class="mk-frames" id="mk-frames"></div>
+  </section>
+
+  <!-- ================= COLOR ================= -->
+  <section class="mk-section">
+    <h2>Color — light</h2>
+    <p class="mk-note">Accent is indigo and is reserved for interaction and "you have something new". Status is carried only by the four semantic hues. The two vocabularies never trade places, which is what keeps a dense panel readable. Ratios are measured against the surface each token is specified to sit on.</p>
+    <div class="mk-swatches" id="mk-sw-light"></div>
+    <h2 style="margin-top:40px">Color — dark</h2>
+    <p class="mk-note">Dark is re-picked, not inverted: surfaces stay warm-neutral, borders lighten rather than darken, and every semantic hue is desaturated and lifted so nothing glows.</p>
+    <div class="mk-swatches" id="mk-sw-dark"></div>
+  </section>
+
+  <!-- ================= TYPE ================= -->
+  <section class="mk-section">
+    <h2>Type</h2>
+    <p class="mk-note">System stack only. Six roles plus a micro size for chips. Tabular numerals everywhere a date or a receipt number appears, so columns of dates line up without a table.</p>
+    <div class="mk-duo">
+      <div class="mk-cell" data-label="Light"><div class="uscistr-root" id="mk-type-light"></div></div>
+      <div class="mk-cell" data-dark="1" data-label="Dark"><div class="uscistr-root uscistr-dark" id="mk-type-dark"></div></div>
+    </div>
+    <div id="mk-type-specs"></div>
+  </section>
+
+  <!-- ================= COMPONENTS ================= -->
+  <section class="mk-section">
+    <h2>Components</h2>
+    <p class="mk-note">Every state is rendered, including <code style="font-family:var(--mk-mono);font-size:11px">:focus-visible</code>, which is forced on with a helper class so it can be judged on paper.</p>
+    <div id="mk-gallery"></div>
+  </section>
+
+  <!-- ================= ELEVATION / RADII / SPACE ================= -->
+  <section class="mk-section">
+    <h2>Elevation, radius, space</h2>
+    <div class="mk-grid3" id="mk-elev"></div>
+  </section>
+
+  <!-- ================= MOTION ================= -->
+  <section class="mk-section">
+    <h2>Motion</h2>
+    <div class="mk-grid3" id="mk-motion"></div>
+  </section>
+
+  <div class="mk-foot">
+    All receipt numbers, names, dates and JSON on this page are fabricated placeholders. Nothing here came from a real case.
+  </div>
+</div>
+
+<script>
+/* ==========================================================================
+   Mockup runtime. Everything is built with createElement / createElementNS
+   and textContent — the same discipline the injected script uses, so this
+   page doubles as a construction reference.
+   ======================================================================== */
+(function () {
+  'use strict';
+
+  var SVGNS = 'http://www.w3.org/2000/svg';
+
+  /* ---- tiny DOM helper (mirrors core's `el`) --------------------------- */
+  function h(tag, attrs, kids) {
+    var n = document.createElement(tag), k;
+    if (attrs) for (k in attrs) {
+      if (!attrs.hasOwnProperty(k)) continue;
+      var v = attrs[k];
+      if (v === null || v === undefined || v === false) continue;
+      if (k === 'class') n.className = v;
+      else if (k === 'text') n.textContent = v;
+      else if (k === 'html') n.appendChild(v);
+      else if (k.slice(0, 2) === 'on' && typeof v === 'function') n.addEventListener(k.slice(2).toLowerCase(), v);
+      else n.setAttribute(k, v === true ? '' : v);
+    }
+    if (kids) for (var i = 0; i < kids.length; i++) {
+      var c = kids[i];
+      if (c === null || c === undefined || c === false) continue;
+      n.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
+    }
+    return n;
+  }
+
+  /* ---- inline SVG icons ----------------------------------------------- */
+  var ICONS = {
+    refresh:  ['M19.6 12a7.6 7.6 0 1 1-2.3-5.4', 'M19.6 4v4.2h-4.2'],
+    settings: ['M3 7h9', 'M17 7h4', 'M3 17h5', 'M13 17h8'],
+    sliderA:  [],
+    chevronR: ['M9 5.5 15.5 12 9 18.5'],
+    chevronD: ['M6 9.5 12 15.5 18 9.5'],
+    minus:    ['M5 12h14'],
+    x:        ['M6.5 6.5l11 11', 'M17.5 6.5l-11 11'],
+    copy:     ['M15 4.5H7.5A2.5 2.5 0 0 0 5 7v9', 'M10 8.5h7A2.5 2.5 0 0 1 19.5 11v6a2.5 2.5 0 0 1-2.5 2.5h-7A2.5 2.5 0 0 1 7.5 17v-6A2.5 2.5 0 0 1 10 8.5z'],
+    trash:    ['M4.5 7h15', 'M9.5 7V4.8h5V7', 'M6.5 7l1 12.2h9L17.5 7'],
+    plus:     ['M12 5.5v13', 'M5.5 12h13'],
+    check:    ['M5 12.6l4.6 4.6L19 6.8'],
+    alert:    ['M12 4.6 21 20H3z', 'M12 10.2v4.1', 'M12 17.1h.01'],
+    info:     ['M12 3.6a8.4 8.4 0 1 0 0 16.8 8.4 8.4 0 0 0 0-16.8z', 'M12 11.2v5', 'M12 7.9h.01'],
+    clock:    ['M12 3.6a8.4 8.4 0 1 0 0 16.8 8.4 8.4 0 0 0 0-16.8z', 'M12 7.2V12l3.2 2.1'],
+    file:     ['M13.6 3.5H7.5A2 2 0 0 0 5.5 5.5v13a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V8.4z', 'M13.6 3.5v5h5'],
+    building: ['M3.5 20.4h17', 'M6.2 20.4V5.6l7-2.4v17.2', 'M13.2 20.4V9.8l4.8 2v8.6'],
+    calendar: ['M5.5 6.2h13a1 1 0 0 1 1 1v11.6a1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1V7.2a1 1 0 0 1 1-1z', 'M4.5 10.4h15', 'M8.6 3.6v4', 'M15.4 3.6v4'],
+    shield:   ['M12 3.2l7.2 3v6.2c0 4.4-3 7.4-7.2 8.8-4.2-1.4-7.2-4.4-7.2-8.8V6.2z'],
+    inbox:    ['M4 13.2h4.2l1.5 3h4.6l1.5-3H20', 'M4 13.2 6.6 5.6h10.8L20 13.2v5.2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z'],
+    arrowUp:  ['M8 16 16 8', 'M9.6 8H16v6.4'],
+    sparkle:  ['M12 4.2l1.9 4.7 4.7 1.9-4.7 1.9L12 17.4l-1.9-4.7-4.7-1.9 4.7-1.9z'],
+    lock:     ['M7 10.6V8.4a5 5 0 0 1 10 0v2.2', 'M5.8 10.6h12.4a1 1 0 0 1 1 1v7.6a1 1 0 0 1-1 1H5.8a1 1 0 0 1-1-1v-7.6a1 1 0 0 1 1-1z'],
+    external: ['M14.5 4.5h5v5', 'M19.5 4.5 11 13', 'M18 13.6V18a1.5 1.5 0 0 1-1.5 1.5h-10A1.5 1.5 0 0 1 5 18V7.5A1.5 1.5 0 0 1 6.5 6H11']
+  };
+  function icon(name, size) {
+    var svg = document.createElementNS(SVGNS, 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('class', 'uscistr-ico');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.setAttribute('focusable', 'false');
+    if (size) { svg.setAttribute('width', size); svg.setAttribute('height', size); }
+    var g = document.createElementNS(SVGNS, 'g');
+    (ICONS[name] || []).forEach(function (d) {
+      var p = document.createElementNS(SVGNS, 'path');
+      p.setAttribute('d', d);
+      g.appendChild(p);
+    });
+    if (name === 'settings') {
+      [[15, 7], [9, 17]].forEach(function (c) {
+        var ci = document.createElementNS(SVGNS, 'circle');
+        ci.setAttribute('cx', c[0]); ci.setAttribute('cy', c[1]); ci.setAttribute('r', '2.4');
+        g.appendChild(ci);
+      });
+    }
+    svg.appendChild(g);
+    return svg;
+  }
+
+  /* the product mark: a rounded tile with a progress arc + terminal dot */
+  function mark(size) {
+    var svg = document.createElementNS(SVGNS, 'svg');
+    svg.setAttribute('viewBox', '0 0 32 32');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.setAttribute('class', 'uscistr-mark');
+    if (size) { svg.setAttribute('width', size); svg.setAttribute('height', size); }
+    var defs = document.createElementNS(SVGNS, 'defs');
+    var gid = 'ust-g-' + Math.random().toString(36).slice(2, 8);
+    var lg = document.createElementNS(SVGNS, 'linearGradient');
+    lg.setAttribute('id', gid); lg.setAttribute('x1', '0'); lg.setAttribute('y1', '0');
+    lg.setAttribute('x2', '1'); lg.setAttribute('y2', '1');
+    [['0', '#6D67F0'], ['1', '#4238C9']].forEach(function (s) {
+      var st = document.createElementNS(SVGNS, 'stop');
+      st.setAttribute('offset', s[0]); st.setAttribute('stop-color', s[1]);
+      lg.appendChild(st);
+    });
+    defs.appendChild(lg); svg.appendChild(defs);
+    /* paint is set inline, not via fill=/stroke= attributes: the universal
+       `svg *` reset is CSS and would otherwise blank the mark out. */
+    var r = document.createElementNS(SVGNS, 'rect');
+    r.setAttribute('x', '0'); r.setAttribute('y', '0'); r.setAttribute('width', '32'); r.setAttribute('height', '32');
+    r.setAttribute('rx', '9');
+    r.style.fill = 'url(#' + gid + ')';
+    svg.appendChild(r);
+    var arc = document.createElementNS(SVGNS, 'path');
+    arc.setAttribute('d', 'M9.6 21.2a8.2 8.2 0 1 1 12.9-4.6');
+    arc.style.fill = 'none';
+    arc.style.stroke = '#ffffff';
+    arc.style.strokeWidth = '2.4';
+    arc.style.strokeLinecap = 'round';
+    arc.style.opacity = '.94';
+    svg.appendChild(arc);
+    var dot = document.createElementNS(SVGNS, 'circle');
+    dot.setAttribute('cx', '22.6'); dot.setAttribute('cy', '21.4'); dot.setAttribute('r', '3.1');
+    dot.style.fill = '#ffffff';
+    svg.appendChild(dot);
+    return svg;
+  }
+
+  /* ---- fabricated data ------------------------------------------------- */
+  var RAW_485 =
+    '{\n  "receiptNumber": "IOE0000000000",\n  "formType": "I-485",\n  "formName": "Application to Register Permanent\\n               Residence or Adjust Status",\n  "submissionDate": "2026-05-29",\n  "updatedAt": "2026-07-31",\n  "updatedAtTimestamp": "2026-07-31T13:07:45.006Z",\n  "closed": false,\n  "actionRequired": false,\n  "elisChannelType": "Lockbox",\n  "events": [\n    { "eventCode": "FTA0", "eventDateTime": "2026-07-09" },\n    { "eventCode": "MA70", "eventDateTime": "2026-07-09" },\n    { "eventCode": "FNB",  "eventDateTime": "2026-07-09" }\n  ]\n}';
+  var RAW_STATUS =
+    '{\n  "receiptNumber": "IOE0000000000",\n  "currentActionCode": "FTA0",\n  "statusTitle": "USCIS is currently processing the case",\n  "jurisdiction": "NBC",\n  "jurisdictionDescription": "NATIONAL BENEFITS CENTER",\n  "historicalCaseStatuses": [\n    { "date": "07-09-2026 00:00:00", "actionCode": "FTA0" },\n    { "date": "06-19-2026 00:00:00", "actionCode": "IMAF" }\n  ]\n}';
+  var RAW_204 = '// HTTP 204 No Content\n// USCIS returns an empty body for every form type tested.\n// The elapsed indicator falls back to time-since-filing.';
+
+  var CASES = [
+    {
+      id: 'c1',
+      label: 'Adjustment of status',
+      form: 'I-485',
+      formName: 'Application to Register Permanent Residence or Adjust Status',
+      receipt: 'IOE0000000000',
+      state: 'changed',
+      chip: { text: 'Processing', variant: 'info' },
+      statusTitle: 'USCIS is currently processing your case',
+      statusText: 'As of July 9, 2026, we are actively reviewing your Form I-485, Application to Register Permanent Residence or Adjust Status, Receipt Number IOE0000000000. We will notify you by mail if we need anything further, and again once we make a decision. If you move, update your address with us so your notices are not delayed.',
+      change: { count: 2, since: 'Aug 3' },
+      fields: [
+        ['Filed', '29 May 2026', '14 months ago', null],
+        ['Status updated', '9 Jul 2026', '1 month ago', null],
+        ['Record touched', '31 Jul 2026', '10 days ago', 'newer than status'],
+        ['Service center', 'National Benefits Center', 'NBC', null]
+      ],
+      progress: { pct: 62, kind: 'unknown', head: '14 months elapsed', headSub: 'no official estimate', label: 'USCIS returned 204 No Content for processing times. Bar shows time since filing against the 22-month median reported by other filers.' },
+      timeline: [
+        { date: '9 Jul', text: 'Database checks received', code: 'FTA0', current: true },
+        { date: '9 Jul', text: 'Biometrics received from application support center', code: 'MA70' },
+        { date: '9 Jul', text: 'Fingerprints taken', code: 'FNB' },
+        { date: '19 Jun', text: null, code: 'IMAF', guess: 'Fingerprint appointment notice sent' },
+        { date: '4 Jun', text: 'Receipt notice was sent', code: 'IAA' },
+        { date: '29 May', text: 'Case was received', code: 'H001' }
+      ],
+      docs: [
+        ['IOE0000000000-0000000000000-part1.tif', '4 Jun 2026'],
+        ['IOE0000000000-0000000000000-part2.tif', '4 Jun 2026']
+      ],
+      raws: [
+        ['/api/cases/{num}', '200', RAW_485],
+        ['/api/case_status/{num}', '200', RAW_STATUS],
+        ['/api/cases/I-485/processing_times/{num}', '204', RAW_204]
+      ]
+    },
+    {
+      id: 'c2',
+      label: 'Work permit',
+      form: 'I-765',
+      formName: 'Application for Employment Authorization',
+      receipt: 'IOE0000000000',
+      state: 'closed',
+      chip: { text: 'Approved', variant: 'success' },
+      statusTitle: 'We mailed your new card',
+      statusText: 'On July 24, 2026, we mailed your new card for Receipt Number IOE0000000000 to the address you gave us. If you do not receive your card within 30 days, please contact us.',
+      fields: [
+        ['Filed', '14 Feb 2026', '18 months ago', null],
+        ['Status updated', '24 Jul 2026', '2 weeks ago', null],
+        ['Record touched', '24 Jul 2026', '2 weeks ago', null],
+        ['Service center', 'Nebraska Service Center', 'NSC', null]
+      ],
+      progress: { pct: 100, kind: 'success', head: 'Decided', headSub: '5 months, 10 days', label: 'Closed 24 Jul 2026. Nothing further is expected on this case.' },
+      timeline: [
+        { date: '24 Jul', text: 'Card was mailed to me', code: 'LEA', good: true, current: true },
+        { date: '18 Jul', text: 'We produced your new card', code: 'LDA', good: true },
+        { date: '15 Jul', text: 'Your case has been approved', code: 'SA', good: true },
+        { date: '14 Feb', text: 'Case was received', code: 'H001' }
+      ],
+      docs: [
+        ['IOE0000000000-0000000000000-part1.tif', '20 Feb 2026']
+      ],
+      raws: [
+        ['/api/cases/{num}', '200', RAW_485.replace('I-485', 'I-765')],
+        ['/api/cases/{num}/documents', '200', '{\n  "data": [\n    {\n      "fileName": "IOE0000000000-0000000000000-part1.tif",\n      "type": "Other",\n      "createDate": "2026-02-20T02:09:53.542+0000",\n      "sourceType": "Applicant Provided"\n    }\n  ]\n}']
+      ]
+    },
+    {
+      id: 'c3',
+      label: 'Advance parole',
+      form: 'I-131',
+      formName: 'Application for Travel Document',
+      receipt: 'IOE0000000000',
+      state: 'sparse',
+      chip: { text: 'Received', variant: 'neutral' },
+      statusTitle: 'We received your application',
+      statusText: null,
+      fields: [
+        ['Filed', '29 May 2026', '14 months ago', null],
+        ['Status updated', null, null, null],
+        ['Record touched', '29 May 2026', '14 months ago', null],
+        ['Service center', null, null, null]
+      ],
+      progress: null,
+      timeline: [],
+      docs: [],
+      raws: [
+        ['/api/case_status/{num}', '200', '{\n  "receiptNumber": "IOE0000000000",\n  "formType": "I-131",\n  "currentActionCode": null,\n  "statusTitle": "We received your application",\n  "statusText": null,\n  "jurisdiction": null,\n  "historicalCaseStatuses": []\n}'],
+        ['/api/cases/{num}/history', '404', '// HTTP 404 — endpoint does not exist.\n// Community documentation claiming otherwise is wrong.']
+      ]
+    }
+  ];
+
+  /* ---- state ----------------------------------------------------------- */
+  var opts = { banner: false, popover: false, add: false, redact: false, raw: false };
+
+  function receiptText(n) { return opts.redact ? n.slice(0, 5) + '•••••' + n.slice(-3) : n; }
+
+  /* ---- component builders ---------------------------------------------- */
+  function chip(text, variant, withDot) {
+    return h('span', { class: 'uscistr-chip uscistr-chip-' + variant }, [
+      withDot ? h('span', { class: 'uscistr-chip-dot' }) : null,
+      text
+    ]);
+  }
+
+  function iconBtn(name, title, extra) {
+    var b = h('button', { type: 'button', class: 'uscistr-icon-btn' + (extra ? ' ' + extra : ''), title: title, 'aria-label': title });
+    b.appendChild(icon(name));
+    return b;
+  }
+
+  function field(row) {
+    var label = row[0], value = row[1], rel = row[2], flag = row[3];
+    return [
+      h('div', { class: 'uscistr-field-label', text: label }),
+      h('div', { class: 'uscistr-field-value' + (value ? '' : ' uscistr-is-empty') }, [
+        value ? h('span', { text: value }) : h('span', { text: '—', title: 'Not returned by USCIS' }),
+        rel ? h('span', { class: 'uscistr-rel', text: rel }) : null,
+        flag ? chip(flag, 'accent') : null
+      ])
+    ];
+  }
+
+  function timelineRow(ev) {
+    var cls = 'uscistr-timeline-row';
+    if (ev.current) cls += ' uscistr-is-current';
+    if (ev.good) cls += ' uscistr-is-good';
+    return h('div', { class: cls }, [
+      h('div', { class: 'uscistr-timeline-date', text: ev.date }),
+      h('div', { class: 'uscistr-timeline-body' }, [
+        ev.text ? h('div', { class: 'uscistr-timeline-text', text: ev.text }) : null,
+        ev.guess ? h('div', { class: 'uscistr-timeline-guess', text: ev.guess }) : null,
+        h('div', { class: 'uscistr-timeline-meta' }, [
+          h('span', { class: 'uscistr-code', text: ev.code }),
+          ev.current ? chip('Latest', 'accent') : null
+        ])
+      ])
+    ]);
+  }
+
+  function rawBlock(spec) {
+    var open = opts.raw;
+    var pre = h('pre', { class: 'uscistr-raw', text: spec[2] });
+    if (!open) pre.hidden = true;
+    var statusVariant = spec[1] === '200' ? 'success' : spec[1] === '204' ? 'neutral' : 'danger';
+    var btn = h('button', {
+      type: 'button', class: 'uscistr-raw-summary', 'aria-expanded': open ? 'true' : 'false',
+      onclick: function () {
+        var on = btn.getAttribute('aria-expanded') === 'true';
+        btn.setAttribute('aria-expanded', on ? 'false' : 'true');
+        pre.hidden = on;
+      }
+    }, [
+      icon('chevronR'),
+      h('span', { class: 'uscistr-raw-path', text: spec[0] }),
+      h('span', { class: 'uscistr-chip uscistr-chip-' + statusVariant, text: spec[1] })
+    ]);
+    return h('div', { class: 'uscistr-raw-wrap' }, [btn, pre]);
+  }
+
+  function caseCard(c) {
+    var cls = 'uscistr-card';
+    if (c.state === 'changed') cls += ' uscistr-is-changed';
+    if (c.state === 'closed') cls += ' uscistr-is-closed';
+
+    var fieldNodes = [];
+    c.fields.forEach(function (r) { field(r).forEach(function (n) { fieldNodes.push(n); }); });
+
+    var receiptBtn = h('button', {
+      type: 'button',
+      class: 'uscistr-receipt' + (opts.redact ? ' uscistr-is-redacted' : ''),
+      title: 'Copy receipt number'
+    }, [h('span', { text: receiptText(c.receipt) })]);
+    receiptBtn.appendChild(icon('copy'));
+
+    return h('div', { class: cls }, [
+      /* header */
+      h('div', { class: 'uscistr-card-header' }, [
+        h('div', { class: 'uscistr-card-title' }, [
+          h('div', { class: 'uscistr-card-eyebrow' }, [
+            h('span', { class: 'uscistr-chip uscistr-chip-form', text: c.form }),
+            chip(c.chip.text, c.chip.variant, true)
+          ]),
+          h('div', { class: 'uscistr-card-label', text: c.formName }),
+          receiptBtn
+        ]),
+        h('div', { class: 'uscistr-card-actions' }, [
+          iconBtn('refresh', 'Refresh this case'),
+          iconBtn('trash', 'Remove this case')
+        ])
+      ]),
+
+      /* change notice */
+      c.change ? h('div', { class: 'uscistr-change' }, [
+        icon('arrowUp'),
+        h('span', {}, [
+          h('b', { text: c.change.count + ' changes' }),
+          ' since you last looked on ' + c.change.since
+        ]),
+        h('button', { type: 'button', class: 'uscistr-btn uscistr-btn-sm uscistr-btn-ghost', text: 'Mark seen' })
+      ]) : null,
+
+      /* status */
+      h('div', { class: 'uscistr-status-block' }, [
+        h('div', { class: 'uscistr-status-text', text: c.statusTitle }),
+        c.statusText ? h('div', { class: 'uscistr-status-desc uscistr-is-clamped', text: c.statusText }) : null,
+        c.statusText ? h('button', { type: 'button', class: 'uscistr-more', text: 'Show full text' }) : null,
+        !c.statusText ? h('div', { class: 'uscistr-note', text: 'USCIS returned no status narrative for this case — only a title.' }) : null
+      ]),
+
+      /* fields */
+      h('div', { class: 'uscistr-fields' }, fieldNodes),
+
+      /* progress */
+      c.progress ? h('div', { class: 'uscistr-progress' }, [
+        h('div', { class: 'uscistr-progress-head' }, [
+          h('span', {}, [h('b', { text: c.progress.head }), ' ', h('span', { class: 'uscistr-muted', text: c.progress.headSub })]),
+          h('span', { class: 'uscistr-muted uscistr-mono', text: c.progress.pct + '%' })
+        ]),
+        h('div', { class: 'uscistr-progress-track' }, [
+          (function () {
+            var f = h('div', { class: 'uscistr-progress-fill' + (c.progress.kind === 'success' ? ' uscistr-is-success' : c.progress.kind === 'unknown' ? ' uscistr-is-unknown' : '') });
+            f.style.width = c.progress.pct + '%';
+            return f;
+          })()
+        ]),
+        h('div', { class: 'uscistr-progress-label', text: c.progress.label })
+      ]) : h('div', { class: 'uscistr-note', text: 'No filing-to-decision estimate is available for I-131 from this account.' }),
+
+      /* timeline */
+      h('div', { class: 'uscistr-section' }, [
+        h('div', { class: 'uscistr-section-title', text: 'Timeline' }),
+        c.timeline.length
+          ? h('div', { class: 'uscistr-timeline' }, c.timeline.map(timelineRow))
+          : h('div', { class: 'uscistr-note', text: 'No status history returned. USCIS reports events for this case only through the account page.' })
+      ]),
+
+      /* documents */
+      c.docs.length ? h('div', { class: 'uscistr-section' }, [
+        h('div', { class: 'uscistr-section-title', text: 'Documents' }),
+        h('div', { class: 'uscistr-documents' }, c.docs.map(function (d) {
+          var row = h('div', { class: 'uscistr-doc-row' }, []);
+          row.appendChild(icon('file'));
+          row.appendChild(h('div', { class: 'uscistr-doc-name', text: opts.redact ? d[0].replace(/^IOE\d{10}/, 'IOE00•••••000') : d[0] }));
+          row.appendChild(h('div', { class: 'uscistr-doc-date', text: d[1] }));
+          return row;
+        }))
+      ]) : null,
+
+      /* raw */
+      h('div', { class: 'uscistr-section' }, [
+        h('div', { class: 'uscistr-section-title', text: 'Raw response' }),
+        h('div', { class: 'uscistr-raw-wrap' }, c.raws.map(rawBlock))
+      ]),
+
+      /* actions */
+      h('div', { class: 'uscistr-card-footer', style: 'display:flex;gap:6px;flex-wrap:wrap' }, [
+        (function () { var b = h('button', { type: 'button', class: 'uscistr-btn uscistr-btn-sm uscistr-btn-outline' }, ['Refresh']); b.insertBefore(icon('refresh'), b.firstChild); return b; })(),
+        (function () { var b = h('button', { type: 'button', class: 'uscistr-btn uscistr-btn-sm uscistr-btn-ghost' }, ['Copy summary']); b.insertBefore(icon('copy'), b.firstChild); return b; })(),
+        (function () { var b = h('button', { type: 'button', class: 'uscistr-btn uscistr-btn-sm uscistr-btn-danger' }, ['Remove']); b.insertBefore(icon('trash'), b.firstChild); return b; })()
+      ])
+    ]);
+  }
+
+  function popover() {
+    function row(label, desc, control) {
+      return h('div', { class: 'uscistr-popover-row' }, [
+        h('div', {}, [
+          h('div', { class: 'uscistr-popover-label', text: label }),
+          desc ? h('div', { class: 'uscistr-popover-desc', text: desc }) : null
+        ]),
+        control
+      ]);
+    }
+    function sw(on) {
+      return h('button', { type: 'button', class: 'uscistr-switch', role: 'switch', 'aria-checked': on ? 'true' : 'false',
+        onclick: function (e) {
+          var t = e.currentTarget;
+          t.setAttribute('aria-checked', t.getAttribute('aria-checked') === 'true' ? 'false' : 'true');
+        } });
+    }
+    var sel = h('select', { class: 'uscistr-select' }, [
+      h('option', { text: '5 min' }), h('option', { text: '15 min', selected: true }), h('option', { text: '1 hour' })
+    ]);
+    return h('div', { class: 'uscistr-popover', role: 'dialog', 'aria-label': 'Settings' }, [
+      h('div', { class: 'uscistr-popover-head', text: 'Settings' }),
+      row('Dark appearance', null, sw(false)),
+      row('Redact receipt numbers', 'Safe for screen sharing', sw(opts.redact)),
+      row('Desktop notifications', 'Only when something changes', sw(false)),
+      h('div', { class: 'uscistr-popover-sep' }),
+      row('Auto-refresh', 'Minimum 5 minutes', sel),
+      h('div', { class: 'uscistr-popover-sep' }),
+      h('div', { class: 'uscistr-popover-row' }, [
+        h('div', { class: 'uscistr-popover-label', text: 'Export data' }),
+        h('button', { type: 'button', class: 'uscistr-btn uscistr-btn-sm uscistr-btn-outline', text: 'JSON' })
+      ])
+    ]);
+  }
+
+  function addForm() {
+    return h('div', { class: 'uscistr-add-form' }, [
+      h('input', { class: 'uscistr-input uscistr-mono', placeholder: 'IOE0000000000', 'aria-label': 'Receipt number' }),
+      h('input', { class: 'uscistr-input', placeholder: 'Label (optional)', 'aria-label': 'Label' }),
+      (function () { var b = h('button', { type: 'button', class: 'uscistr-btn uscistr-btn-primary' }, ['Add']); b.insertBefore(icon('plus'), b.firstChild); return b; })()
+    ]);
+  }
+
+  function banner() {
+    return h('div', { class: 'uscistr-banner', role: 'status' }, [
+      icon('alert'),
+      h('div', { class: 'uscistr-banner-body' }, [
+        h('div', { class: 'uscistr-banner-title', text: 'Your USCIS session expired' }),
+        h('div', { class: 'uscistr-banner-text', text: 'Sign in again on this tab and the panel will resume where it left off. Nothing was lost.' })
+      ]),
+      h('div', { class: 'uscistr-banner-actions' }, [
+        h('button', { type: 'button', class: 'uscistr-btn uscistr-btn-sm', text: 'Sign in' })
+      ])
+    ]);
+  }
+
+  function buildPanel(dark) {
+    var root = h('div', { class: 'uscistr-root' + (dark ? ' uscistr-dark' : '') });
+    var panel = h('div', { class: 'uscistr-panel', role: 'complementary', 'aria-label': 'USCIS case tracker' });
+
+    var header = h('div', { class: 'uscistr-header' }, [
+      h('div', { class: 'uscistr-brand' }, [
+        mark(),
+        h('div', { class: 'uscistr-titles' }, [
+          h('div', { class: 'uscistr-title', text: 'Case Tracker' }),
+          h('div', { class: 'uscistr-subtitle', text: '3 cases · synced 2 min ago' })
+        ])
+      ]),
+      h('div'),
+      h('div', { class: 'uscistr-header-actions' }, [
+        iconBtn('plus', 'Add a case'),
+        iconBtn('refresh', 'Refresh all'),
+        iconBtn('settings', 'Settings', opts.popover ? 'uscistr-is-on' : ''),
+        iconBtn('minus', 'Collapse panel')
+      ])
+    ]);
+
+    var body = h('div', { class: 'uscistr-body' }, [
+      opts.banner ? banner() : null,
+      opts.add ? addForm() : null,
+      h('div', { class: 'uscistr-case-list' }, CASES.map(caseCard))
+    ]);
+
+    var footer = h('div', { class: 'uscistr-footer' }, [
+      h('div', { class: 'uscistr-footer-left' }, [
+        (function () { var s = h('span', { style: 'display:flex;align-items:center;gap:5px' }, []); s.appendChild(icon('lock')); s.appendChild(document.createTextNode('Local only')); return s; })(),
+        h('span', { class: 'uscistr-footer-sep', text: '·' }),
+        h('span', { text: 'v1.0.0' })
+      ]),
+      h('div', { class: 'uscistr-footer-right' }, [
+        h('span', { text: 'Next check in 13 min' })
+      ])
+    ]);
+
+    panel.appendChild(header);
+    if (opts.popover) panel.appendChild(popover());
+    panel.appendChild(body);
+    panel.appendChild(footer);
+    root.appendChild(panel);
+    return root;
+  }
+
+  /* ---- faux government page -------------------------------------------- */
+  function govPage() {
+    return h('div', { class: 'mk-gov' }, [
+      h('div', { class: 'mk-gov-band', text: 'An official website of the United States government' }),
+      h('div', { class: 'mk-gov-head' }, [
+        h('div', { class: 'mk-gov-logo' }, [h('span', { text: 'my' }), 'USCIS']),
+        h('div', { class: 'mk-gov-nav' }, [h('span', { text: 'My Account' }), h('span', { text: 'Resources' }), h('span', { text: 'Sign Out' })])
+      ]),
+      h('div', { class: 'mk-gov-sub' }, [h('span', { text: 'Home' }), h('span', { text: 'My Cases' }), h('span', { text: 'Documents' }), h('span', { text: 'Messages' })]),
+      h('div', { class: 'mk-gov-body' }, [
+        h('h1', { text: 'Welcome' }),
+        h('p', { text: 'Use myUSCIS to check the status of your case, view your notices, and update your address.' }),
+        h('div', { class: 'mk-gov-alert', text: 'Your address is up to date. Last verified June 2, 2026.' }),
+        h('h2', { text: 'Your cases' }),
+        h('div', { class: 'mk-gov-card' }, [
+          h('b', { text: 'Application to Register Permanent Residence or Adjust Status' }),
+          h('small', { text: 'Receipt # IOE0000000000 · Submitted May 29, 2026' })
+        ]),
+        h('div', { class: 'mk-gov-card' }, [
+          h('b', { text: 'Application for Employment Authorization' }),
+          h('small', { text: 'Receipt # IOE0000000000 · Submitted February 14, 2026' })
+        ]),
+        h('div', { class: 'mk-gov-card' }, [
+          h('b', { text: 'Application for Travel Document' }),
+          h('small', { text: 'Receipt # IOE0000000000 · Submitted May 29, 2026' })
+        ]),
+        h('h2', { text: 'Need help?' }),
+        h('p', { text: 'If you have questions about your case, you may contact the USCIS Contact Center. Processing times vary by form type and by the office handling your case.' }),
+        h('div', { class: 'mk-gov-btn', text: 'Check case status' })
+      ])
+    ]);
+  }
+
+  /* ---- render frames ---------------------------------------------------- */
+  var mode = 'split';
+  function renderFrames() {
+    var host = document.getElementById('mk-frames');
+    host.textContent = '';
+    var darks = mode === 'split' ? [false, true] : mode === 'light' ? [false, false] : [true, true];
+    darks.forEach(function (dark, i) {
+      var frame = h('div', { class: 'mk-frame' });
+      if (dark) frame.setAttribute('data-dark', '1');
+      frame.appendChild(h('div', { class: 'mk-frame-tag', text: dark ? 'Dark · .uscistr-dark' : 'Light' }));
+      frame.appendChild(govPage());
+      frame.appendChild(buildPanel(dark));
+      host.appendChild(frame);
+    });
+  }
+
+  /* ---- swatch gallery ---------------------------------------------------- */
+  function hexToRgb(x) { x = x.replace('#', ''); return [0, 2, 4].map(function (i) { return parseInt(x.substr(i, 2), 16); }); }
+  function lum(x) { return hexToRgb(x).map(function (c) { c /= 255; return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }).reduce(function (a, v, i) { return a + [0.2126, 0.7152, 0.0722][i] * v; }, 0); }
+  function ratio(a, b) { var l1 = lum(a), l2 = lum(b); return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05); }
+
+  var SWATCHES_LIGHT = [
+    ['Panel', '--ust-bg-panel', '#FFFFFF', null, null],
+    ['Sunken', '--ust-bg-sunken', '#F6F7F9', null, null],
+    ['Inset', '--ust-bg-inset', '#F0F2F5', null, null],
+    ['Text primary', '--ust-text-1', '#101318', '#FFFFFF', 'panel'],
+    ['Text secondary', '--ust-text-2', '#3F4756', '#FFFFFF', 'panel'],
+    ['Text tertiary', '--ust-text-3', '#5F6776', '#F0F2F5', 'inset'],
+    ['Hairline', '--ust-border-1', '#E8EAEE', null, null],
+    ['Separator', '--ust-border-2', '#D8DCE3', null, null],
+    ['Field border', '--ust-border-field', '#868E9F', '#FFFFFF', 'panel · needs 3:1'],
+    ['Accent', '--ust-accent-solid', '#4F46E5', '#FFFFFF', 'panel'],
+    ['Accent on', '--ust-accent-on', '#FFFFFF', '#4F46E5', 'accent'],
+    ['Accent soft', '--ust-accent-soft', '#EEEDFD', null, null],
+    ['Accent soft text', '--ust-accent-soft-text', '#3B33C4', '#EEEDFD', 'accent soft'],
+    ['Success', '--ust-success-text', '#05603A', '#E6F6EE', 'success soft'],
+    ['Warning', '--ust-warn-text', '#93370D', '#FDF3E4', 'warn soft'],
+    ['Danger', '--ust-danger-text', '#912018', '#FEEDEB', 'danger soft'],
+    ['Info', '--ust-info-text', '#0B4A9E', '#EAF1FE', 'info soft'],
+    ['Track', '--ust-track', '#E7E9EF', null, null]
+  ];
+  var SWATCHES_DARK = [
+    ['Panel', '--ust-bg-panel', '#191A1F', null, null],
+    ['Sunken', '--ust-bg-sunken', '#131418', null, null],
+    ['Inset', '--ust-bg-inset', '#212329', null, null],
+    ['Text primary', '--ust-text-1', '#EBECF0', '#191A1F', 'panel'],
+    ['Text secondary', '--ust-text-2', '#ADB2BF', '#191A1F', 'panel'],
+    ['Text tertiary', '--ust-text-3', '#8B92A1', '#212329', 'inset'],
+    ['Hairline', '--ust-border-1', '#2A2D35', null, null],
+    ['Separator', '--ust-border-2', '#3A3E49', null, null],
+    ['Field border', '--ust-border-field', '#666D7D', '#191A1F', 'panel · needs 3:1'],
+    ['Accent', '--ust-accent', '#A5A2FA', '#191A1F', 'panel'],
+    ['Accent solid', '--ust-accent-solid', '#5D5AE8', null, null],
+    ['Accent on', '--ust-accent-on', '#FFFFFF', '#5D5AE8', 'accent solid'],
+    ['Accent soft', '--ust-accent-soft', '#24243A', null, null],
+    ['Accent soft text', '--ust-accent-soft-text', '#B7B4FC', '#24243A', 'accent soft'],
+    ['Success', '--ust-success-text', '#7FE3B5', '#14241E', 'success soft'],
+    ['Warning', '--ust-warn-text', '#FAC97E', '#26200F', 'warn soft'],
+    ['Danger', '--ust-danger-text', '#FFA79E', '#271817', 'danger soft'],
+    ['Info', '--ust-info-text', '#9CC4F8', '#141F2E', 'info soft']
+  ];
+
+  function renderSwatches(id, list, darkCtx) {
+    var host = document.getElementById(id);
+    list.forEach(function (s) {
+      var name = s[0], token = s[1], hex = s[2], against = s[3], label = s[4];
+      var sw = h('div', { class: 'mk-sw' });
+      var chipEl = h('div', { class: 'mk-sw-chip' });
+      chipEl.style.background = hex;
+      if (against) {
+        chipEl.style.background = against;
+        chipEl.style.color = hex;
+        chipEl.textContent = 'Aa 12.5px';
+      } else {
+        chipEl.style.background = hex;
+        chipEl.style.boxShadow = 'inset 0 0 0 1px rgba(128,128,128,.25)';
+      }
+      sw.appendChild(chipEl);
+      var meta = h('div', { class: 'mk-sw-meta' }, [
+        h('b', { text: name }),
+        h('div', { text: token }),
+        h('div', { text: hex })
+      ]);
+      if (against) {
+        var r = ratio(hex, against);
+        var tag = h('span', { class: 'mk-ratio', text: r.toFixed(2) + ':1 ' + (r >= 7 ? 'AAA' : r >= 4.5 ? 'AA' : r >= 3 ? 'AA-UI' : 'FAIL') });
+        var line = h('div', { text: 'on ' + label + ' ' });
+        line.appendChild(tag);
+        meta.appendChild(line);
+      }
+      sw.appendChild(meta);
+      host.appendChild(sw);
+    });
+  }
+
+  /* ---- type specimen ----------------------------------------------------- */
+  var TYPE_ROLES = [
+    ['Panel title', 'uscistr-title', 'Case Tracker', '13px / 600 / 1.25 / -0.008em'],
+    ['Card heading', 'uscistr-card-label', 'Application to Register Permanent Residence', '13.5px / 600 / 1.35 / -0.008em'],
+    ['Status title', 'uscistr-status-text', 'USCIS is currently processing your case', '13px / 600 / 1.4 / -0.006em'],
+    ['Body prose', 'uscistr-status-desc', 'As of July 9, 2026, we are actively reviewing your Form I-485 and will notify you by mail if we need anything further.', '12.5px / 400 / 1.55'],
+    ['Meta', 'uscistr-field-value', '29 May 2026 · 14 months ago', '11.5px / 400 / 1.45 / tabular'],
+    ['Section label', 'uscistr-section-title', 'Timeline', '10.5px / 600 / 1.2 / 0.075em / caps'],
+    ['Mono identifier', 'uscistr-receipt', 'IOE0000000000', '12px / 500 / 1.4 / 0.035em / tabular']
+  ];
+  function renderType(id) {
+    var host = document.getElementById(id);
+    TYPE_ROLES.forEach(function (t) {
+      host.appendChild(h('div', { class: t[1], text: t[2], style: 'margin-bottom:10px' }));
+    });
+  }
+  function renderTypeSpecs() {
+    var host = document.getElementById('mk-type-specs');
+    host.style.marginTop = '24px';
+    TYPE_ROLES.forEach(function (t) {
+      host.appendChild(h('div', { class: 'mk-type-row' }, [
+        h('div', { class: 'mk-type-spec' }, [h('b', { text: t[0] }), t[3]]),
+        h('div', { style: 'font-family:var(--mk-mono);font-size:11px;color:var(--mk-text-2)', text: '.' + t[1] })
+      ]));
+    });
+  }
+
+  /* ---- component gallery -------------------------------------------------- */
+  function galleryContent() {
+    var frag = document.createDocumentFragment();
+
+    function group(title, node) {
+      frag.appendChild(h('div', { class: 'mk-sub', text: title }));
+      frag.appendChild(node);
+    }
+
+    /* launcher pills */
+    function pills() {
+      function pill(label, count, dot, extraClass) {
+        var p = h('button', { type: 'button', class: 'uscistr-pill' + (extraClass || '') });
+        p.style.position = 'static';
+        p.appendChild(mark());
+        p.firstChild.setAttribute('class', 'uscistr-pill-mark');
+        p.appendChild(h('span', { class: 'uscistr-pill-label', text: label }));
+        if (count) p.appendChild(h('span', { class: 'uscistr-pill-count', text: count }));
+        if (dot) p.appendChild(h('span', { class: 'uscistr-pill-dot' }));
+        return p;
+      }
+      return h('div', { class: 'mk-row' }, [pill('Cases', null, false), pill('Cases', '3', false), pill('Cases', '3', true)]);
+    }
+
+    /* buttons */
+    function buttons() {
+      function b(cls, label, iconName, attrs) {
+        var el = h('button', Object.assign({ type: 'button', class: 'uscistr-btn ' + cls }, attrs || {}), [label]);
+        if (iconName) el.insertBefore(icon(iconName), el.firstChild);
+        return el;
+      }
+      return h('div', { class: 'mk-stack' }, [
+        h('div', { class: 'mk-row' }, [
+          b('uscistr-btn-primary', 'Add case', 'plus'),
+          b('uscistr-btn-outline', 'Refresh all', 'refresh'),
+          b('uscistr-btn-ghost', 'Copy summary', 'copy'),
+          b('uscistr-btn-danger', 'Remove', 'trash'),
+          b('uscistr-btn-danger-solid', 'Confirm remove', null)
+        ]),
+        h('div', { class: 'mk-row' }, [
+          b('uscistr-btn-primary uscistr-btn-sm', 'Small primary'),
+          b('uscistr-btn-outline uscistr-btn-sm', 'Small outline'),
+          b('uscistr-btn-ghost uscistr-btn-sm', 'Small ghost'),
+          b('uscistr-btn-primary', 'Disabled', null, { disabled: true }),
+          b('uscistr-btn-outline', 'Disabled', null, { disabled: true })
+        ]),
+        h('div', { class: 'mk-row' }, [
+          iconBtn('refresh', 'Refresh'),
+          iconBtn('settings', 'Settings'),
+          iconBtn('settings', 'Settings, active', 'uscistr-is-on'),
+          iconBtn('refresh', 'Refreshing', 'uscistr-is-busy'),
+          (function () { var b2 = iconBtn('trash', 'Disabled'); b2.disabled = true; return b2; })()
+        ])
+      ]);
+    }
+
+    /* chips */
+    function chips() {
+      return h('div', { class: 'mk-stack' }, [
+        h('div', { class: 'mk-row' }, [
+          chip('Processing', 'info', true),
+          chip('Approved', 'success', true),
+          chip('Action required', 'warn', true),
+          chip('Denied', 'danger', true),
+          chip('Received', 'neutral', true),
+          chip('New', 'accent'),
+          chip('Optional', 'quiet')
+        ]),
+        h('div', { class: 'mk-row' }, [
+          h('span', { class: 'uscistr-chip uscistr-chip-form', text: 'I-485' }),
+          h('span', { class: 'uscistr-chip uscistr-chip-form', text: 'I-765' }),
+          h('span', { class: 'uscistr-code', text: 'FTA0' }),
+          h('span', { class: 'uscistr-code', text: 'MA70' }),
+          h('span', { class: 'uscistr-badge', text: '3' }),
+          h('span', { class: 'uscistr-chip uscistr-chip-success', text: '200' }),
+          h('span', { class: 'uscistr-chip uscistr-chip-neutral', text: '204' }),
+          h('span', { class: 'uscistr-chip uscistr-chip-danger', text: '404' })
+        ])
+      ]);
+    }
+
+    /* inputs */
+    function inputs() {
+      var sw1 = h('button', { type: 'button', class: 'uscistr-switch', role: 'switch', 'aria-checked': 'false' });
+      var sw2 = h('button', { type: 'button', class: 'uscistr-switch', role: 'switch', 'aria-checked': 'true' });
+      var sw3 = h('button', { type: 'button', class: 'uscistr-switch', role: 'switch', 'aria-checked': 'true', disabled: true });
+      return h('div', { class: 'mk-stack' }, [
+        h('div', { class: 'uscistr-field' }, [
+          h('input', { class: 'uscistr-input uscistr-mono', placeholder: 'IOE0000000000' }),
+          h('div', { class: 'uscistr-field-hint', text: '13 characters, starts with IOE.' })
+        ]),
+        h('div', { class: 'uscistr-field' }, [
+          h('input', { class: 'uscistr-input uscistr-mono uscistr-is-invalid', value: 'IOE12' }),
+          h('div', { class: 'uscistr-field-error', text: 'That does not look like a receipt number.' })
+        ]),
+        h('input', { class: 'uscistr-input', placeholder: 'Disabled', disabled: true }),
+        h('select', { class: 'uscistr-select' }, [h('option', { text: 'Every 15 minutes' }), h('option', { text: 'Every hour' })]),
+        h('div', { class: 'mk-row' }, [sw1, sw2, sw3, h('span', { class: 'uscistr-small uscistr-muted', text: 'off · on · disabled' })])
+      ]);
+    }
+
+    /* banners */
+    function banners() {
+      function bn(cls, ttl, txt, ic, action) {
+        var n = h('div', { class: 'uscistr-banner ' + cls, style: 'margin:0' }, []);
+        n.appendChild(icon(ic));
+        n.appendChild(h('div', { class: 'uscistr-banner-body' }, [
+          h('div', { class: 'uscistr-banner-title', text: ttl }),
+          h('div', { class: 'uscistr-banner-text', text: txt })
+        ]));
+        n.appendChild(h('div', { class: 'uscistr-banner-actions' }, [
+          action ? h('button', { type: 'button', class: 'uscistr-btn uscistr-btn-sm', text: action }) : null
+        ]));
+        return n;
+      }
+      return h('div', { class: 'mk-stack' }, [
+        bn('', 'Your USCIS session expired', 'Sign in again on this tab and the panel resumes where it left off.', 'alert', 'Sign in'),
+        bn('uscistr-banner-danger', 'Two cases failed to refresh', 'USCIS returned 500. The panel will retry on the next cycle.', 'alert', 'Retry'),
+        bn('uscistr-banner-info', 'Auto-refresh is paused', 'Resumes when this tab is visible again.', 'info', null)
+      ]);
+    }
+
+    /* progress */
+    function progress() {
+      function bar(head, sub, pct, cls, label) {
+        var fill = h('div', { class: 'uscistr-progress-fill' + (cls ? ' ' + cls : '') });
+        fill.style.width = pct + '%';
+        return h('div', { class: 'uscistr-progress' }, [
+          h('div', { class: 'uscistr-progress-head' }, [
+            h('span', {}, [h('b', { text: head }), ' ', h('span', { class: 'uscistr-muted', text: sub })]),
+            h('span', { class: 'uscistr-muted uscistr-mono', text: pct + '%' })
+          ]),
+          h('div', { class: 'uscistr-progress-track' }, [fill]),
+          h('div', { class: 'uscistr-progress-label', text: label })
+        ]);
+      }
+      return h('div', { class: 'mk-stack' }, [
+        bar('14 months elapsed', 'no official estimate', 62, 'uscistr-is-unknown', 'Estimate unavailable (HTTP 204). Bar reflects time since filing.'),
+        bar('Decided', '5 months, 10 days', 100, 'uscistr-is-success', 'Closed 24 Jul 2026.'),
+        bar('4 months elapsed', 'of an estimated 11', 36, '', 'Estimated decision around March 2027.')
+      ]);
+    }
+
+    /* timeline */
+    function timeline() {
+      return h('div', { class: 'uscistr-section' }, [
+        h('div', { class: 'uscistr-section-title', text: 'Timeline' }),
+        h('div', { class: 'uscistr-timeline' }, [
+          timelineRow({ date: '9 Jul', text: 'Database checks received', code: 'FTA0', current: true }),
+          timelineRow({ date: '19 Jun', text: null, code: 'IMAF', guess: 'Fingerprint appointment notice sent' }),
+          timelineRow({ date: '4 Jun', text: 'Receipt notice was sent', code: 'IAA' }),
+          timelineRow({ date: '15 Jul', text: 'Your case has been approved', code: 'SA', good: true })
+        ])
+      ]);
+    }
+
+    /* collapsible */
+    function collapsible() {
+      return h('div', { class: 'uscistr-raw-wrap' }, [
+        rawBlock(['/api/case_status/{num}', '200', RAW_STATUS]),
+        rawBlock(['/api/cases/I-485/processing_times/{num}', '204', RAW_204]),
+        rawBlock(['/api/cases/{num}/history', '404', '// HTTP 404 — endpoint does not exist.'])
+      ]);
+    }
+
+    /* empty */
+    function empty() {
+      var e = h('div', { class: 'uscistr-empty' }, []);
+      var ic = h('div', { class: 'uscistr-empty-icon' }); ic.appendChild(icon('inbox'));
+      e.appendChild(ic);
+      e.appendChild(h('div', { class: 'uscistr-empty-title', text: 'No cases yet' }));
+      e.appendChild(h('div', { class: 'uscistr-empty-text', text: 'Add a receipt number, or let the panel read the ones already on your account page.' }));
+      var b = h('button', { type: 'button', class: 'uscistr-btn uscistr-btn-primary' }, ['Import 3 cases']);
+      b.insertBefore(icon('plus'), b.firstChild);
+      e.appendChild(b);
+      e.appendChild(h('button', { type: 'button', class: 'uscistr-btn uscistr-btn-sm uscistr-btn-ghost', text: 'Add manually' }));
+      return e;
+    }
+
+    /* popover */
+    function popoverDemo() {
+      var wrap = h('div', { style: 'position:relative;height:250px' });
+      var p = popover();
+      p.style.position = 'static';
+      p.style.animation = 'none';
+      wrap.appendChild(p);
+      return wrap;
+    }
+
+    /* footer + change notice + note */
+    function odds() {
+      var f = h('div', { class: 'uscistr-footer', style: 'border:1px solid var(--ust-border-1);border-radius:10px' }, []);
+      var l = h('div', { class: 'uscistr-footer-left' }, []);
+      var s = h('span', { style: 'display:flex;align-items:center;gap:5px' }); s.appendChild(icon('lock')); s.appendChild(document.createTextNode('Local only'));
+      l.appendChild(s); l.appendChild(h('span', { class: 'uscistr-footer-sep', text: '·' })); l.appendChild(h('span', { text: 'v1.0.0' }));
+      f.appendChild(l);
+      f.appendChild(h('div', { class: 'uscistr-footer-right' }, [h('span', { text: 'Next check in 13 min' })]));
+
+      var chg = h('div', { class: 'uscistr-change' }, []);
+      chg.appendChild(icon('arrowUp'));
+      var sp = h('span'); sp.appendChild(h('b', { text: '2 changes' })); sp.appendChild(document.createTextNode(' since you last looked on Aug 3'));
+      chg.appendChild(sp);
+      chg.appendChild(h('button', { type: 'button', class: 'uscistr-btn uscistr-btn-sm uscistr-btn-ghost', text: 'Mark seen' }));
+
+      return h('div', { class: 'mk-stack' }, [
+        chg,
+        h('div', { class: 'uscistr-note', text: 'No status history returned. USCIS reports events for this case only through the account page.' }),
+        h('div', { class: 'uscistr-documents' }, [
+          (function () { var r = h('div', { class: 'uscistr-doc-row' }); r.appendChild(icon('file')); r.appendChild(h('div', { class: 'uscistr-doc-name', text: 'IOE0000000000-0000000000000-part1.tif' })); r.appendChild(h('div', { class: 'uscistr-doc-date', text: '4 Jun 2026' })); return r; })(),
+          (function () { var r = h('div', { class: 'uscistr-doc-row' }); r.appendChild(icon('file')); r.appendChild(h('div', { class: 'uscistr-doc-name', text: 'IOE0000000000-0000000000000-part2.tif' })); r.appendChild(h('div', { class: 'uscistr-doc-date', text: '4 Jun 2026' })); return r; })()
+        ]),
+        f
+      ]);
+    }
+
+    var GROUPS = [
+      ['Launcher pill — idle, with count, with unseen changes', pills],
+      ['Buttons — primary, outline, ghost, danger, icon, disabled, busy', buttons],
+      ['Chips, codes, badges, HTTP status', chips],
+      ['Inputs, select, switch', inputs],
+      ['Banners — warning, danger, info', banners],
+      ['Elapsed / progress — unknown, complete, estimated', progress],
+      ['Timeline rows — current, code-only, plain, approved', timeline],
+      ['Collapsible raw response', collapsible],
+      ['Empty state', empty],
+      ['Settings popover', popoverDemo],
+      ['Change notice, note, documents, footer', odds]
+    ];
+
+    GROUPS.forEach(function (g) {
+      var duo = h('div', { class: 'mk-duo' });
+      [false, true].forEach(function (dark) {
+        var cell = h('div', { class: 'mk-cell', 'data-label': dark ? 'Dark' : 'Light' });
+        if (dark) cell.setAttribute('data-dark', '1');
+        var root = h('div', { class: 'uscistr-root' + (dark ? ' uscistr-dark' : '') });
+        root.appendChild(g[1]());
+        cell.appendChild(root);
+        duo.appendChild(cell);
+      });
+      group(g[0], duo);
+    });
+
+    return frag;
+  }
+
+  /* ---- elevation / motion tiles ------------------------------------------ */
+  function renderTiles() {
+    var e = document.getElementById('mk-elev');
+    [['--ust-sh-1', 'Resting controls: outline buttons, chips with depth.'],
+     ['--ust-sh-2', 'Launcher pill, hovered primary button.'],
+     ['--ust-sh-3', 'The panel itself. The only level-3 surface on screen.'],
+     ['--ust-sh-pop', 'Settings popover, anchored above the panel.']].forEach(function (s) {
+      var t = h('div', { class: 'mk-tile' });
+      var box = h('div', { class: 'mk-elev' });
+      box.style.boxShadow = getComputedStyle(document.querySelector('.uscistr-root')).getPropertyValue(s[0]);
+      t.appendChild(box);
+      t.appendChild(h('h4', { text: s[0] }));
+      t.appendChild(h('p', { text: s[1] }));
+      e.appendChild(t);
+    });
+    [['Radii', '4 · 6 · 8 · 10 · 14 · 999', 'Chip 6, button/input 8, inset block 10, panel 14. Nothing in between.'],
+     ['Space', '2 4 6 8 10 12 16 20 24 32', 'Card padding 12, gap between card blocks 10, field row gap 6.'],
+     ['Density', '400 × 85vh', 'One card is roughly 340–520px tall. Three fit in a 792px panel with scroll.']].forEach(function (s) {
+      var t = h('div', { class: 'mk-tile' });
+      t.appendChild(h('h4', { text: s[0] }));
+      t.appendChild(h('p', {}, [h('code', { text: s[1] })]));
+      t.appendChild(h('p', { text: s[2], style: 'margin-top:8px' }));
+      e.appendChild(t);
+    });
+
+    var m = document.getElementById('mk-motion');
+    [['--ust-d1 · 90ms', 'cubic-bezier(.2,0,0,1)', 'Hover and press feedback. Fast enough to feel mechanical.'],
+     ['--ust-d2 · 150ms', 'cubic-bezier(.2,0,0,1)', 'Chevron rotation, switch knob, chip swaps.'],
+     ['--ust-d3 · 220ms', 'cubic-bezier(.05,.7,.1,1)', 'Popover open, section expand.'],
+     ['--ust-d4 · 320ms', 'cubic-bezier(.05,.7,.1,1)', 'Panel enter, progress fill.']].forEach(function (s) {
+      var t = h('div', { class: 'mk-tile' });
+      var e2 = h('div', { class: 'mk-ease' }); e2.appendChild(h('i'));
+      t.appendChild(e2);
+      t.appendChild(h('h4', { text: s[0] }));
+      t.appendChild(h('p', {}, [h('code', { text: s[1] })]));
+      t.appendChild(h('p', { text: s[2], style: 'margin-top:8px' }));
+      m.appendChild(t);
+    });
+  }
+
+  /* ---- hostile CSS ------------------------------------------------------- */
+  var HOSTILE = [
+    'body div, body span, body p, body button, body input, body select, body pre {',
+    '  font-family: "Comic Sans MS", "Brush Script MT", cursive;',
+    '  color: #c1121f; background-color: #ffe8a3; border: 2px dotted #7b2cbf;',
+    '  text-transform: uppercase; letter-spacing: 3px; line-height: 3;',
+    '  padding: 8px; margin: 6px; float: left; text-align: right;',
+    '  box-shadow: 0 0 0 3px #7CFC00; border-radius: 0; opacity: .8;',
+    '}',
+    'body * { font-size: 19px; visibility: visible; }',
+    '#main div.content p, html body ul li { list-style: square; text-indent: 40px; }'
+  ].join('\n');
+
+  /* ---- wire up ----------------------------------------------------------- */
+  function bindToggle(id, key) {
+    var el = document.getElementById(id);
+    el.addEventListener('change', function () { opts[key] = el.checked; renderFrames(); });
+  }
+  bindToggle('mk-banner', 'banner');
+  bindToggle('mk-popover', 'popover');
+  bindToggle('mk-add', 'add');
+  bindToggle('mk-redact', 'redact');
+  bindToggle('mk-raw', 'raw');
+
+  document.getElementById('mk-hostile-toggle').addEventListener('change', function (e) {
+    document.getElementById('mk-hostile').textContent = e.target.checked ? HOSTILE : '';
+  });
+
+  Array.prototype.forEach.call(document.querySelectorAll('.mk-seg button'), function (b) {
+    b.addEventListener('click', function () {
+      mode = b.getAttribute('data-mode');
+      Array.prototype.forEach.call(document.querySelectorAll('.mk-seg button'), function (o) {
+        o.setAttribute('aria-pressed', o === b ? 'true' : 'false');
+      });
+      document.documentElement.setAttribute('data-theme', mode === 'dark' ? 'dark' : 'light');
+      renderFrames();
+    });
+  });
+
+  renderFrames();
+  renderSwatches('mk-sw-light', SWATCHES_LIGHT, false);
+  renderSwatches('mk-sw-dark', SWATCHES_DARK, true);
+  renderType('mk-type-light');
+  renderType('mk-type-dark');
+  renderTypeSpecs();
+  document.getElementById('mk-gallery').appendChild(galleryContent());
+  renderTiles();
+})();
+</script>
+</body>
+</html>

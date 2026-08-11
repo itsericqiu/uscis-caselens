@@ -1,0 +1,712 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>USCIS Tracker — Timeline &amp; Progress mockup</title>
+<style>
+  :root{
+    --page:#eceef1; --surface:#ffffff; --sunken:#f7f7f8;
+    --ink:#1a1a1a; --muted:#6b7280; --rule:#e2e2e2;
+    --brand:#0b4778; --amber:#f5a623; --danger:#b3261e;
+    --dangerbg:rgba(179,38,30,.07);
+    --anno:#7a8090; --annorule:#d5d9e0;
+    --shadow:0 8px 30px rgba(0,0,0,.18);
+  }
+  html[data-theme="dark"]{
+    --page:#16161b; --surface:#2a2a33; --sunken:#1e1e24;
+    --ink:#e8e8ea; --muted:#9a9aa5; --rule:rgba(255,255,255,.10);
+    --brand:#4a90c2; --amber:#caa042; --danger:#ff8a80;
+    --dangerbg:rgba(255,138,128,.10);
+    --anno:#8b8f9c; --annorule:#33333d;
+    --shadow:0 8px 30px rgba(0,0,0,.45);
+  }
+  @media (prefers-color-scheme: dark){
+    html:not([data-theme="light"]){
+      --page:#16161b; --surface:#2a2a33; --sunken:#1e1e24;
+      --ink:#e8e8ea; --muted:#9a9aa5; --rule:rgba(255,255,255,.10);
+      --brand:#4a90c2; --amber:#caa042; --danger:#ff8a80;
+      --dangerbg:rgba(255,138,128,.10);
+      --anno:#8b8f9c; --annorule:#33333d;
+      --shadow:0 8px 30px rgba(0,0,0,.45);
+    }
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0; padding:28px 20px 80px; background:var(--page); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:13px; line-height:1.45;
+  }
+  .sheet{max-width:1360px;margin:0 auto}
+  .sheet-head{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:6px}
+  .sheet-head h1{font-size:18px;margin:0;font-weight:650;letter-spacing:-.01em}
+  .sheet-head p{margin:0;color:var(--anno);font-size:12px;max-width:640px}
+  .themebtn{
+    margin-left:auto;background:var(--surface);color:var(--ink);border:1px solid var(--rule);
+    border-radius:999px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;
+  }
+  .cols{display:flex;gap:36px;flex-wrap:wrap;align-items:flex-start;margin-top:24px}
+  .col{width:400px;flex:0 0 400px}
+  .anno{font-size:11px;color:var(--anno);margin:0 0 8px;line-height:1.5}
+  .anno b{color:var(--anno);font-weight:700;letter-spacing:.03em;text-transform:uppercase;font-size:10px}
+
+  /* ---------- panel chrome ---------- */
+  .panel{width:400px;background:var(--surface);border-radius:8px;box-shadow:var(--shadow);overflow:hidden}
+  .phead{display:flex;align-items:center;gap:8px;background:var(--brand);color:#fff;padding:10px 12px;font-weight:650;font-size:13px}
+  html[data-theme="dark"] .phead{background:#1e1e24;border-bottom:1px solid var(--rule);color:var(--ink)}
+  @media (prefers-color-scheme:dark){html:not([data-theme="light"]) .phead{background:#1e1e24;border-bottom:1px solid var(--rule);color:var(--ink)}}
+  .phead .sp{margin-left:auto;font-weight:400;opacity:.8;font-size:11.5px}
+  .card{padding:12px;border-bottom:1px solid var(--rule);display:flex;flex-direction:column;gap:10px}
+  .card:last-child{border-bottom:none}
+  .cardtop{display:flex;align-items:baseline;gap:8px}
+  .cardtop .name{font-weight:650;font-size:13.5px}
+  .cardtop .num{margin-left:auto;font-size:11.5px;color:var(--muted);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  .sect{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);display:flex;align-items:center;gap:8px}
+  .sect::after{content:"";flex:1;height:1px;background:var(--rule)}
+
+  /* ---------- NOW block ---------- */
+  .now{display:flex;gap:8px;align-items:flex-start}
+  .now .g{flex:0 0 18px;color:var(--brand);padding-top:2px}
+  .now .t{min-width:0}
+  .now .st{font-size:14px;font-weight:600;line-height:1.3}
+  .now .sub{font-size:11.5px;color:var(--muted);margin-top:2px}
+  .backend{
+    display:flex;gap:7px;align-items:flex-start;background:var(--sunken);border:1px solid var(--rule);
+    border-radius:5px;padding:7px 8px;font-size:11.5px;color:var(--muted);cursor:pointer;
+  }
+  .backend .g{flex:0 0 12px;color:var(--muted);padding-top:1px}
+  .backend b{color:var(--ink);font-weight:600}
+
+  /* ---------- progress module ---------- */
+  .day{display:flex;align-items:baseline;gap:8px}
+  .day .n{font-size:26px;font-weight:650;letter-spacing:-.02em;line-height:1}
+  .day .f{margin-left:auto;font-size:11.5px;color:var(--muted)}
+  .rail{display:flex;margin-top:2px}
+  .seg{flex:1;position:relative;text-align:center;min-width:0}
+  .seg .node{position:relative;z-index:1;display:inline-block;background:var(--surface);padding:0 3px;color:var(--brand)}
+  .seg::before{
+    content:"";position:absolute;left:-50%;right:50%;top:5px;height:0;
+    border-top:2px solid var(--brand);
+  }
+  .seg:first-child::before{display:none}
+  .seg.ahead .node{color:var(--rule)}
+  .seg.ahead::before{border-top:2px dotted var(--rule)}
+  .seg.ahead .lb{color:var(--muted);font-weight:400}
+  .seg .lb{display:block;font-size:9.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-top:5px;font-weight:600}
+  .seg.cur .lb{color:var(--ink);font-weight:700}
+  .seg .here{display:block;font-size:9.5px;color:var(--brand);margin-top:2px;font-weight:600}
+  .seg.unk .node{color:var(--rule)}
+  .seg.unk::before{border-top:2px dotted var(--rule)}
+  .nextline{font-size:11.5px;color:var(--muted);margin-top:2px}
+  .nextline b{color:var(--ink);font-weight:600}
+
+  .quiet{margin-top:2px}
+  .quiet .qh{display:flex;align-items:baseline;font-size:11.5px}
+  .quiet .qh .l{font-weight:600;color:var(--ink)}
+  .quiet .qh .r{margin-left:auto;color:var(--muted)}
+  .track{height:6px;background:var(--rule);border-radius:999px;overflow:hidden;margin-top:4px}
+  .fill{height:100%;background:var(--muted);border-radius:999px}
+
+  .checks{display:flex;align-items:center;gap:8px;font-size:10.5px;color:var(--muted)}
+  .ticks{display:flex;gap:2px;flex:1;align-items:flex-end;height:12px}
+  .ticks i{flex:1;height:5px;background:var(--rule);border-radius:1px}
+  .ticks i.on{height:11px;background:var(--brand)}
+  .ticks i.chk{height:8px;background:var(--muted);opacity:.55}
+
+  /* ---------- upcoming ---------- */
+  .upc{
+    display:flex;gap:8px;align-items:flex-start;border:1px solid var(--brand);
+    border-radius:6px;padding:8px 9px;
+  }
+  .upc .g{flex:0 0 12px;color:var(--brand);padding-top:2px}
+  .upc .t{min-width:0;flex:1}
+  .upc .l{font-size:12.5px;font-weight:600;display:flex;gap:8px}
+  .upc .l .when{margin-left:auto;font-weight:600;color:var(--brand);white-space:nowrap;font-size:11.5px}
+  .upc .m{font-size:11.5px;color:var(--muted);margin-top:1px}
+
+  /* ---------- banners ---------- */
+  .attn{background:var(--dangerbg);border-left:3px solid var(--danger);border-radius:0 5px 5px 0;padding:8px 10px;display:flex;gap:8px}
+  .attn .g{flex:0 0 12px;color:var(--danger);padding-top:2px}
+  .attn .h{font-size:12.5px;font-weight:650;color:var(--ink)}
+  .attn .b{font-size:11.5px;color:var(--muted);margin-top:2px}
+  .stale{background:var(--sunken);border:1px solid var(--rule);border-radius:5px;padding:8px 10px;display:flex;gap:8px;align-items:flex-start}
+  .stale .g{flex:0 0 12px;color:var(--muted);padding-top:2px}
+  .stale .b{font-size:11.5px;color:var(--muted);flex:1}
+  .stale .b b{color:var(--ink);font-weight:600}
+  .minibtn{background:transparent;border:1px solid var(--rule);color:var(--ink);border-radius:4px;padding:3px 8px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap}
+
+  /* ---------- filter chips ---------- */
+  .filters{display:flex;gap:5px;margin-left:auto}
+  .chipf{border:1px solid var(--rule);background:transparent;color:var(--muted);border-radius:999px;padding:1px 9px;font-size:10px;font-weight:700;letter-spacing:.03em;cursor:pointer;text-transform:none}
+  .chipf.on{background:var(--brand);border-color:var(--brand);color:#fff}
+  html[data-theme="dark"] .chipf.on{color:#101418}
+  @media (prefers-color-scheme:dark){html:not([data-theme="light"]) .chipf.on{color:#101418}}
+
+  /* ---------- timeline ---------- */
+  .tl{display:flex;flex-direction:column}
+  .row{display:flex;gap:8px;align-items:stretch}
+  .row .gut{flex:0 0 18px;position:relative}
+  .row .gut::before{content:"";position:absolute;left:8px;top:0;bottom:0;width:1px;background:var(--rule)}
+  .row:first-child .gut::before{top:8px}
+  .row.last .gut::before{bottom:auto;height:8px}
+  .row .gut svg{position:relative;display:block;margin:2px auto 0;background:var(--surface);padding:2px 0}
+  .row .bd{flex:1;min-width:0;padding:0 0 10px 0}
+  .row.exp .bd{padding-bottom:10px}
+  .lab{font-size:12.5px;line-height:1.35;color:var(--ink);display:flex;gap:6px;align-items:flex-start}
+  .lab .tx{min-width:0;flex:1;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .lab.official .tx{font-weight:550}
+  .met{font-size:11px;color:var(--muted);margin-top:2px}
+  .sub2{font-size:11px;color:var(--muted);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .chip{
+    flex:0 0 auto;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:10px;
+    background:var(--sunken);border:1px solid var(--rule);border-radius:3px;padding:1px 5px;color:var(--muted);
+    line-height:1.5;margin-top:1px;
+  }
+  .row[data-x]{cursor:pointer}
+  .row[data-x]:hover .lab .tx{text-decoration-color:currentColor}
+  .disc{display:none;background:var(--sunken);border-radius:4px;padding:7px 8px;margin-top:6px;font-size:11.5px;color:var(--muted);line-height:1.5}
+  .row.exp .disc{display:block}
+  .disc em{font-style:normal;color:var(--ink)}
+
+  .g-official{color:var(--brand)}
+  .g-coded{color:var(--brand)}
+  .g-hints{color:var(--brand);opacity:.85}
+  .g-unknown{color:var(--muted)}
+  .g-local{color:var(--amber)}
+  .g-backend{color:var(--muted)}
+  .g-anchor{color:var(--muted)}
+  .g-attn{color:var(--danger)}
+
+  .unoff{text-decoration:underline dotted;text-underline-offset:3px;text-decoration-color:var(--muted)}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  .lab.unknown .tx{color:var(--muted)}
+  .lab.local .tx{color:var(--ink)}
+  .lab.is-attn .tx{font-weight:650}
+  .lab.is-backend .tx{color:var(--muted)}
+
+  .gaprow{display:flex;gap:8px}
+  .gaprow .gut{flex:0 0 18px;position:relative}
+  .gaprow .gut::before{content:"";position:absolute;left:8px;top:0;bottom:0;width:1px;background:var(--rule)}
+  .gaprow .bd{flex:1;padding:0 0 10px}
+  .gaplbl{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:7px}
+  .gaplbl::after{content:"";flex:1;height:1px;background:var(--rule)}
+
+  .foldrow{display:flex;gap:8px}
+  .foldrow .gut{flex:0 0 18px;position:relative}
+  .foldrow .gut::before{content:"";position:absolute;left:8px;top:0;bottom:0;width:1px;background:var(--rule)}
+  .foldrow .bd{flex:1;padding:0 0 10px}
+  .fold{background:transparent;border:none;padding:0;color:var(--brand);font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit}
+  .fold .cnt{color:var(--muted);font-weight:400}
+
+  .foot{font-size:11px;color:var(--muted);line-height:1.5}
+
+  /* ---------- skeleton ---------- */
+  .sk{display:flex;gap:8px;margin-bottom:12px;align-items:flex-start}
+  .sk .c{flex:0 0 12px;height:12px;border-radius:50%;background:var(--rule);margin-left:3px;margin-top:2px}
+  .sk .b{flex:1}
+  .sk .b i{display:block;height:9px;border-radius:3px;background:var(--rule);margin-bottom:5px}
+  .sk .b i:last-child{width:35%;height:8px;opacity:.7}
+  .pulse{animation:pl 1.4s ease-in-out infinite}
+  @keyframes pl{0%,100%{opacity:.4}50%{opacity:.75}}
+  @media (prefers-reduced-motion:reduce){.pulse{animation:none;opacity:.55}}
+
+  /* ---------- group strip ---------- */
+  .grp{border:1px solid var(--rule);border-radius:6px;padding:9px 10px;display:flex;flex-direction:column;gap:8px}
+  .grph{font-size:11.5px;color:var(--muted)}
+  .grph b{color:var(--ink);font-weight:650}
+  .trk{display:flex;align-items:center;gap:8px}
+  .trk .fm{flex:0 0 44px;font-size:10.5px;font-weight:700;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--ink)}
+  .trk .mini{flex:1;display:flex}
+  .trk .mini .s{flex:1;position:relative;text-align:center}
+  .trk .mini .s::before{content:"";position:absolute;left:-50%;right:50%;top:3.5px;border-top:2px solid var(--brand)}
+  .trk .mini .s:first-child::before{display:none}
+  .trk .mini .s.ah::before{border-top:2px dotted var(--rule)}
+  .trk .mini .d{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--brand);position:relative;z-index:1;border:2px solid var(--surface)}
+  .trk .mini .s.ah .d{background:var(--rule)}
+  .trk .mini .s.cur .d{background:var(--surface);border:2px solid var(--brand);box-shadow:0 0 0 2px var(--surface)}
+  .trk .st{flex:0 0 74px;text-align:right;font-size:10.5px;color:var(--muted)}
+  .grpax{display:flex;padding-left:52px}
+  .grpax span{flex:1;text-align:center;font-size:9px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+  .grpax .pad{flex:0 0 74px}
+</style>
+</head>
+<body>
+<div class="sheet">
+  <div class="sheet-head">
+    <div>
+      <h1>Timeline &amp; Progress — mockup</h1>
+      <p>All data below is fabricated. Receipt numbers are the placeholder <span class="mono">IOE0000000000</span>.
+         Rendered at the real 400px panel width. Rows with a caret are tappable — click any of them.</p>
+    </div>
+    <button class="themebtn" id="tb">Toggle light / dark</button>
+  </div>
+
+  <div class="cols">
+
+    <!-- ============================ COLUMN 1 ============================ -->
+    <div class="col">
+      <p class="anno"><b>Case A · dense</b><br>Mature I-485 showing every timeline variant, the Now block with
+      backend activity, the stage rail, the quiet meter and the fold.</p>
+
+      <div class="panel">
+        <div class="phead">USCIS Tracker <span class="sp">4 cases · checked just now</span></div>
+
+        <div class="card">
+          <div class="cardtop">
+            <span class="name">Green card (I-485)</span>
+            <span class="num">IOE0000000000</span>
+          </div>
+
+          <!-- UPCOMING -->
+          <div class="sect">Upcoming</div>
+          <div class="upc">
+            <span class="g"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><rect x="1.5" y="2.5" width="9" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M1.5 5h9" stroke="currentColor" stroke-width="1.4"/><path d="M4 1.5v2M8 1.5v2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span>
+            <div class="t">
+              <div class="l"><span>Appointment Scheduled</span><span class="when">in 12 days</span></div>
+              <div class="m">Oct 9, 2026 · 3:00 PM · notice 440000000</div>
+            </div>
+          </div>
+
+          <!-- NOW -->
+          <div class="sect">Now</div>
+          <div class="now">
+            <span class="g"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="3" fill="currentColor"/><circle cx="6" cy="6" r="5.4" fill="none" stroke="currentColor" stroke-width="1" opacity=".4"/></svg></span>
+            <div class="t">
+              <div class="st">USCIS Is Currently Processing The Case</div>
+              <div class="sub">Unchanged for 22 days · checked just now</div>
+            </div>
+          </div>
+
+          <div class="backend" data-x tabindex="0">
+            <span class="g"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="3.75" fill="none" stroke="currentColor" stroke-width="1.6" stroke-dasharray="2.2 2"/></svg></span>
+            <div>
+              <b>USCIS touched your record on Jul 31</b> — 22 days after your visible status. The public status did not change.
+              <div class="disc" style="margin-top:6px">USCIS's internal copy of your case was modified on <em>Jul 31, 1:07 PM</em>, 22 days
+              after your visible status last changed. The public status did not change. This sometimes comes before visible
+              movement, and sometimes means nothing we can see. We show it because my.uscis.gov doesn't.</div>
+            </div>
+          </div>
+
+          <!-- PROGRESS -->
+          <div class="day">
+            <span class="n">Day 143</span>
+            <span class="f">filed May 29, 2026</span>
+          </div>
+
+          <div class="rail" role="img" aria-label="Stage 3 of 5: Under review. Stages ahead are typical, not scheduled.">
+            <div class="seg"><span class="node"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="4" fill="currentColor"/></svg></span><span class="lb">Recv</span></div>
+            <div class="seg"><span class="node"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="4" fill="currentColor"/></svg></span><span class="lb">Bio</span></div>
+            <div class="seg cur"><span class="node"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="3" fill="currentColor"/><circle cx="6" cy="6" r="5.4" fill="none" stroke="currentColor" stroke-width="1" opacity=".4"/></svg></span><span class="lb">Review</span><span class="here">you are here</span></div>
+            <div class="seg ahead"><span class="node"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="3.75" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></span><span class="lb">Intvw</span></div>
+            <div class="seg ahead"><span class="node"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="3.75" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></span><span class="lb">Decision</span></div>
+          </div>
+
+          <div class="nextline">Cases at this stage usually move to <b>Interview</b> next. USCIS has not said this will happen, and the order varies.</div>
+
+          <div class="quiet">
+            <div class="qh"><span class="l">Quiet for 22 days</span><span class="r">longest so far: 41 days</span></div>
+            <div class="track"><div class="fill" style="width:53%"></div></div>
+          </div>
+
+          <div class="checks">
+            <span>Checks</span>
+            <span class="ticks">
+              <i></i><i class="chk"></i><i></i><i class="chk"></i><i class="chk"></i><i></i><i class="chk"></i>
+              <i></i><i class="on"></i><i class="chk"></i><i></i><i class="chk"></i><i class="chk"></i><i></i>
+              <i class="chk"></i><i></i><i class="chk"></i><i class="chk"></i><i></i><i class="chk"></i><i></i>
+              <i class="chk"></i><i class="on"></i><i></i><i class="chk"></i><i class="chk"></i><i></i><i class="chk"></i>
+              <i class="chk"></i><i class="chk"></i>
+            </span>
+            <span>last 30 days</span>
+          </div>
+
+          <!-- TIMELINE -->
+          <div class="sect">History
+            <span class="filters">
+              <button class="chipf on">All</button>
+              <button class="chipf">USCIS only</button>
+            </span>
+          </div>
+
+          <div class="tl">
+
+            <!-- V1 official, corroborated -->
+            <div class="row" data-x tabindex="0">
+              <div class="gut"><svg class="g-official" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="4" fill="currentColor"/><circle cx="6" cy="6" r="5.25" fill="none" stroke="currentColor" stroke-width="1" opacity=".35"/></svg></div>
+              <div class="bd">
+                <div class="lab official"><span class="tx">We are actively reviewing your case</span><span class="chip">FTA0</span></div>
+                <div class="met">Aug 18, 2026 · USCIS · logged 5:58 PM</div>
+                <div class="disc">As of August 18, 2026, we are actively reviewing your Form I-485, Application to Register
+                Permanent Residence or Adjust Status. We will notify you if we need anything from you.<br><br>
+                <em>Action code FTA0 · reported by USCIS on Aug 18, 2026.</em></div>
+              </div>
+            </div>
+
+            <!-- V2 coded, harvested -->
+            <div class="row" data-x tabindex="0">
+              <div class="gut"><svg class="g-coded" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="3.75" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></div>
+              <div class="bd">
+                <div class="lab"><span class="tx">We are actively reviewing your case</span><span class="chip">FTA0</span></div>
+                <div class="met">Aug 18, 2026 · USCIS event</div>
+                <div class="disc">USCIS logged code <em>FTA0</em> at 5:58 PM and recorded it at 5:59 PM. The wording above is
+                USCIS's own — we matched this code to the status text USCIS published for it on this case.</div>
+              </div>
+            </div>
+
+            <!-- gap -->
+            <div class="gaprow"><div class="gut"></div><div class="bd"><div class="gaplbl">22 days</div></div></div>
+
+            <!-- V6 backend -->
+            <div class="row" data-x tabindex="0">
+              <div class="gut"><svg class="g-backend" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="3.75" fill="none" stroke="currentColor" stroke-width="1.6" stroke-dasharray="2.2 2"/></svg></div>
+              <div class="bd">
+                <div class="lab is-backend"><span class="tx">USCIS touched your record</span></div>
+                <div class="met">Jul 31, 2026 · record updated, status unchanged</div>
+                <div class="disc">USCIS's internal copy of your case was modified on <em>Jul 31, 1:07 PM</em> — 22 days after
+                your visible status last changed. The public status did not change. This sometimes comes before visible
+                movement, and sometimes means nothing we can see.</div>
+              </div>
+            </div>
+
+            <!-- V3 coded, community hints -->
+            <div class="row" data-x tabindex="0">
+              <div class="gut"><svg class="g-hints" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="3.75" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></div>
+              <div class="bd">
+                <div class="lab"><span class="tx"><span class="unoff">Database checks received</span>
+                  <svg width="9" height="9" viewBox="0 0 12 12" style="vertical-align:-1px;color:var(--muted)" aria-label="unofficial meaning"><circle cx="6" cy="6" r="4.6" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="1.6 1.6"/><path d="M4.7 4.7a1.35 1.35 0 1 1 1.5 2v.8" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="6.2" cy="9" r=".7" fill="currentColor"/></svg>
+                </span><span class="chip">FSA0</span></div>
+                <div class="met">Jul 9, 2026 · USCIS event · unofficial meaning</div>
+                <div class="disc">USCIS sent only the code <em>FSA0</em>. "Database checks received" is a community-researched
+                guess at what that code means — not USCIS wording, and it can be wrong. Logged 5:58 PM on Jul 9.</div>
+              </div>
+            </div>
+
+            <!-- V7 appointment, past -->
+            <div class="row" data-x tabindex="0">
+              <div class="gut"><svg class="g-official" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><rect x="1.5" y="2.5" width="9" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M1.5 5h9" stroke="currentColor" stroke-width="1.4"/><path d="M4 1.5v2M8 1.5v2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></div>
+              <div class="bd">
+                <div class="lab"><span class="tx">Appointment Scheduled: Jul 9, 3:00 PM</span></div>
+                <div class="met">Notice generated Jun 19, 2026 · USCIS notice 440000000</div>
+                <div class="disc">USCIS generated notice <em>440000000</em> on Jun 19, 7:43 PM for an appointment on
+                Jul 9, 3:00 PM. Check the notice in your USCIS account for the address and what to bring.</div>
+              </div>
+            </div>
+
+            <!-- V4 coded, untranslated -->
+            <div class="row" data-x tabindex="0">
+              <div class="gut"><svg class="g-unknown" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="3.75" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></div>
+              <div class="bd">
+                <div class="lab unknown"><span class="tx">Case event <span class="mono" style="font-weight:600">XQ40</span></span></div>
+                <div class="met">Jul 2, 2026 · USCIS event · meaning unknown</div>
+                <div class="disc">USCIS logged this code on your case and publishes no text for it. We don't know what it
+                means, and we'd rather say so than guess.</div>
+              </div>
+            </div>
+
+            <!-- fold -->
+            <div class="foldrow">
+              <div class="gut"></div>
+              <div class="bd"><button class="fold" id="foldbtn">Show 4 more <span class="cnt">· back to May 29</span></button></div>
+            </div>
+
+            <div id="more" style="display:none">
+              <!-- V8 document -->
+              <div class="row" data-x tabindex="0">
+                <div class="gut"><svg class="g-official" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 1.5h4.2L9.5 4.3v6.2a.7.7 0 0 1-.7.7H2.5a.7.7 0 0 1-.7-.7V2.2a.7.7 0 0 1 .7-.7z" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M6.6 1.6v2.8h2.8" fill="none" stroke="currentColor" stroke-width="1.3"/></svg></div>
+                <div class="bd">
+                  <div class="lab"><span class="tx">New document available</span></div>
+                  <div class="sub2">IOE0000000000-0000000000000-part1.tif</div>
+                  <div class="met">Jun 4, 2026 · USCIS · Applicant Provided</div>
+                  <div class="disc">IOE0000000000-0000000000000-part1.tif · type Other · Applicant Provided · added
+                  <em>Jun 4, 2:09 AM</em>. Open it from your USCIS account — this tool doesn't download your files.</div>
+                </div>
+              </div>
+
+              <!-- V1 official with local first-seen -->
+              <div class="row" data-x tabindex="0">
+                <div class="gut"><svg class="g-official" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="4" fill="currentColor"/></svg></div>
+                <div class="bd">
+                  <div class="lab official"><span class="tx">Case Was Received</span><span class="chip">RCV0</span></div>
+                  <div class="met">Jun 2, 2026 · USCIS</div>
+                  <div class="met">You first saw this on Jun 3.</div>
+                  <div class="disc">On June 2, 2026, we received your Form I-485 and mailed you a receipt notice.<br><br>
+                  <em>Action code RCV0 · reported by USCIS on Jun 2, 2026.</em></div>
+                </div>
+              </div>
+
+              <!-- V5 local, office change -->
+              <div class="row" data-x tabindex="0">
+                <div class="gut"><svg class="g-local" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><rect x="2.4" y="2.4" width="7.2" height="7.2" rx="1" fill="none" stroke="currentColor" stroke-width="1.6" transform="rotate(45 6 6)"/></svg></div>
+                <div class="bd">
+                  <div class="lab local"><span class="tx">Office changed to NATIONAL BENEFITS CENTER</span></div>
+                  <div class="met">Noticed Jun 3, 2026, 9:14 AM · by this tool</div>
+                  <div class="disc">Was: <em>NEBRASKA SERVICE CENTER</em>. USCIS doesn't publish when this changed —
+                  Jun 3, 9:14 AM is when this tool first saw it, so the real change happened at some point since the
+                  previous check on Jun 1, 8:02 AM.</div>
+                </div>
+              </div>
+
+              <!-- V9 filed anchor -->
+              <div class="row last">
+                <div class="gut"><svg class="g-anchor" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><rect x="2.5" y="2.5" width="7" height="7" rx="1.2" fill="currentColor"/></svg></div>
+                <div class="bd">
+                  <div class="lab"><span class="tx" style="font-weight:550">Filed</span></div>
+                  <div class="met">May 29, 2026 · I-485 received by USCIS · day 0</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================ COLUMN 2 ============================ -->
+    <div class="col">
+      <p class="anno"><b>Case B · sparse</b><br>Six days old: one coded event, zero history entries. Synthesized anchors
+      and a hard rail terminus make the shortness read as deliberate.</p>
+
+      <div class="panel">
+        <div class="card">
+          <div class="cardtop"><span class="name">Work permit (I-765)</span><span class="num">IOE0000000000</span></div>
+
+          <div class="sect">Now</div>
+          <div class="now">
+            <span class="g"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="3" fill="currentColor"/><circle cx="6" cy="6" r="5.4" fill="none" stroke="currentColor" stroke-width="1" opacity=".4"/></svg></span>
+            <div class="t">
+              <div class="st">Case Was Received</div>
+              <div class="sub">Unchanged for 6 days · checked 2 minutes ago</div>
+            </div>
+          </div>
+
+          <div class="day"><span class="n">Day 6</span><span class="f">filed Sep 22, 2026</span></div>
+
+          <div class="rail" role="img" aria-label="Stage 1 of 5: Received. Stages ahead are typical, not scheduled.">
+            <div class="seg cur"><span class="node"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="3" fill="currentColor"/><circle cx="6" cy="6" r="5.4" fill="none" stroke="currentColor" stroke-width="1" opacity=".4"/></svg></span><span class="lb">Recv</span><span class="here">you are here</span></div>
+            <div class="seg ahead"><span class="node"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="3.75" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></span><span class="lb">Bio</span></div>
+            <div class="seg ahead"><span class="node"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="3.75" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></span><span class="lb">Review</span></div>
+            <div class="seg ahead"><span class="node"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="3.75" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></span><span class="lb">Approved</span></div>
+            <div class="seg ahead"><span class="node"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="3.75" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></span><span class="lb">Card</span></div>
+          </div>
+          <div class="nextline">Cases at this stage usually move to <b>Biometrics</b> next. USCIS has not said this will happen, and the order varies.</div>
+
+          <div class="sect">History</div>
+          <div class="tl">
+            <div class="row" data-x tabindex="0">
+              <div class="gut"><svg class="g-hints" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="3.75" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></div>
+              <div class="bd">
+                <div class="lab"><span class="tx"><span class="unoff">Receipt letter emailed</span>
+                  <svg width="9" height="9" viewBox="0 0 12 12" style="vertical-align:-1px;color:var(--muted)" aria-label="unofficial meaning"><circle cx="6" cy="6" r="4.6" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="1.6 1.6"/><path d="M4.7 4.7a1.35 1.35 0 1 1 1.5 2v.8" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="6.2" cy="9" r=".7" fill="currentColor"/></svg>
+                </span><span class="chip">IAF</span></div>
+                <div class="met">Sep 24, 2026 · USCIS event · unofficial meaning</div>
+                <div class="disc">USCIS sent only the code <em>IAF</em>. "Receipt letter emailed" is a community-researched
+                guess at what that code means — not USCIS wording, and it can be wrong. Logged 11:04 AM on Sep 24.</div>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="gut"><svg class="g-anchor" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><rect x="2.4" y="2.4" width="7.2" height="7.2" rx="1" fill="none" stroke="currentColor" stroke-width="1.6" transform="rotate(45 6 6)"/></svg></div>
+              <div class="bd">
+                <div class="lab"><span class="tx" style="color:var(--muted)">Tracking started</span></div>
+                <div class="met">Sep 24, 2026, 9:14 AM · by this tool</div>
+              </div>
+            </div>
+
+            <div class="row last">
+              <div class="gut"><svg class="g-anchor" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><rect x="2.5" y="2.5" width="7" height="7" rx="1.2" fill="currentColor"/></svg></div>
+              <div class="bd">
+                <div class="lab"><span class="tx" style="font-weight:550">Filed</span></div>
+                <div class="met">Sep 22, 2026 · I-765 received by USCIS · day 0</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="foot">USCIS publishes very little while a case is new. Most cases show nothing between filing and the
+          first biometrics notice. We check on every visit and will log anything that moves — including backend activity
+          the website doesn't show.</div>
+        </div>
+      </div>
+
+      <p class="anno" style="margin-top:22px"><b>Co-filed group strip</b><br>The one place a combined view earns its
+      space: one track per form on a shared elapsed-days axis.</p>
+
+      <div class="panel">
+        <div class="card">
+          <div class="grp">
+            <div class="grph">Filed together · <b>May 29, 2026</b> · day 143</div>
+            <div class="trk"><span class="fm">I-765</span>
+              <span class="mini"><span class="s"><span class="d"></span></span><span class="s"><span class="d"></span></span><span class="s"><span class="d"></span></span><span class="s"><span class="d"></span></span><span class="s cur"><span class="d"></span></span></span>
+              <span class="st">card produced</span></div>
+            <div class="trk"><span class="fm">I-131</span>
+              <span class="mini"><span class="s"><span class="d"></span></span><span class="s"><span class="d"></span></span><span class="s cur"><span class="d"></span></span><span class="s ah"><span class="d"></span></span><span class="s ah"><span class="d"></span></span></span>
+              <span class="st">in review</span></div>
+            <div class="trk"><span class="fm">I-485</span>
+              <span class="mini"><span class="s"><span class="d"></span></span><span class="s"><span class="d"></span></span><span class="s cur"><span class="d"></span></span><span class="s ah"><span class="d"></span></span><span class="s ah"><span class="d"></span></span></span>
+              <span class="st">in review</span></div>
+            <div class="grpax"><span>Recv</span><span>Bio</span><span>Review</span><span>Intvw</span><span>Decision</span><span class="pad"></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================ COLUMN 3 ============================ -->
+    <div class="col">
+      <p class="anno"><b>Attention state + unmappable codes</b><br>An RFE banner sits above the rail; none of this case's
+      codes map to a known stage, so every segment stays hollow rather than guessing.</p>
+
+      <div class="panel">
+        <div class="card">
+          <div class="cardtop"><span class="name">Supplement J (I-485J)</span><span class="num">IOE0000000000</span></div>
+
+          <div class="attn">
+            <span class="g"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1.6 11 10.4H1z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M6 5v2.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="6" cy="9.1" r=".75" fill="currentColor"/></svg></span>
+            <div>
+              <div class="h">USCIS may need something from you</div>
+              <div class="b">A Request for Evidence was logged on Jul 12, based on an unofficial reading of code IK.
+              Check your USCIS account and any mail for the notice.</div>
+            </div>
+          </div>
+
+          <div class="day"><span class="n">Day 143</span><span class="f">filed May 29, 2026</span></div>
+
+          <div class="rail" role="img" aria-label="Stage unknown. USCIS has sent only unrecognized codes.">
+            <div class="seg unk"><span class="node"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="3.75" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></span><span class="lb">Recv</span></div>
+            <div class="seg unk"><span class="node"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="3.75" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></span><span class="lb">Review</span></div>
+            <div class="seg unk"><span class="node"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="3.75" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></span><span class="lb">Done</span></div>
+          </div>
+          <div class="nextline">We can't place this case on a stage map — USCIS has only sent codes we don't recognize
+          (<span class="mono">XQ40</span>, <span class="mono">ZZ0</span>). The timeline below still shows everything USCIS logged.</div>
+
+          <div class="nextline">Supplement J often shows no visible movement at all until the underlying I-485 is decided.</div>
+
+          <div class="sect">History</div>
+          <div class="tl">
+            <div class="row" data-x tabindex="0">
+              <div class="gut"><svg class="g-attn" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1.6 11 10.4H1z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M6 5v2.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="6" cy="9.1" r=".75" fill="currentColor"/></svg></div>
+              <div class="bd">
+                <div class="lab is-attn"><span class="tx"><span class="unoff">Request for Evidence sent</span>
+                  <svg width="9" height="9" viewBox="0 0 12 12" style="vertical-align:-1px;color:var(--muted)" aria-label="unofficial meaning"><circle cx="6" cy="6" r="4.6" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="1.6 1.6"/><path d="M4.7 4.7a1.35 1.35 0 1 1 1.5 2v.8" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="6.2" cy="9" r=".7" fill="currentColor"/></svg>
+                </span><span class="chip">IK</span></div>
+                <div class="met">Jul 12, 2026 · USCIS event · unofficial meaning · needs attention</div>
+                <div class="disc">USCIS sent only the code <em>IK</em>. "Request for Evidence sent" is a community-researched
+                guess at what that code means — not USCIS wording, and it can be wrong. We can't see any deadline; the
+                notice itself is the only reliable source.</div>
+              </div>
+            </div>
+
+            <div class="row" data-x tabindex="0">
+              <div class="gut"><svg class="g-unknown" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="3.75" fill="none" stroke="currentColor" stroke-width="1.6" stroke-dasharray="2.2 2"/></svg></div>
+              <div class="bd">
+                <div class="lab is-backend"><span class="tx">USCIS touched your record 3 times</span></div>
+                <div class="met">Jul 12 – Aug 2, 2026 · status unchanged throughout</div>
+                <div class="disc">Three separate modifications to USCIS's internal copy of your case, on Jul 12, Jul 24 and
+                Aug 2. The public status did not change on any of those days.</div>
+              </div>
+            </div>
+
+            <div class="row" data-x tabindex="0">
+              <div class="gut"><svg class="g-unknown" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="3.75" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></div>
+              <div class="bd">
+                <div class="lab unknown"><span class="tx">Case event <span class="mono" style="font-weight:600">ZZ0</span></span></div>
+                <div class="met">Jun 20, 2026 · USCIS event · meaning unknown</div>
+                <div class="disc">USCIS logged this code on your case and publishes no text for it. We don't know what it
+                means, and we'd rather say so than guess.</div>
+              </div>
+            </div>
+
+            <div class="row last">
+              <div class="gut"><svg class="g-anchor" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><rect x="2.5" y="2.5" width="7" height="7" rx="1.2" fill="currentColor"/></svg></div>
+              <div class="bd">
+                <div class="lab"><span class="tx" style="font-weight:550">Filed</span></div>
+                <div class="met">May 29, 2026 · I-485J received by USCIS · day 0</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <p class="anno" style="margin-top:22px"><b>Loading and stale states</b><br>The skeleton pre-announces the layout;
+      the stale strip never blanks real history.</p>
+
+      <div class="panel">
+        <div class="card">
+          <div class="cardtop"><span class="name">Travel document (I-131)</span><span class="num">IOE0000000000</span></div>
+          <div class="sect">Reading your case…</div>
+          <div>
+            <div class="sk pulse"><span class="c"></span><span class="b"><i style="width:78%"></i><i></i></span></div>
+            <div class="sk pulse" style="animation-delay:.15s"><span class="c"></span><span class="b"><i style="width:60%"></i><i></i></span></div>
+            <div class="sk pulse" style="animation-delay:.3s"><span class="c"></span><span class="b"><i style="width:70%"></i><i></i></span></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="cardtop"><span class="name">Travel document (I-131)</span><span class="num">IOE0000000000</span></div>
+          <div class="stale">
+            <span class="g"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1.6 11 10.4H1z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M6 5v2.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="6" cy="9.1" r=".75" fill="currentColor"/></svg></span>
+            <span class="b"><b>Couldn't reach USCIS at 3:04 PM.</b> Showing what was saved on Aug 8, 9:14 AM.</span>
+            <button class="minibtn">Try again</button>
+          </div>
+          <div class="tl">
+            <div class="row">
+              <div class="gut"><svg class="g-official" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="4" fill="currentColor"/></svg></div>
+              <div class="bd">
+                <div class="lab official"><span class="tx">We approved your travel document</span><span class="chip">SA</span></div>
+                <div class="met">Aug 6, 2026 · USCIS</div>
+              </div>
+            </div>
+            <div class="row last">
+              <div class="gut"><svg class="g-anchor" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><rect x="2.5" y="2.5" width="7" height="7" rx="1.2" fill="currentColor"/></svg></div>
+              <div class="bd">
+                <div class="lab"><span class="tx" style="font-weight:550">Filed</span></div>
+                <div class="met">May 29, 2026 · I-131 received by USCIS · day 0</div>
+              </div>
+            </div>
+          </div>
+          <div class="foot">Coded events couldn't be loaded this check — the timeline may be missing entries between
+          Aug 6 and now.</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+(function () {
+  var root = document.documentElement;
+  document.getElementById('tb').addEventListener('click', function () {
+    var cur = root.getAttribute('data-theme');
+    if (!cur) {
+      cur = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    root.setAttribute('data-theme', cur === 'dark' ? 'light' : 'dark');
+  });
+
+  function toggle(node) {
+    node.classList.toggle('exp');
+    node.setAttribute('aria-expanded', node.classList.contains('exp') ? 'true' : 'false');
+  }
+  var rows = document.querySelectorAll('[data-x]');
+  for (var i = 0; i < rows.length; i++) {
+    rows[i].setAttribute('role', 'button');
+    rows[i].setAttribute('aria-expanded', 'false');
+    rows[i].addEventListener('click', function () { toggle(this); });
+    rows[i].addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(this); }
+    });
+  }
+
+  var fold = document.getElementById('foldbtn');
+  var more = document.getElementById('more');
+  fold.addEventListener('click', function () {
+    var open = more.style.display !== 'none';
+    more.style.display = open ? 'none' : 'block';
+    fold.innerHTML = open
+      ? 'Show 4 more <span class="cnt">· back to May 29</span>'
+      : 'Show fewer';
+  });
+})();
+</script>
+</body>
+</html>

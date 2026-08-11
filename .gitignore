@@ -1,0 +1,17 @@
+# macOS
+.DS_Store
+
+
+# Node dependencies
+node_modules/
+
+# Note: Generated distribution files (userscript, extension wrappers, manifests, icons)
+# are committed to the repo on purpose so users can install without building.
+
+# Release artifacts built by scripts/package.js — produced by CI on demand,
+# not checked in. (The userscript and extension content.js under userscript/
+# and extensions/ ARE checked in on purpose, so people can install without
+# running Node.)
+/caselens-chrome.zip
+/caselens-firefox.zip
+/caselens.user.js
