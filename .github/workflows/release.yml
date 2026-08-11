@@ -35,10 +35,10 @@ jobs:
       version: ${{ steps.resolve.outputs.version }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '20'
 
@@ -99,10 +99,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '20'
 
@@ -121,7 +121,7 @@ jobs:
         run: node scripts/package.js
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: caselens-release-artifacts
           path: |
@@ -140,10 +140,10 @@ jobs:
       contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: caselens-release-artifacts
 
@@ -168,7 +168,7 @@ jobs:
             echo "generate=true" >> "$GITHUB_OUTPUT"
           fi
       - name: Create release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -196,15 +196,18 @@ jobs:
       needs.version-check.outputs.tag != '' &&
       github.event.inputs.publish_stores == 'true'
     runs-on: ubuntu-latest
-    env:
-      # The `secrets` context is not available in a job-level `if:`, so the
-      # "skip cleanly when unconfigured" behaviour is enforced here instead.
-      WEB_EXT_API_KEY: ${{ secrets.AMO_JWT_ISSUER }}
-      WEB_EXT_API_SECRET: ${{ secrets.AMO_JWT_SECRET }}
     steps:
+      # Scoped to the two steps that need them, not to the whole job. The
+      # `secrets` context is unavailable in a job-level `if:`, so this step
+      # exists to do the "skip cleanly when unconfigured" test — but a
+      # job-level `env:` also handed the signing credentials to checkout and
+      # setup-node, which have no use for them.
       - name: Check AMO credentials are configured
         id: creds
         shell: bash
+        env:
+          WEB_EXT_API_KEY: ${{ secrets.AMO_JWT_ISSUER }}
+          WEB_EXT_API_SECRET: ${{ secrets.AMO_JWT_SECRET }}
         run: |
           if [ -z "$WEB_EXT_API_KEY" ] || [ -z "$WEB_EXT_API_SECRET" ]; then
             echo "AMO secrets not set — skipping Firefox publish."
@@ -215,11 +218,11 @@ jobs:
 
       - name: Checkout
         if: steps.creds.outputs.ready == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Set up Node
         if: steps.creds.outputs.ready == 'true'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '20'
 
@@ -249,17 +252,16 @@ jobs:
       needs.version-check.outputs.tag != '' &&
       github.event.inputs.publish_stores == 'true'
     runs-on: ubuntu-latest
-    env:
-      # See the note in publish-firefox: `secrets` cannot be used in a
-      # job-level `if:`, so the skip is enforced in the first step.
-      EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
-      CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
-      CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
-      REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
     steps:
+      # Scoped per step — see the note in publish-firefox.
       - name: Check Chrome Web Store credentials are configured
         id: creds
         shell: bash
+        env:
+          EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
+          CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+          REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
         run: |
           if [ -z "$EXTENSION_ID" ] || [ -z "$CLIENT_ID" ] || [ -z "$CLIENT_SECRET" ] || [ -z "$REFRESH_TOKEN" ]; then
             echo "Chrome Web Store secrets not set — skipping Chrome publish."
@@ -270,17 +272,17 @@ jobs:
 
       - name: Checkout
         if: steps.creds.outputs.ready == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Set up Node
         if: steps.creds.outputs.ready == 'true'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '20'
 
       - name: Download artifacts
         if: steps.creds.outputs.ready == 'true'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: caselens-release-artifacts
 

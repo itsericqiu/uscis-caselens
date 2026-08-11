@@ -29,7 +29,9 @@ var ROOT = path.join(__dirname, '..');
 // Every prefix USCIS issues, not just the online-filing one. Paper-filed
 // receipts (EAC, WAC, LIN, SRC, MSC, YSC and others) are exactly as sensitive,
 // and an IOE-only pattern would have waved one straight into a public repo.
-var RECEIPT_RE = /\b[A-Z]{3}[0-9]{10}\b/g;
+// Case-insensitive: a lowercase receipt number is exactly as sensitive, and
+// the pattern that masks them at runtime (displayFileName) has always been.
+var RECEIPT_RE = /\b[A-Z]{3}[0-9]{10}\b/gi;
 
 var ALLOWED = {};
 for (var i = 0; i <= 9; i++) {
@@ -44,6 +46,11 @@ ALLOWED['EAC2412345678'] = true;
 
 // Skip binaries — receipt numbers only ever appear as text, and reading
 // PNG/zip bytes as utf8 just risks noisy false "matches" on decoded bytes.
+//
+// The real exposure in image files is a screenshot taken from a live account,
+// which this gate cannot see. That is why CONTRIBUTING requires screenshots to
+// be generated from fixtures rather than captured. Stated here so the gap is
+// known rather than assumed covered.
 var BINARY_EXT = ['.png', '.jpg', '.jpeg', '.gif', '.ico', '.zip', '.woff', '.woff2', '.ttf'];
 
 function listTrackedFiles() {
@@ -115,7 +122,9 @@ function main() {
       var matches = line.match(RECEIPT_RE);
       if (!matches) return;
       matches.forEach(function (num) {
-        if (!ALLOWED[num]) {
+        // Compare case-insensitively too, or the same placeholder written in
+        // lowercase reads as a real number.
+        if (!ALLOWED[num.toUpperCase()]) {
           offenders.push(rel + ':' + (idx + 1) + ': ' + num);
         }
       });

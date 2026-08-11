@@ -34,7 +34,7 @@
   // SECTION 1: Constants
   // ==========================================================================
 
-  var VERSION = '1.12.0';
+  var VERSION = '1.12.1';
 
   var STORAGE_KEYS = {
     cases: 'uscisTracker.cases.v1',      // [{ number, label, addedAt }]
@@ -255,7 +255,10 @@
         rescueUnreadable(key, raw);
         return fallback;
       }
-      readMemo[key] = parsed;
+      // Deliberately NOT memoized. A scalar/null fallback has no shape check,
+      // so caching here would let a later caller with an object fallback take a
+      // memo hit and skip both the check and rescueUnreadable — silently
+      // bypassing the rescue for exactly the keys it exists to protect.
       return parsed;
     } catch (e) {
       rescueUnreadable(key, raw);
@@ -273,6 +276,13 @@
   var IRREPLACEABLE_KEYS = {};
   IRREPLACEABLE_KEYS['uscisTracker.history.v1'] = true;
   IRREPLACEABLE_KEYS['uscisTracker.cases.v1'] = true;
+
+  // Where those rescue copies land. Named once so removal and erasure can find
+  // them — they are invisible to the user and easy to forget.
+  var RESCUE_KEYS = [
+    'uscisTracker.history.v1.unreadable',
+    'uscisTracker.cases.v1.unreadable'
+  ];
 
   function rescueUnreadable(key, raw) {
     if (!IRREPLACEABLE_KEYS[key] || !raw) return;
@@ -1475,9 +1485,14 @@
   // that will appear in someone's screenshot.
   var REDACT_JSON_FIELDS = [
     'applicantName', 'representativeName', 'beneficiaryName', 'petitionerName',
+    'attorneyName', 'preparerName', 'sponsorName',
     'firstName', 'lastName', 'middleName', 'fullName', 'name',
-    'address', 'addressLine1', 'addressLine2', 'street', 'city', 'postalCode', 'zipCode',
+    'address', 'addressLine1', 'addressLine2', 'street', 'city', 'state',
+    'county', 'country', 'postalCode', 'zipCode',
     'email', 'emailAddress', 'phone', 'phoneNumber',
+    // Identifiers that name a person as directly as a name does.
+    'alienNumber', 'aNumber', 'ssn', 'socialSecurityNumber',
+    'dateOfBirth', 'dob', 'countryOfBirth', 'placeOfBirth', 'nationality',
     'letterId', 'contentId'
   ];
 
@@ -2849,6 +2864,74 @@
     URL.revokeObjectURL(url);
   }
 
+  // What a history row is allowed to be.
+  //
+  // Import validated the KEYS of history and snapshots and wrote their VALUES
+  // through untouched — so a hostile backup could inject rows that render in
+  // the timeline as if this panel had observed them ("Status changed to: Case
+  // Was Denied — call 1-800-…"). It is textContent, so not XSS; it is worse in
+  // the way that matters here, because it is indistinguishable from the
+  // panel's own record. A malicious backup file is threat (c) in SECURITY.md's
+  // own model, and this is the payload that model predicts.
+  var HISTORY_KINDS = { status: 1, document: 1, office: 1, backend: 1 };
+  var HISTORY_TEXT_CAP = 300;
+
+  function sanitizeHistoryEntry(h) {
+    if (!h || typeof h !== 'object') return null;
+    if (!HISTORY_KINDS[h.kind]) return null;
+    if (typeof h.at !== 'string' || parseUscisDate(h.at) === null) return null;
+    return {
+      at: h.at,
+      kind: h.kind,
+      from: clampText(h.from),
+      to: clampText(h.to)
+    };
+  }
+
+  function clampText(value) {
+    if (value === null || value === undefined) return null;
+    var text = flattenValue(value);
+    if (text === null) return null;
+    return text.length > HISTORY_TEXT_CAP ? text.slice(0, HISTORY_TEXT_CAP) + '…' : text;
+  }
+
+  // Snapshots are read by the renderers as facts about the case, so an
+  // imported one is held to the shape normalize() produces. Anything else is
+  // dropped rather than partially trusted.
+  function sanitizeSnapshot(snap) {
+    if (!snap || typeof snap !== 'object') return null;
+    var out = {
+      at: typeof snap.at === 'string' ? snap.at : null,
+      status: clampText(snap.status),
+      statusAt: typeof snap.statusAt === 'string' ? snap.statusAt : null,
+      backendAt: typeof snap.backendAt === 'string' ? snap.backendAt : null,
+      actionCode: clampText(snap.actionCode),
+      office: clampText(snap.office),
+      formType: clampText(snap.formType),
+      formName: clampText(snap.formName),
+      submissionDate: typeof snap.submissionDate === 'string' ? snap.submissionDate : null,
+      closed: strictBool(snap.closed),
+      actionRequired: strictBool(snap.actionRequired),
+      evidenceCount: typeof snap.evidenceCount === 'number' ? snap.evidenceCount : 0,
+      docNames: [],
+      appointments: []
+    };
+    if (Array.isArray(snap.docNames)) {
+      for (var i = 0; i < snap.docNames.length && i < 200; i++) {
+        var name = clampText(snap.docNames[i]);
+        if (name !== null) out.docNames.push(name);
+      }
+    }
+    if (Array.isArray(snap.appointments)) {
+      for (var a = 0; a < snap.appointments.length && a < 50; a++) {
+        var appt = snap.appointments[a];
+        if (!appt || typeof appt.at !== 'number') continue;
+        out.appointments.push({ label: clampText(appt.label), at: appt.at });
+      }
+    }
+    return out;
+  }
+
   // Merge an imported backup into localStorage: union cases by number (never
   // overwrite an existing label), concat + dedupe history per case by
   // at+kind+to, keep existing snapshots unless a case has none locally, and
@@ -2904,7 +2987,7 @@
       var seen = {};
       var deduped = [];
       for (i = 0; i < combined.length; i++) {
-        var h = combined[i];
+        var h = sanitizeHistoryEntry(combined[i]);
         if (!h) continue;
         var dedupeKey = h.at + '|' + h.kind + '|' + h.to;
         if (seen[dedupeKey]) continue;
@@ -2928,7 +3011,8 @@
     var mergedSnapshots = {};
     for (key in importedSnapshots) {
       if (importedSnapshots.hasOwnProperty(key) && isValidReceiptNumber(key)) {
-        mergedSnapshots[key] = importedSnapshots[key];
+        var clean = sanitizeSnapshot(importedSnapshots[key]);
+        if (clean) mergedSnapshots[key] = clean;
       }
     }
     for (key in existingSnapshots) { if (existingSnapshots.hasOwnProperty(key)) mergedSnapshots[key] = existingSnapshots[key]; }
@@ -6265,7 +6349,7 @@
     // so the receipt number outlived the removal that promised to delete it.
     // The wording itself is kept — it is useful on other cases and says
     // nothing about this one — but it stops naming a case that is gone.
-    var dict = load(STORAGE_KEYS.codeText, null);
+    var dict = loadLearned();
     if (dict && dict.byCode) {
       var touched = false;
       for (var code in dict.byCode) {
@@ -6278,6 +6362,21 @@
       }
       if (touched) save(STORAGE_KEYS.codeText, dict);
     }
+
+    // Rescue copies written when a stored value could not be parsed. They are
+    // never read back and never surfaced, so a user has no way to learn they
+    // exist — and the confirm dialog promises this case's saved history is
+    // deleted. A copy that survives that promise is the promise being false.
+    // Dropped wholesale rather than edited: they exist precisely because their
+    // contents could not be parsed, so there is nothing to edit safely.
+    try {
+      for (var r = 0; r < RESCUE_KEYS.length; r++) {
+        var rescue = localStorage.getItem(RESCUE_KEYS[r]);
+        if (rescue && rescue.toUpperCase().indexOf(key) !== -1) {
+          localStorage.removeItem(RESCUE_KEYS[r]);
+        }
+      }
+    } catch (e) { /* storage unavailable: nothing was written to begin with */ }
   }
 
   function setDismissed(number, isDismissed) {
@@ -6344,8 +6443,33 @@
       scan();
     }, 2000);
 
-    window.addEventListener('popstate', scan);
-    window.addEventListener('hashchange', scan);
+    window.addEventListener('popstate', onNavigate);
+    window.addEventListener('hashchange', onNavigate);
+
+    // my.uscis.gov is a single-page app, so signing out need not reload the
+    // document. Without this the panel stayed on screen after logout, fully
+    // populated, on a shared or public computer — the one place the
+    // render-nothing-when-signed-out rule matters most, and the one place it
+    // was not being re-checked.
+    function onNavigate() {
+      if (!state.authenticated) return;
+      checkAuthenticated().then(function (result) {
+        if (result && result.authenticated) return scan();
+        signOutLocally();
+      });
+    }
+  }
+
+  // Take the panel down without touching anything saved. The cases stay in
+  // storage for the next sign-in; what leaves is what is on screen.
+  function signOutLocally() {
+    state.authenticated = false;
+    if (refreshTimerId !== null) {
+      clearInterval(refreshTimerId);
+      refreshTimerId = null;
+    }
+    for (var i = 0; i < state.cases.length; i++) state.cases[i].result = null;
+    if (ROOT) clearNode(ROOT);
   }
 
   function init() {
