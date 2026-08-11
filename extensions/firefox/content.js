@@ -574,7 +574,7 @@ var USCIS_CODE_SOURCE = 'NIEM scr:BenefitDocumentStatusCategoryCodeSimpleType';
   // SECTION 1: Constants
   // ==========================================================================
 
-  var VERSION = '1.3.2';
+  var VERSION = '1.3.3';
 
   var STORAGE_KEYS = {
     cases: 'uscisTracker.cases.v1',      // [{ number, label, addedAt }]
@@ -3648,6 +3648,25 @@ var USCIS_CODE_SOURCE = 'NIEM scr:BenefitDocumentStatusCategoryCodeSimpleType';
 
   // "5:58 PM" in the viewer's own zone. Only ever called for values that
   // actually carried a time — never for day-precision entries.
+  // The short zone label for this device, e.g. "EDT". USCIS sends appointments
+  // as a real UTC instant, so rendering it in the local zone shows the very
+  // same moment — naming the zone is what makes that unambiguous. If the label
+  // reads PDT and the office is Eastern, the mismatch is visible instead of
+  // silently misleading.
+  function localZoneLabel(ms) {
+    try {
+      var parts = new Intl.DateTimeFormat('en-US', {
+        timeZoneName: 'short', hour: 'numeric'
+      }).formatToParts(new Date(ms));
+      for (var i = 0; i < parts.length; i++) {
+        if (parts[i].type === 'timeZoneName') return parts[i].value;
+      }
+    } catch (e) {
+      // Intl unavailable or unhappy — fall back to no label rather than guess.
+    }
+    return '';
+  }
+
   function formatTimeOfDay(ms) {
     if (ms === null || ms === undefined) return '';
     var d = new Date(ms);
@@ -5811,6 +5830,7 @@ var USCIS_CODE_SOURCE = 'NIEM scr:BenefitDocumentStatusCategoryCodeSimpleType';
     var now = new Date().getTime();
     for (var u = 0; u < view.upcoming.length; u++) {
       var appt = view.upcoming[u];
+      var apptZone = localZoneLabel(appt.displayAt);
       var iconWrap = el('span');
       var calIcon = buildIcon('calendar');
       if (calIcon) iconWrap.appendChild(calIcon);
@@ -5837,9 +5857,10 @@ var USCIS_CODE_SOURCE = 'NIEM scr:BenefitDocumentStatusCategoryCodeSimpleType';
           // zone, and we cannot detect that, so the label says whose clock
           // this is and the notice is named as the authority.
           el('div', { 'class': 'uscistr-upcoming-meta', text:
-            formatTimeOfDay(appt.displayAt) + ' in this computer’s time zone' +
-            (appt.letterId ? ' · notice ' + appt.letterId : '') +
-            ' · confirm on your appointment notice' })
+            formatTimeOfDay(appt.displayAt) +
+            (apptZone ? ' ' + apptZone : '') +
+            ' · your device’s time zone, which may not be the office’s' +
+            (appt.letterId ? ' · notice ' + appt.letterId : '') })
         ]),
         el('span', { 'class': 'uscistr-upcoming-meta', text:
           'in ' + plural(daysBetween(now, appt.displayAt), 'day') })

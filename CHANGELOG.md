@@ -4,6 +4,19 @@ Notable changes per release. The section matching a tag becomes that release's
 notes on GitHub, so keep entries written for someone deciding whether to update
 — not for someone reading a commit log.
 
+## 1.3.3
+
+**Appointment times name their time zone**
+
+The appointment now reads `3:00 PM EDT · your device's time zone, which may not
+be the office's`.
+
+USCIS sends the appointment as a real UTC instant, so showing it in the local
+zone is the same moment, not a different one. Naming the zone is what makes
+that unambiguous: if the label says PDT and the office is Eastern, the mismatch
+is visible rather than silently misleading. The previous wording said "in this
+computer's time zone" without saying which zone that was.
+
 ## 1.3.2
 
 **Appointment times are back, correctly labelled**
