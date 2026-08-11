@@ -34,7 +34,7 @@
   // SECTION 1: Constants
   // ==========================================================================
 
-  var VERSION = '1.10.0';
+  var VERSION = '1.11.0';
 
   var STORAGE_KEYS = {
     cases: 'uscisTracker.cases.v1',      // [{ number, label, addedAt }]
@@ -204,17 +204,39 @@
   };
 
   // ==========================================================================
-  // SECTION 2: Storage  (implemented by agent A)
+  // SECTION 2: Storage
   // ==========================================================================
   // load(key, fallback) / save(key, value): JSON localStorage wrappers, try/caught.
   // loadAll(): populate state.cases (+ merge default prefs).
   // persistCases(), persistPrefs(), getSnapshot(n), setSnapshot(n, snap),
   // getHistory(n), appendHistory(n, entries) — trims to HISTORY_CAP.
 
+  // Parsed values, keyed by storage key, so one render pass parses each store
+  // once instead of once per case per code.
+  //
+  // Measured before this existed: a single render of four cases performed 47
+  // localStorage reads — each a full JSON.parse — of which 26 re-parsed the
+  // same learned-wording dictionary, because describeCode() reloads it for
+  // every event code on every row.
+  //
+  // This is a memo, not a cache in the persistence sense: every write clears
+  // it, so a read after a write always sees the write. Nothing may be held
+  // across a write, which is the only way a cache like this goes wrong.
+  var readMemo = Object.create(null);
+
+  function invalidateReadMemo(key) {
+    if (key === undefined) readMemo = Object.create(null);
+    else delete readMemo[key];
+  }
+
   // Read a JSON value from localStorage. Falls back to `fallback` whenever the
   // key is missing, the stored text isn't valid JSON, or the parsed value's
   // shape doesn't match what the caller expects (array vs. plain object).
   function load(key, fallback) {
+    // Only a successful parse is memoized. A miss returns the caller's own
+    // fallback, and callers pass different fallbacks for the same key.
+    if (readMemo[key] !== undefined) return readMemo[key];
+
     var raw = null;
     try {
       raw = localStorage.getItem(key);
@@ -223,16 +245,17 @@
       var parsed = JSON.parse(raw);
 
       if (Array.isArray(fallback)) {
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) { readMemo[key] = parsed; return parsed; }
         rescueUnreadable(key, raw);
         return fallback;
       }
       if (fallback !== null && typeof fallback === 'object') {
         var isPlainObject = parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed);
-        if (isPlainObject) return parsed;
+        if (isPlainObject) { readMemo[key] = parsed; return parsed; }
         rescueUnreadable(key, raw);
         return fallback;
       }
+      readMemo[key] = parsed;
       return parsed;
     } catch (e) {
       rescueUnreadable(key, raw);
@@ -271,6 +294,9 @@
   var storageFailed = false;
 
   function save(key, value) {
+    // Before the write, not after: if setItem throws, the memo must not still
+    // be holding a value the caller has already mutated in place.
+    invalidateReadMemo(key);
     try {
       localStorage.setItem(key, JSON.stringify(value));
       return true;
@@ -399,7 +425,7 @@
   }
 
   // ==========================================================================
-  // SECTION 3: Fetch layer  (implemented by agent A)
+  // SECTION 3: Fetch layer
   // ==========================================================================
   // fetchJSON(url) -> Promise<object|{__error, __auth?}>  (never rejects)
   //   401/403 -> { __error, __auth: true }; 404 -> friendly message; other
@@ -679,7 +705,7 @@
   }
 
   // ==========================================================================
-  // SECTION 4: Normalize + diff  (implemented by agent A)
+  // SECTION 4: Normalize + diff
   // ==========================================================================
   // pick(obj, keys) -> first non-empty candidate value or null
   // normalize(result) -> snapshot { at, status, statusAt, backendAt, office, docNames (sorted),
@@ -1220,7 +1246,7 @@
   }
 
   // ==========================================================================
-  // SECTION 5: Derived display helpers  (implemented by agent A — pure functions)
+  // SECTION 5: Derived display helpers  (pure functions)
   // ==========================================================================
   // relativeDate(iso) -> "2 days ago" | "in 3 months" | '' (coarse units)
   // parseEstimateMonths(processingTimes) -> number|null ("X Months" patterns in
@@ -1708,6 +1734,24 @@
     panelMounted: false,          // has the panel been on screen since last opened
     renderedWide: false           // layout actually on screen, so resize can compare
   };
+  // Per-case reading state — which disclosures are open on which card, and how
+  // far the stage rail has been seen to advance. Keyed by receipt number, and
+  // lasts exactly as long as the page does.
+  //
+  // These used to be set as `ui*` properties directly on the case entries in
+  // state.cases — the same objects persistCases() writes to localStorage. They
+  // stayed out of storage only because persistCases enumerates its fields by
+  // hand, so the separation was an accident of one function's style rather than
+  // a boundary: writing `toSave.push(c)` there would have started persisting
+  // which disclosures a reader had opened.
+  uiState.perCase = Object.create(null);
+
+  function caseUi(entry) {
+    var key = String(entry.number).toUpperCase();
+    if (!uiState.perCase[key]) uiState.perCase[key] = {};
+    return uiState.perCase[key];
+  }
+
   var dragState = null;            // in-progress panel drag, or null
   var refreshTimerId = null;       // setInterval handle for periodic refreshAll()
 
@@ -3044,6 +3088,17 @@
     location.reload();
   }
 
+  // ---- case view: one case's data, assembled for rendering ------------------
+  //
+  // The boundary between "what USCIS said" and "what gets drawn". Everything
+  // below builds or shapes a case's data; nothing here touches the DOM.
+  // buildCaseView() is the single entry point the UI calls.
+  //
+  // These functions used to sit under the "settings popover" divider, which
+  // covered them for ~700 lines. In a file whose whole claim is that a stranger
+  // can audit it, a navigation comment that misdescribes what follows is worse
+  // than no comment at all.
+
   // ==========================================================================
   // Timeline: collect -> dedupe -> sort -> decorate  (docs/design/03 §3)
   // ==========================================================================
@@ -3768,7 +3823,7 @@
       return el('div', { 'class': 'uscistr-timeline-row' }, [nodeCell, cell]);
     }
 
-    var expanded = !!(entry.uiOpenRows && entry.uiOpenRows[item.id]);
+    var expanded = !!(caseUi(entry).openRows && caseUi(entry).openRows[item.id]);
     var toggle = el('button', {
       'class': 'uscistr-row-toggle',
       type: 'button',
@@ -3777,8 +3832,8 @@
         ? labelText + ' — not USCIS wording about this case'
         : labelText,
       onclick: function () {
-        if (!entry.uiOpenRows) entry.uiOpenRows = {};
-        entry.uiOpenRows[item.id] = !entry.uiOpenRows[item.id];
+        if (!caseUi(entry).openRows) caseUi(entry).openRows = {};
+        caseUi(entry).openRows[item.id] = !caseUi(entry).openRows[item.id];
         render();
       }
     }, [stack]);
@@ -3841,7 +3896,7 @@
   function buildTimeline(entry, view) {
     var wrap = el('div', { 'class': 'uscistr-timeline' });
     var items = view.items;
-    var spanish = !!entry.uiSpanish;
+    var spanish = !!caseUi(entry).spanish;
     var i;
 
     // "We could not read it" and "USCIS has published nothing" are different
@@ -3856,7 +3911,7 @@
       return wrap;
     }
 
-    var showAll = !!entry.uiShowAllEvents;
+    var showAll = !!caseUi(entry).showAllEvents;
     var visible;
     if (showAll || items.length <= TIMELINE_FOLD + 1) {
       visible = items;
@@ -3920,14 +3975,14 @@
         'class': 'uscistr-btn uscistr-btn-sm uscistr-btn-outline uscistr-timeline-fold',
         type: 'button',
         text: 'Show all (' + items.length + ')',
-        onclick: function () { entry.uiShowAllEvents = true; render(); }
+        onclick: function () { caseUi(entry).showAllEvents = true; render(); }
       }));
     } else if (showAll && items.length > TIMELINE_FOLD + 1) {
       wrap.appendChild(el('button', {
         'class': 'uscistr-btn uscistr-btn-sm uscistr-btn-ghost uscistr-timeline-fold',
         type: 'button',
         text: 'Show fewer',
-        onclick: function () { entry.uiShowAllEvents = false; render(); }
+        onclick: function () { caseUi(entry).showAllEvents = false; render(); }
       }));
     }
     return wrap;
@@ -4036,9 +4091,9 @@
     if (pendingStage > 0 && best >= pendingStage) best = pendingStage - 1;
 
     // Monotonic and sticky: a stage index never decreases within a session.
-    if (typeof entry.uiMaxStage === 'number' && entry.uiMaxStage > best) best = entry.uiMaxStage;
+    if (typeof caseUi(entry).maxStage === 'number' && caseUi(entry).maxStage > best) best = caseUi(entry).maxStage;
     if (pendingStage > 0 && best >= pendingStage) best = pendingStage - 1;
-    entry.uiMaxStage = best;
+    caseUi(entry).maxStage = best;
 
     // The structured boolean outranks anything we inferred from codes. It
     // moves the index, never the evidence: a closed case has reached the end
@@ -4266,12 +4321,12 @@
       if (STAGE_FOOTNOTES[info.formType]) railNotes.push(STAGE_FOOTNOTES[info.formType]);
       railNotes.push('This stage map is our own reading of the codes on this case, not a USCIS status. Segments are equal width on purpose: none of them measures time.');
 
-      var railOpen = !!entry.uiShowRailNote;
+      var railOpen = !!caseUi(entry).showRailNote;
       var railBtn = el('button', {
         'class': 'uscistr-more', type: 'button',
         'aria-expanded': railOpen ? 'true' : 'false',
         text: railOpen ? 'Hide' : 'How we read this map',
-        onclick: function () { entry.uiShowRailNote = !entry.uiShowRailNote; render(); }
+        onclick: function () { caseUi(entry).showRailNote = !caseUi(entry).showRailNote; render(); }
       });
       wrap.appendChild(railBtn);
       if (railOpen) {
@@ -4596,7 +4651,7 @@
   function buildStatusBlock(entry, view) {
     var notice = view.notice;
     var block = el('div', { 'class': 'uscistr-status-block' });
-    var spanish = !!entry.uiSpanish;
+    var spanish = !!caseUi(entry).spanish;
 
     // The headline is body text. It is never green, never red: we cannot
     // classify approval or denial from prose, and a colour would deliver a
@@ -4653,7 +4708,7 @@
     // "did anything move".
     var detailText = notice ? (spanish && notice.statusDetailSpanish ? notice.statusDetailSpanish : notice.statusDetail) : null;
     if (detailText) {
-      var open = !!entry.uiShowStatusText;
+      var open = !!caseUi(entry).showStatusText;
       var para = el('div', {
         'class': 'uscistr-status-desc' + (open ? '' : ' uscistr-is-clamped'),
         text: detailText
@@ -4663,7 +4718,7 @@
         'class': 'uscistr-more', type: 'button',
         'aria-expanded': open ? 'true' : 'false',
         text: open ? 'Show less' : 'Show full text',
-        onclick: function () { entry.uiShowStatusText = !entry.uiShowStatusText; render(); }
+        onclick: function () { caseUi(entry).showStatusText = !caseUi(entry).showStatusText; render(); }
       });
       linkDisclosure(moreBtn, para);
       block.appendChild(moreBtn);
@@ -4682,7 +4737,7 @@
         // than "Español", which promises a Spanish interface and delivers one
         // Spanish paragraph inside an English explanation.
         text: spanish ? 'Ver en inglés' : 'Ver estado en español',
-        onclick: function () { entry.uiSpanish = !entry.uiSpanish; render(); }
+        onclick: function () { caseUi(entry).spanish = !caseUi(entry).spanish; render(); }
       }));
     }
     return block;
@@ -4700,7 +4755,7 @@
     if (backendMs - statusMs <= BACKEND_MIN_LAG_MS) return null;
 
     var lag = daysBetween(statusMs, backendMs);
-    var open = !!entry.uiShowBackendNote;
+    var open = !!caseUi(entry).showBackendNote;
     var note = el('div', { 'class': 'uscistr-note' }, [
       el('div', { 'class': 'uscistr-note-title', text: 'Record updated after the current status' }),
       el('p', { text: "USCIS's record for this case was touched " + plural(lag, 'day') + ' after the status was set — on ' +
@@ -4710,7 +4765,7 @@
       'class': 'uscistr-more', type: 'button',
       'aria-expanded': open ? 'true' : 'false',
       text: open ? 'Show less' : 'Explain',
-      onclick: function () { entry.uiShowBackendNote = !entry.uiShowBackendNote; render(); }
+      onclick: function () { caseUi(entry).showBackendNote = !caseUi(entry).showBackendNote; render(); }
     });
     note.appendChild(backendMore);
     if (open) {
@@ -5819,6 +5874,12 @@
     // keyboard focus die with the old DOM, and the background refresh calls
     // this twice per case on a timer, so a reader mid-way down a card gets
     // thrown to the top while reading. Capture both, restore both.
+    // Start every render from real storage. save() already invalidates what it
+    // writes, so this is not needed for our own writes — it is here because
+    // another tab on my.uscis.gov shares this origin and can write between
+    // renders, and one render is the right bound on how stale we may be.
+    invalidateReadMemo();
+
     // Wide mode has two independent scrollers, so capture both by selector
     // rather than assuming one body element.
     var scrolls = captureScrolls();

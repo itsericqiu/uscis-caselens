@@ -4,6 +4,31 @@ Notable changes per release. The section matching a tag becomes that release's
 notes on GitHub, so keep entries written for someone deciding whether to update
 — not for someone reading a commit log.
 
+## 1.11.0
+
+**The panel redraws about five times faster**
+
+Every redraw was re-reading and re-parsing browser storage once per case per
+event code. Measured on four cases: **47 reads taking 52ms, 26 of them
+re-parsing the same dictionary.** Storage reads are now parsed once per redraw:
+**11 reads, 9.5ms.** Any write clears it immediately, so a read after a write
+always sees the write, and each redraw starts fresh in case another tab wrote
+something.
+
+**Internal: three things that were working by accident**
+
+- Which sections you had opened on a card was stored on the case record itself
+  — the same object written to browser storage. It stayed out of storage only
+  because the save function happens to list its fields by hand. It is now kept
+  separately, so that separation is a boundary rather than a coincidence.
+- Four section headers still credited the agents that first wrote them, which
+  means nothing to anyone reading the file now.
+- The "settings popover" heading covered about 700 lines, including the whole
+  timeline pipeline and the function that assembles a case for display. In a
+  file whose point is that a stranger can audit it, a heading that misdescribes
+  what follows is worse than no heading. That region now has its own, accurate
+  one marking the line between data and drawing.
+
 ## 1.10.0
 
 **It now tells you what it is, the first time you see it**
