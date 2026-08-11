@@ -76,6 +76,27 @@ never when we inferred it from prose:**
   `statusTitle` or `statusText`, and colouring anything on that basis.
 - Consequence: a status headline is never green or red. It is body text.
 
+### What may raise the attention banner (added 1.8.1)
+
+The banner is the only alarm this panel raises, so it is the one place a guess
+is least acceptable. A code may raise it only when the NIEM description we
+already ship in `core/uscis-codes.js` plainly supports the sentence the banner
+prints. The category and its citation live together in `ACTION_CODES`.
+
+- **Allowed**: codes whose schema text says USCIS asked this person for
+  something (`FBA`, `IK`, `II`), and `LFA` — a card returned undeliverable,
+  which is actionable but is not USCIS waiting on a response, so it gets its
+  own wording.
+- **Forbidden**: denials and internal holds. `EA` and `IFA` are *denial*
+  notices; an earlier flat list raised "USCIS may need something from you" on
+  both, which is a serious mis-label to put in front of someone whose case was
+  just denied. `FKA` (deschedule), `FS` (adjudication hold) and `KH`
+  (litigation hold) ask nothing of anyone.
+- **Consequence**: an outcome is never announced by us. USCIS's own status
+  wording carries it, and the timeline still shows the coded event with its
+  schema description and its provenance.
+- The banner is amber, never red — it names something to do, not a verdict.
+
 ## Conflict 3 — provenance tags. RESOLVED: timeline spec wins.
 
 Replace the current `[USCIS]` / `[detected]` inline chips (they cost ~65px per

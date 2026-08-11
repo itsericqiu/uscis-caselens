@@ -4,6 +4,30 @@ Notable changes per release. The section matching a tag becomes that release's
 notes on GitHub, so keep entries written for someone deciding whether to update
 — not for someone reading a commit log.
 
+## 1.8.1
+
+**The alarm no longer fires on a denial**
+
+A red banner reading "USCIS may need something from you" was raised by any of
+nine event codes. That list had no citation, and read against the federal
+schema this tool already ships, most of it did not support that sentence:
+
+- `EA` and `IFA` are **denial** notices. Telling someone whose case was just
+  denied that USCIS may need something from them is not a small mis-label.
+- `FKA` (deschedule), `FS` (adjudication hold) and `KH` (litigation hold) are
+  internal state that asks nothing of anyone.
+
+Now only codes whose schema wording plainly says USCIS asked this person for
+something raise it — an evidence request, an additional-evidence request, or a
+notice of intent to deny — and each carries the schema text that justifies it,
+right next to the code. A card returned as undeliverable gets its own separate
+wording, because it needs attention but nobody is waiting on a reply.
+
+The banner is amber rather than red: it names something to do, not a verdict.
+Outcomes are still carried by USCIS's own status wording, and every coded event
+remains visible in the timeline with its description and its source. The rule
+is written down in `docs/design/SPEC.md` so it does not drift back.
+
 ## 1.8.0
 
 **Hiding receipt numbers now hides a lot more**

@@ -1950,7 +1950,7 @@ var CASELENS_STYLE = [
   // SECTION 1: Constants
   // ==========================================================================
 
-  var VERSION = '1.8.0';
+  var VERSION = '1.8.1';
 
   var STORAGE_KEYS = {
     cases: 'uscisTracker.cases.v1',      // [{ number, label, addedAt }]
@@ -3638,8 +3638,41 @@ var CASELENS_STYLE = [
   // Codes that mean USCIS may need something from the applicant, or that a
   // case has been held/denied. Used only to raise a factual banner — never to
   // characterise the outcome.
-  var ATTENTION_CODES = {
-    FBA: 1, IK: 1, II: 1, EA: 1, IFA: 1, LFA: 1, FKA: 1, FS: 1, KH: 1
+  // Codes that change what a person should DO, each with the NIEM description
+  // that justifies its category. Nothing goes in here without wording from
+  // core/uscis-codes.js that plainly supports the claim the banner makes —
+  // this is the one place the panel raises an alarm, so it is the one place a
+  // guess is least acceptable.
+  //
+  // This used to be a flat list of nine codes with no citation, all raising
+  // "USCIS may need something from you". Read against the schema, four of the
+  // nine were internal state that asks nothing of anyone (FKA deschedule,
+  // FS adjudication hold, KH litigation hold, plus the deschedule's partner) —
+  // and two, EA and IFA, are *denials*. Telling someone whose case was just
+  // denied that USCIS may need something from them is not a small mis-label.
+  //
+  // Denials and holds are deliberately absent. USCIS's own status wording
+  // carries the outcome, and the timeline still shows the coded event with its
+  // schema description; adding our own red banner on top would be this tool
+  // interpreting an outcome, which is the thing it does not do.
+  var ACTION_CODES = {
+    // USCIS has asked this person for something, and there is a deadline.
+    FBA: 'evidence',    // "Initial evidence request notice ordered"
+    IK: 'evidence',     // "Request for additional evidence sent"
+    II: 'evidence',     // "Notice of intent to deny sent"
+    // Needs attention, but USCIS is not waiting on a response.
+    LFA: 'delivery'     // "Card returned as undeliverable"
+  };
+
+  var ACTION_CODE_COPY = {
+    evidence: {
+      title: 'USCIS has asked you for something',
+      line: 'There is normally a deadline. Check your USCIS account and your mail for the notice, and follow what the notice says.'
+    },
+    delivery: {
+      title: 'A card USCIS mailed you came back to them',
+      line: 'This usually means the address they have is out of date. Check your mailing address on my.uscis.gov.'
+    }
   };
 
   // No 'document' rank: documents carry provenance 'local' with kind
@@ -6497,28 +6530,35 @@ var CASELENS_STYLE = [
   // how they would come to disagree.
   function buildAttentionBanner(view) {
     var found = null;
+    var kind = null;
     var source = null;
     for (var i = 0; i < view.items.length; i++) {
       var item = view.items[i];
       if (!item.code) continue;
-      if (!ATTENTION_CODES[String(item.code).toUpperCase()]) continue;
+      var category = ACTION_CODES[String(item.code).toUpperCase()];
+      if (!category) continue;
       item.attention = true;
       if (!found) {
         found = item;
+        kind = category;
         source = item.provenance === 'coded' ? item.labelSource : 'official';
       }
     }
     if (!found) return null;
+
+    var copy = ACTION_CODE_COPY[kind];
     var lines = [
       (found.label || ('Code ' + found.code)) + ' was logged on ' + formatDateFull(found.displayAt) +
         ' (code ' + found.code + ').',
-      'Check your USCIS account and any mail for the notice.'
+      copy.line
     ];
     if (source === 'niem') {
       lines.push('This reading comes from the federal schema’s description of code ' + found.code +
         ', not from anything USCIS wrote about this case.');
     }
-    return banner('danger', 'warning', 'USCIS may need something from you', lines, null);
+    // Amber, not red. This is a thing to do, not a verdict — and red next to an
+    // immigration case reads as bad news about the case itself.
+    return banner('', 'warning', copy.title, lines, null);
   }
 
   // Dates are the one place this panel reshapes what USCIS sent: the API
