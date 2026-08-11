@@ -4,6 +4,33 @@ Notable changes per release. The section matching a tag becomes that release's
 notes on GitHub, so keep entries written for someone deciding whether to update
 — not for someone reading a commit log.
 
+## 1.4.0
+
+**Cases collapse to a row, one opens**
+
+Four cases used to produce about six screens of scrolling, with no single card
+fitting the panel — so the question this exists to answer, *has anything
+moved*, took a scroll to reach. Every case is now a one-line row: a dot if
+something changed, the form, a plain-language name, its status and how old that
+status is. One card opens.
+
+Measured on the sample account: **4,976px of scrolling down to 1,273px** — from
+6.3 screens to one.
+
+Which card opens is decided in order: a case with a deadline (an appointment,
+an evidence request, or `actionRequired`), then one that changed since your
+last visit, then the most recent open case. A closed case is never the default.
+Open or collapse any card yourself and that choice sticks; several can be open
+at once, because someone comparing two concurrently-filed cases needs both.
+
+Forms are named the way people refer to them — "Work permit", "Green card
+application" — rather than by USCIS's eleven-word official titles.
+
+Deliberately not built: a separate status board (the collapsed rows already are
+one, without rendering every case's identity a second time) and a case
+switcher (tabs would make "anything new anywhere?" take four clicks instead of
+one glance).
+
 ## 1.3.4
 
 **Appointments say which source wins**

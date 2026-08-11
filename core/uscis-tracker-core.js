@@ -34,7 +34,7 @@
   // SECTION 1: Constants
   // ==========================================================================
 
-  var VERSION = '1.3.4';
+  var VERSION = '1.4.0';
 
   var STORAGE_KEYS = {
     cases: 'uscisTracker.cases.v1',      // [{ number, label, addedAt }]
@@ -2361,6 +2361,26 @@
     ".uscistr-root .uscistr-banner .uscistr-btn-sm:hover { background: rgba(0, 0, 0, 0.06); }",
     ".uscistr-root.uscistr-dark .uscistr-banner .uscistr-btn-sm:hover { background: rgba(255, 255, 255, 0.08); }",
     ".uscistr-root .uscistr-case-list { display: block; }",
+    ".uscistr-root .uscistr-collapsed {",
+    "  display: flex; flex-direction: column; gap: 3px;",
+    "  width: 100%; text-align: left; cursor: pointer;",
+    "  background: none; border: 0; padding: var(--ust-s4) var(--ust-s5);",
+    "  font: inherit; color: inherit; border-radius: var(--ust-r-md);",
+    "}",
+    ".uscistr-root .uscistr-collapsed:hover { background: var(--ust-bg-hover); }",
+    ".uscistr-root .uscistr-collapsed-head { display: flex; align-items: center; gap: var(--ust-s3); min-width: 0; }",
+    ".uscistr-root .uscistr-collapsed-dot {",
+    "  width: 7px; height: 7px; flex: none; border-radius: var(--ust-r-full);",
+    "  background: var(--ust-accent-solid);",
+    "}",
+    ".uscistr-root .uscistr-collapsed-name { font-weight: 600; font-size: var(--ust-fs-heading); min-width: 0; }",
+    ".uscistr-root .uscistr-collapsed-body {",
+    "  display: flex; align-items: baseline; gap: var(--ust-s3);",
+    "  min-width: 0; padding-left: calc(7px + var(--ust-s3));",
+    "}",
+    ".uscistr-root .uscistr-collapsed-status { font-size: var(--ust-fs-meta); color: var(--ust-text-2); min-width: 0; flex: 1 1 auto; }",
+    ".uscistr-root .uscistr-collapsed-age { font-size: var(--ust-fs-micro); color: var(--ust-text-3); flex: none; }",
+    ".uscistr-root .uscistr-card.uscistr-is-collapsed { padding: 0; }",
     ".uscistr-root .uscistr-card {",
     "  position: relative;",
     "  display: flex;",
@@ -5181,6 +5201,11 @@
     // state pills on the left.
     var actions = el('div', { 'class': 'uscistr-card-actions' });
     if (entry.changedSince) actions.appendChild(chip('NEW', 'accent'));
+    actions.appendChild(iconButton('minimize', 'Collapse this case', function (e) {
+      e.stopPropagation();
+      setExpanded(entry.number, false);
+      render();
+    }));
 
     return el('div', { 'class': 'uscistr-card-header' }, [identity, actions]);
   }
@@ -5850,7 +5875,113 @@
     return banner('danger', 'warning', title, lines, actions);
   }
 
-  function buildCaseCard(entry) {
+  // ---- collapse ------------------------------------------------------------
+  //
+  // Four cases produce roughly six screens of scrolling, and no single card
+  // fits a viewport, so the question the panel exists to answer — has anything
+  // moved? — needs a scroll to reach. Collapsing every card to a summary row
+  // and expanding one turns that into a single glance. The collapsed stack is
+  // itself the overview; a separate status board would render the same four
+  // fields a second time, and tabs would make "anything new anywhere?" take
+  // four clicks.
+
+  function expandedMap() {
+    var stored = load(STORAGE_KEYS.prefs, {});
+    var map = stored && stored.expanded;
+    return (map && typeof map === 'object') ? map : {};
+  }
+
+  function setExpanded(number, isOpen) {
+    var map = expandedMap();
+    map[String(number).toUpperCase()] = !!isOpen;
+    state.prefs.expanded = map;
+    persistPrefs();
+  }
+
+  // The card opened by default, when the reader hasn't chosen for themselves.
+  // Obligations outrank everything: a deadline is the only thing on any card
+  // that can be missed. A concluded case is never the default.
+  function defaultExpandedNumber(ordered) {
+    var i, entry, view;
+    for (i = 0; i < ordered.length; i++) {
+      entry = ordered[i];
+      view = entry.result ? buildCaseView(entry) : null;
+      if (!view) continue;
+      if (view.upcoming.length || view.evidenceCount > 0 ||
+          (view.detail && view.detail.actionRequired === true)) return entry.number;
+    }
+    for (i = 0; i < ordered.length; i++) {
+      if (ordered[i].changedSince) return ordered[i].number;
+    }
+    for (i = 0; i < ordered.length; i++) {
+      entry = ordered[i];
+      view = entry.result ? buildCaseView(entry) : null;
+      if (view && view.detail && view.detail.closed === true) continue;
+      return entry.number;
+    }
+    return ordered.length ? ordered[0].number : null;
+  }
+
+  function isCardExpanded(entry, ordered) {
+    var map = expandedMap();
+    var key = String(entry.number).toUpperCase();
+    // An explicit choice always wins, and persists.
+    if (Object.prototype.hasOwnProperty.call(map, key)) return !!map[key];
+    return entry.number === defaultExpandedNumber(ordered);
+  }
+
+  // One row: has it changed, what is it, what does it say, how old is that.
+  // Never less — this row alone has to answer "anything new?".
+  function buildCollapsedCard(entry, view, onToggle) {
+    var row = el('button', {
+      'class': 'uscistr-collapsed', type: 'button', onclick: onToggle,
+      title: 'Show the full record for this case'
+    });
+
+    var formType = (view.detail && view.detail.formType) || (view.notice && view.notice.formNumber) || null;
+    var head = el('div', { 'class': 'uscistr-collapsed-head' }, [
+      entry.changedSince ? el('span', { 'class': 'uscistr-collapsed-dot', title: 'Something changed since you last looked' }) : null,
+      formType ? el('span', { 'class': 'uscistr-chip uscistr-mono', text: String(formType) }) : null,
+      el('span', { 'class': 'uscistr-collapsed-name uscistr-truncate',
+        text: entry.label || plainFormName(formType) || displayNumber(entry.number) })
+    ]);
+
+    var statusText = view.notice && view.notice.status ? view.notice.status
+      : (view.state === 'stale' ? 'Last known status unavailable' : 'No status published');
+    var statusMs = view.notice && view.notice.actionCodeDate ? parseUscisDate(view.notice.actionCodeDate) : null;
+    var age = statusMs !== null ? relativeDate(new Date(statusMs).toISOString()) : '';
+
+    var body = el('div', { 'class': 'uscistr-collapsed-body' }, [
+      el('span', { 'class': 'uscistr-collapsed-status uscistr-truncate', text: statusText }),
+      age ? el('span', { 'class': 'uscistr-collapsed-age', text: age }) : null
+    ]);
+
+    row.appendChild(head);
+    row.appendChild(body);
+    return row;
+  }
+
+  // USCIS's own form names run to eleven words. The short name is what a
+  // person calls the thing they filed.
+  var PLAIN_FORM_NAMES = {
+    'I-485': 'Green card application',
+    'I-485J': 'Job-offer confirmation',
+    'I-765': 'Work permit',
+    'I-131': 'Travel document',
+    'I-130': 'Family petition',
+    'I-140': 'Employment petition',
+    'N-400': 'Naturalization',
+    'I-751': 'Removing conditions',
+    'I-129': 'Worker petition',
+    'I-90': 'Green card renewal'
+  };
+
+  function plainFormName(formType) {
+    if (!formType) return null;
+    return PLAIN_FORM_NAMES[String(formType).toUpperCase()] || null;
+  }
+
+  function buildCaseCard(entry, ordered) {
     var classes = 'uscistr-card';
     var card = el('div', { 'class': classes });
 
@@ -5871,6 +6002,18 @@
     }
 
     var view = buildCaseView(entry);
+
+    // Collapsed by default unless this is the card the reader most likely came
+    // for. A collapsed row still answers "has anything changed here?".
+    if (ordered && !isCardExpanded(entry, ordered)) {
+      card.className = classes + (entry.changedSince ? ' uscistr-is-changed' : '') + ' uscistr-is-collapsed';
+      card.appendChild(buildCollapsedCard(entry, view, function () {
+        setExpanded(entry.number, true);
+        render();
+      }));
+      return card;
+    }
+
     var errorNote = buildCaseErrorNote(entry);
 
     if (entry.changedSince) classes += ' uscistr-is-changed';
@@ -6050,7 +6193,7 @@
     } else {
       var list = el('div', { 'class': 'uscistr-case-list' });
       var ordered = casesInReadingOrder();
-      for (var i = 0; i < ordered.length; i++) list.appendChild(buildCaseCard(ordered[i]));
+      for (var i = 0; i < ordered.length; i++) list.appendChild(buildCaseCard(ordered[i], ordered));
       body.appendChild(list);
     }
     body.appendChild(buildStandingDisclaimer());
