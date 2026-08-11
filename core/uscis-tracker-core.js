@@ -34,7 +34,7 @@
   // SECTION 1: Constants
   // ==========================================================================
 
-  var VERSION = '1.8.1';
+  var VERSION = '1.9.0';
 
   var STORAGE_KEYS = {
     cases: 'uscisTracker.cases.v1',      // [{ number, label, addedAt }]
@@ -1672,7 +1672,9 @@
     addError: null,               // validation message from the last failed submit
     addPendingNumber: null,       // the number that failed validation, for "Add anyway"
     addOpen: false,               // the add-case form is collapsed until asked for
-    expanded: {}                  // per-case open/closed, for this page view only
+    openNumber: null,             // the one open case, for this page view only
+    panelMounted: false,          // has the panel been on screen since last opened
+    renderedWide: false           // layout actually on screen, so resize can compare
   };
   var dragState = null;            // in-progress panel drag, or null
   var refreshTimerId = null;       // setInterval handle for periodic refreshAll()
@@ -2335,6 +2337,9 @@
     var minBtn = iconButton('minimize', 'Minimize', function (e) {
       e.stopPropagation();
       state.prefs.collapsed = true;
+      // The panel is leaving the screen, so the next open is a real entrance
+      // and should animate again.
+      uiState.panelMounted = false;
       persistPrefs();
       render();
     });
@@ -5071,26 +5076,59 @@
   // fields a second time, and tabs would make "anything new anywhere?" take
   // four clicks.
 
+  // Exactly one case is open at a time, and opening one widens the panel so the
+  // open case sits beside the list rather than on top of it.
+  //
+  // Multiple cards could previously be open at once, which sounded like it
+  // supported comparison and did not: an expanded card is around 1,000px in a
+  // ~630px window, so the second open card always started a screen and a half
+  // below the first. What it actually did was bury the overview — the reason
+  // collapse-all exists — under whatever had been opened.
+  //
+  // Opening a case is a reading state, not a preference, so it lasts as long as
+  // the page does and no longer. Persisting it meant a card opened once in
+  // March was still open in August, and a case collapsed once stayed a one-line
+  // row on the day it was approved.
   function setExpanded(number, isOpen) {
-    uiState.expanded[String(number).toUpperCase()] = !!isOpen;
+    uiState.openNumber = isOpen ? String(number).toUpperCase() : null;
   }
 
   function isCardExpanded(entry, ordered) {
     var key = String(entry.number).toUpperCase();
-    // Opening a card is a reading state, not a preference, so it lasts as long
-    // as the page does and no longer. Persisting it meant a card opened once in
-    // March was still open in August — and worse, a case collapsed once stayed
-    // a one-line row on the day it was approved, because the stored choice
-    // outranked every rule below.
-    if (Object.prototype.hasOwnProperty.call(uiState.expanded, key)) {
-      return !!uiState.expanded[key];
-    }
+    if (uiState.openNumber !== null) return uiState.openNumber === key;
     // With one case there is nothing to choose between, so opening it saves a
     // pointless click. With more than one, everything collapses: opening one
     // by rule guesses which case the reader came for and pushes the rest below
     // the fold. The collapsed rows carry enough — status, elapsed days, and any
     // deadline — to choose from without opening anything.
     return ordered.length === 1;
+  }
+
+  // The case currently open, if it still exists. A case can be removed while
+  // open, and a stale number here would widen the panel around nothing.
+  function openEntry() {
+    if (uiState.openNumber === null) return null;
+    for (var i = 0; i < state.cases.length; i++) {
+      if (String(state.cases[i].number).toUpperCase() === uiState.openNumber) return state.cases[i];
+    }
+    uiState.openNumber = null;
+    return null;
+  }
+
+  // Below this there is not enough room for a rail and a readable card side by
+  // side, and a 720px panel would cover the page it floats over.
+  var WIDE_MIN_VIEWPORT = 780;
+
+  // Wide mode: a case is open and there is a list worth keeping beside it.
+  // A lone case opens wide too — the card is the same height either way — but
+  // renders no rail, because a rail of one row is just a wider card.
+  //
+  // Gated in JavaScript rather than by a media query because the fallback is a
+  // different layout, not a narrower one: hiding the rail in CSS would leave a
+  // reader on a small screen with an open case, no list, and no way back.
+  function isWideMode() {
+    if (window.innerWidth < WIDE_MIN_VIEWPORT) return false;
+    return !!openEntry() || (state.cases.length === 1 && uiState.openNumber === null);
   }
 
   // One row: has it changed, what is it, what does it say, how old is that.
@@ -5449,8 +5487,24 @@
   // ---- panel assembly, refresh, render ---------------------------------
 
   function buildPanel() {
+    var wide = isWideMode();
+    uiState.renderedWide = wide;
+    var open = openEntry();
+    var ordered = casesInReadingOrder();
+    // The rail only earns its width when there is more than one case to
+    // choose between.
+    var rail = wide && ordered.length > 1;
+
+    var classes = 'uscistr-panel' + (wide ? ' uscistr-is-wide' : '');
+    // The entry animation plays when the panel appears, not every time it is
+    // rebuilt. render() replaces the whole element, so this used to re-run on
+    // every refresh and every disclosure click — the panel visibly restarting
+    // itself while being read.
+    if (!uiState.panelMounted) classes += ' uscistr-panel-enter';
+    uiState.panelMounted = true;
+
     var panel = el('div', {
-      'class': 'uscistr-panel',
+      'class': classes,
       role: 'complementary',
       'aria-label': 'CaseLens — USCIS case tracker'
     });
@@ -5458,29 +5512,78 @@
 
     panel.appendChild(buildHeader());
 
-    var body = el('div', { 'class': 'uscistr-body' });
-    if (state.sessionExpired) body.appendChild(buildSessionBanner());
+    // Panel-wide conditions sit above everything, in both layouts: a failed
+    // check or a timed-out session is about the whole panel, not one case.
+    var notices = el('div', { 'class': 'uscistr-notices' });
+    if (state.sessionExpired) notices.appendChild(buildSessionBanner());
     var storageBanner = buildStorageBanner();
-    if (storageBanner) body.appendChild(storageBanner);
+    if (storageBanner) notices.appendChild(storageBanner);
     var failureBanner = buildFetchFailureBanner();
-    if (failureBanner) body.appendChild(failureBanner);
-    body.appendChild(buildAddCaseSection());
+    if (failureBanner) notices.appendChild(failureBanner);
+    if (notices.childNodes.length) panel.appendChild(notices);
 
-    if (state.cases.length === 0) {
-      body.appendChild(buildEmptyState());
-    } else {
-      var list = el('div', { 'class': 'uscistr-case-list' });
-      var ordered = casesInReadingOrder();
-      for (var i = 0; i < ordered.length; i++) list.appendChild(buildCaseCard(ordered[i], ordered));
-      body.appendChild(list);
-    }
-    body.appendChild(buildStandingDisclaimer());
-    panel.appendChild(body);
+    panel.appendChild(rail ? buildSplitBody(ordered, open) : buildSingleBody(ordered));
 
     panel.appendChild(buildFooter());
     if (uiState.settingsOpen) panel.appendChild(buildSettingsPopover());
 
     return panel;
+  }
+
+  // Narrow: one scrolling column. Also the layout for a lone open case, which
+  // needs the width but has no list to keep beside it.
+  function buildSingleBody(ordered) {
+    var body = el('div', { 'class': 'uscistr-body' });
+    body.appendChild(buildAddCaseSection());
+
+    if (!ordered.length) {
+      body.appendChild(buildEmptyState());
+    } else {
+      var list = el('div', { 'class': 'uscistr-case-list' });
+      for (var i = 0; i < ordered.length; i++) list.appendChild(buildCaseCard(ordered[i], ordered));
+      body.appendChild(list);
+    }
+    body.appendChild(buildStandingDisclaimer());
+    return body;
+  }
+
+  // Wide: every case stays visible in a rail on the left while one is read on
+  // the right. Each scrolls independently, so reading a long case never scrolls
+  // the overview away — the failure that made opening a case feel like leaving
+  // the panel.
+  function buildSplitBody(ordered, open) {
+    var railList = el('div', { 'class': 'uscistr-rail-list' });
+    for (var i = 0; i < ordered.length; i++) {
+      var entry = ordered[i];
+      var view = buildCaseView(entry);
+      var isOpen = open && entry.number === open.number;
+      var row = buildCollapsedCard(entry, view, makeRailToggle(entry, isOpen));
+      row.className += ' uscistr-rail-row' + (isOpen ? ' uscistr-rail-row-open' : '');
+      row.setAttribute('aria-current', isOpen ? 'true' : 'false');
+      railList.appendChild(row);
+    }
+
+    var railCol = el('div', { 'class': 'uscistr-rail' }, [railList, buildAddCaseSection()]);
+
+    var detail = el('div', { 'class': 'uscistr-detail' });
+    if (open) {
+      detail.appendChild(buildCaseCard(open, ordered));
+    } else {
+      detail.appendChild(buildEmptyState());
+    }
+    detail.appendChild(buildStandingDisclaimer());
+
+    return el('div', { 'class': 'uscistr-body uscistr-body-split' }, [railCol, detail]);
+  }
+
+  // Clicking the open case's own row closes it and returns the panel to the
+  // narrow list. Clicking any other row switches to it without a round trip
+  // through the collapsed view.
+  function makeRailToggle(entry, isOpen) {
+    return function () {
+      setExpanded(entry.number, !isOpen);
+      render();
+    };
   }
 
   // Fetch one case's data and update its entry in place. Safe to call even
@@ -5549,16 +5652,35 @@
     // keyboard focus die with the old DOM, and the background refresh calls
     // this twice per case on a timer, so a reader mid-way down a card gets
     // thrown to the top while reading. Capture both, restore both.
-    var scroller = ROOT.querySelector('.uscistr-body');
-    var scrollTop = scroller ? scroller.scrollTop : 0;
+    // Wide mode has two independent scrollers, so capture both by selector
+    // rather than assuming one body element.
+    var scrolls = captureScrolls();
     var focusKey = focusIdentityOf(document.activeElement);
 
     renderInto();
 
-    var newScroller = ROOT.querySelector('.uscistr-body');
-    if (newScroller && scrollTop) newScroller.scrollTop = scrollTop;
+    restoreScrolls(scrolls);
     if (focusKey) restoreFocus(focusKey);
     reclampPanel();
+  }
+
+  var SCROLLERS = ['.uscistr-body', '.uscistr-rail', '.uscistr-detail'];
+
+  function captureScrolls() {
+    var out = {};
+    for (var i = 0; i < SCROLLERS.length; i++) {
+      var node = ROOT.querySelector(SCROLLERS[i]);
+      if (node && node.scrollTop) out[SCROLLERS[i]] = node.scrollTop;
+    }
+    return out;
+  }
+
+  function restoreScrolls(saved) {
+    for (var sel in saved) {
+      if (!Object.prototype.hasOwnProperty.call(saved, sel)) continue;
+      var node = ROOT.querySelector(sel);
+      if (node) node.scrollTop = saved[sel];
+    }
   }
 
   // Identify the focused control well enough to find its replacement after the
@@ -5770,7 +5892,22 @@
       // unplugged — and position:fixed means the page cannot be scrolled to
       // reach it. Nothing re-ran the clamp until the next render, which on a
       // quiet case is fifteen minutes away.
-      window.addEventListener('resize', reclampPanel);
+      // Re-render only when the layout would actually change; otherwise just
+      // re-clamp. Re-rendering on every resize event would rebuild the panel
+      // dozens of times during a single window drag.
+      //
+      // The comparison is against what is currently on screen, not against
+      // what this listener last saw. Tracking it in the closure looked
+      // equivalent and was not: opening a case widened the panel without the
+      // listener knowing, so narrowing the window afterwards compared false to
+      // false and left the two-column layout in a window too small for it.
+      window.addEventListener('resize', function () {
+        if (isWideMode() !== uiState.renderedWide) {
+          render();
+          return;
+        }
+        reclampPanel();
+      });
 
       // Escape closes the settings popover. Without this it covers the first
       // card until the user happens to find the same icon again.

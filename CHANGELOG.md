@@ -4,6 +4,35 @@ Notable changes per release. The section matching a tag becomes that release's
 notes on GitHub, so keep entries written for someone deciding whether to update
 — not for someone reading a commit log.
 
+## 1.9.0
+
+**Opening a case no longer hides the others**
+
+The panel is 400px wide, and an open case runs to about a thousand pixels — so
+opening one buried the list of all of them, which is the thing collapsing every
+case existed to give you. Reading one case meant losing the overview.
+
+Opening a case now widens the panel to 720px and puts your cases in a column
+down the left, with the open one beside them. Both sides scroll independently,
+so reading a long record never scrolls the list away, and switching to another
+case is one click instead of a scroll back and a scroll down. Closing returns
+the panel to its normal width.
+
+Only one case is open at a time now. Several could be open before, which sounded
+like it let you compare them and did not — the second one always started a
+screen and a half below the first.
+
+On a window too narrow for two columns, the panel stays at its normal width and
+opens the case in place, in the full list. Deciding that in code rather than in
+a stylesheet is deliberate: hiding the column on a small screen would leave you
+with an open case, no list, and no way back to it.
+
+**Fixes**
+
+- The entry animation plays when the panel appears, not every time it is
+  rebuilt. A background refresh had been visibly restarting it under you.
+- Scroll position is kept for both columns, not just one.
+
 ## 1.8.1
 
 **The alarm no longer fires on a denial**

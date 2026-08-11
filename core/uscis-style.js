@@ -310,7 +310,66 @@ var CASELENS_STYLE = [
   "  color: var(--ust-text-1);",
   "  box-shadow: var(--ust-sh-3);",
   "  overflow: hidden;",
-  "  animation: ust-panel-in var(--ust-d4) var(--ust-ease-out) both;",
+  // Width is the only thing that changes between the two layouts, so it can be
+  // transitioned. Height is left alone: animating it would fight the panel's
+  // own scrolling while content is still loading.
+  "  transition: width var(--ust-d3) var(--ust-ease-out);",
+  "}",
+  // Only when the panel first appears. It used to be unconditional on the
+  // element, and render() rebuilds that element — so a background refresh
+  // restarted the entry animation under someone mid-read.
+  ".uscistr-root .uscistr-panel-enter { animation: ust-panel-in var(--ust-d4) var(--ust-ease-out) both; }",
+  // Reading a case: wide enough that the record is legible without the list
+  // being evicted to make room for it.
+  ".uscistr-root .uscistr-panel.uscistr-is-wide {",
+  "  width: min(720px, calc(100vw - 40px));",
+  "  max-height: 92vh;",
+  "}",
+  ".uscistr-root .uscistr-notices { flex: none; }",
+  // Two independently scrolling columns. The rail keeps its own scroll so a
+  // long case never scrolls the overview away.
+  ".uscistr-root .uscistr-body-split {",
+  "  display: grid;",
+  "  grid-template-columns: 248px minmax(0, 1fr);",
+  "  overflow: hidden;",
+  "  padding: 0;",
+  "}",
+  ".uscistr-root .uscistr-rail {",
+  "  display: flex;",
+  "  flex-direction: column;",
+  "  min-height: 0;",
+  "  overflow-y: auto;",
+  "  border-right: 1px solid var(--ust-border-1);",
+  "  background: var(--ust-bg-inset);",
+  "}",
+  ".uscistr-root .uscistr-rail-list { display: flex; flex-direction: column; }",
+  ".uscistr-root .uscistr-rail-row {",
+  "  border-bottom: 1px solid var(--ust-border-1);",
+  "  border-radius: 0;",
+  "}",
+  // The deadline line wraps rather than truncating. It is the one line on a
+  // row that must survive intact — at rail width, ellipsising it dropped the
+  // "in 10 days" that makes a date read as a deadline.
+  ".uscistr-root .uscistr-rail-row .uscistr-collapsed-demand {",
+  "  align-items: flex-start;",
+  "}",
+  ".uscistr-root .uscistr-rail-row .uscistr-collapsed-demand .uscistr-truncate {",
+  "  white-space: normal;",
+  "  overflow: visible;",
+  "  text-overflow: clip;",
+  "}",
+  ".uscistr-root .uscistr-rail-row .uscistr-collapsed-demand-dot { margin-top: 5px; }",
+  // The open case is marked on its left edge rather than by a fill, so the
+  // change and deadline colours on the row still mean what they mean.
+  ".uscistr-root .uscistr-rail-row-open {",
+  "  background: var(--ust-bg-panel);",
+  "  box-shadow: inset 3px 0 0 var(--ust-accent-solid);",
+  "}",
+  ".uscistr-root .uscistr-detail {",
+  "  min-width: 0;",
+  "  min-height: 0;",
+  "  overflow-y: auto;",
+  "  padding: var(--ust-s5) var(--ust-s5) var(--ust-s6);",
   "}",
   ".uscistr-root .uscistr-panel.uscistr-is-dragging {",
   "  box-shadow: var(--ust-sh-3), 0 0 0 1px var(--ust-accent-soft-border);",
