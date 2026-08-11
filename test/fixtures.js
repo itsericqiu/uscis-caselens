@@ -574,12 +574,54 @@
 
   var CHANGED = makeChangedDataset();
 
+  // USCIS is waiting for something from this person, with a deadline whose
+  // consequence is denial. This is the highest-consequence state the panel can
+  // render — the amber demand line on a collapsed row, the case sorting to the
+  // top, and the attention banner — and until now no scenario produced it, so
+  // it was the one path only ever seen by hand-editing state in a console.
+  function makeActionRequiredDataset() {
+    var ds = clone(NORMAL);
+    var detail = ds.cases[CASE_1].detail;
+    var now = new Date();
+    var sent = new Date(now.getTime() - 9 * 24 * 60 * 60 * 1000);
+
+    // The structured boolean USCIS supplies. Everything the panel colours or
+    // sorts on comes from this, never from reading the status prose.
+    detail.actionRequired = true;
+
+    detail.evidenceRequests = [{
+      receiptNumber: CASE_1,
+      requestId: fakeEventId(9),
+      createdAt: dateOnly(sent),
+      createdAtTimestamp: iso(sent)
+    }];
+
+    // IK — "Request for additional evidence sent" in the NIEM schema, and one
+    // of the four codes allowed to raise the attention banner.
+    detail.events.push({
+      receiptNumber: CASE_1,
+      eventId: fakeEventId(10),
+      eventCode: 'IK',
+      createdAt: dateOnly(sent),
+      createdAtTimestamp: iso(sent),
+      updatedAt: dateOnly(sent),
+      updatedAtTimestamp: iso(sent),
+      eventDateTime: dateOnly(sent),
+      eventTimestamp: iso(sent)
+    });
+
+    return ds;
+  }
+
+  var ACTION_REQUIRED = makeActionRequiredDataset();
+
   // ---- public fixtures object --------------------------------------------
 
   window.USCIS_FIXTURES = {
     caseNumbers: CASE_NUMBERS,
     normal: NORMAL,
     changed: CHANGED,
+    actionRequired: ACTION_REQUIRED,
     // exposed so the harness (or future scenarios) can derive further
     // variants from a clean copy without re-running makeChangedDataset().
     makeChangedDataset: makeChangedDataset

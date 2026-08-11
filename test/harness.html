@@ -185,6 +185,7 @@
     <div id="harness-scenarios">
       <button type="button" data-scenario="normal" aria-pressed="true">normal</button>
       <button type="button" data-scenario="changed" aria-pressed="false">changed</button>
+      <button type="button" data-scenario="actionRequired" aria-pressed="false">actionRequired</button>
       <button type="button" data-scenario="expired" aria-pressed="false">expired</button>
       <button type="button" data-scenario="notFound" aria-pressed="false">notFound</button>
       <button type="button" data-scenario="malformed" aria-pressed="false">malformed</button>
@@ -244,7 +245,7 @@
   var logEl = document.getElementById('harness-log');
   var clearBtn = document.getElementById('harness-clear');
 
-  var VALID_SCENARIOS = ['normal', 'changed', 'expired', 'notFound', 'malformed', 'loggedOut', 'emptyEnvelope'];
+  var VALID_SCENARIOS = ['normal', 'changed', 'actionRequired', 'expired', 'notFound', 'malformed', 'loggedOut', 'emptyEnvelope'];
   var currentScenario = 'normal';
 
   // Optional ?scenario=<name> query param picks the scenario active from
@@ -346,6 +347,9 @@
   //                    empty for every case except IOE0000000002 (data
   //                    supplied), and location is always {"data": null}.
   //   changed        -> 200, USCIS_FIXTURES.changed data (case 1 advanced)
+  //   actionRequired -> 200, USCIS_FIXTURES.actionRequired (case 1 has an open
+  //                    evidence request: actionRequired true, an IK event, and
+  //                    an entry in evidenceRequests)
   //   expired        -> every endpoint 401 (session expired mid-session)
   //   notFound       -> caseList still 200 (auth still works, {"data": []}
   //                    as always), every per-case endpoint 404 (unknown
@@ -392,7 +396,7 @@
     }
 
     // normal / changed
-    var dataset = currentScenario === 'changed' ? fixtures.changed : fixtures.normal;
+    var dataset = fixtures[currentScenario] || fixtures.normal;
 
     if (match.type === 'caseList') {
       // Real API shape: an empty array even though cases exist. Never

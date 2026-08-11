@@ -2040,7 +2040,7 @@ var CASELENS_STYLE = [
   // SECTION 1: Constants
   // ==========================================================================
 
-  var VERSION = '1.11.1';
+  var VERSION = '1.12.0';
 
   var STORAGE_KEYS = {
     cases: 'uscisTracker.cases.v1',      // [{ number, label, addedAt }]
@@ -2295,9 +2295,11 @@ var CASELENS_STYLE = [
 
   // Write a JSON value to localStorage. Swallows errors (quota exceeded,
   // storage disabled in private browsing, etc.) so a save never crashes the app.
-  // Set once if any write is refused. Surfaced in the panel, because silently
-  // failing to record history is the one failure this tool must not hide.
-  var storageFailed = false;
+  // A refused write is reported through state.storageBlocked, set where the
+  // loss actually matters (applyFetchResult, when a detected change cannot be
+  // recorded). There was a second flag here that nothing ever read — an
+  // auditor tracing the storage-failure path had to work out which of two
+  // mattered.
 
   function save(key, value) {
     // Before the write, not after: if setItem throws, the memo must not still
@@ -2311,11 +2313,31 @@ var CASELENS_STYLE = [
       // callers can avoid acting on a write that did not happen — see
       // applyFetchResult, where a lost snapshot would otherwise make the same
       // change be re-detected and re-notified on every refresh, forever.
-      storageFailed = true;
       return false;
     }
   }
 
+
+  // One shape for a tracked case, built in one place.
+  //
+  // There were three constructions of this object — loadAll, addCase, and
+  // auto-discovery — and they had already drifted: two omitted lastLookedAt,
+  // which buildChangeBand reads. A field added to one and not the others is
+  // how the next drift happens.
+  //
+  // `result` and `loading` describe this page view and are never persisted;
+  // persistCases() decides what is written.
+  function makeCaseEntry(fields) {
+    return {
+      number: fields.number,
+      label: typeof fields.label === 'string' ? fields.label : '',
+      addedAt: fields.addedAt || new Date().toISOString(),
+      changedSince: fields.changedSince === true,
+      lastLookedAt: typeof fields.lastLookedAt === 'string' ? fields.lastLookedAt : null,
+      result: null,
+      loading: false
+    };
+  }
 
   // Populate state.cases and state.prefs from localStorage. Safe to call
   // multiple times; always rebuilds both from scratch.
@@ -2328,17 +2350,9 @@ var CASELENS_STYLE = [
       // accepting anything truthy here made the stricter check on import
       // decorative: a value that could not be imported could still be loaded.
       if (!c || typeof c !== 'object' || !isValidReceiptNumber(c.number)) continue;
-      state.cases.push({
-        number: c.number,
-        label: typeof c.label === 'string' ? c.label : '',
-        addedAt: c.addedAt || new Date().toISOString(),
-        result: null,
-        loading: false,
-        // Survives the reload that stored it. Only the reader dismissing it,
-        // or a later check finding nothing new, should clear this.
-        changedSince: c.changedSince === true,
-        lastLookedAt: typeof c.lastLookedAt === 'string' ? c.lastLookedAt : null
-      });
+      // changedSince survives the reload that stored it; only the reader
+      // dismissing it, or a later check finding nothing new, clears it.
+      state.cases.push(makeCaseEntry(c));
     }
 
     var storedPrefs = load(STORAGE_KEYS.prefs, {});
@@ -2507,7 +2521,7 @@ var CASELENS_STYLE = [
   // Endpoints that return a bare array arrive as { __list: [...] } from
   // unwrapEnvelope. This pulls the array back out for callers that want it.
   function asList(payload) {
-    if (!payload || payload.__error || payload.__empty) return null;
+    if (!payloadUsable(payload)) return null;
     if (Array.isArray(payload)) return payload;
     if (Array.isArray(payload.__list)) return payload.__list;
     return null;
@@ -2850,6 +2864,16 @@ var CASELENS_STYLE = [
     return snap;
   }
 
+  // One level deep, which is all any caller here needs. Used where a render
+  // decision has to be attached to an item without mutating the shared one.
+  function shallowCopy(obj) {
+    var out = {};
+    for (var k in obj) {
+      if (Object.prototype.hasOwnProperty.call(obj, k)) out[k] = obj[k];
+    }
+    return out;
+  }
+
   // true and false are facts about a case; anything else is an absence.
   // Coercing a missing field to false would let a card state "not closed"
   // on the strength of USCIS not having mentioned it.
@@ -2878,7 +2902,7 @@ var CASELENS_STYLE = [
 
   // Documents arrive as a bare array inside the data envelope.
   function documentList(documents) {
-    if (!documents || documents.__error || documents.__empty) return null;
+    if (!payloadUsable(documents)) return null;
     var list = asList(documents);
     if (list) return list;
     if (Array.isArray(documents.documents)) return documents.documents;
@@ -2968,6 +2992,9 @@ var CASELENS_STYLE = [
   // the fresh snapshot (even when nothing changed).
   function applyFetchResult(entry, result) {
     entry.result = result;
+    // New data for this case: any view built from the old result is stale, and
+    // this runs outside render()'s own invalidation.
+    invalidateCaseViews();
 
     // Learn USCIS's own wording for any action codes this response explains,
     // so bare codes on other cases can be labeled without guessing.
@@ -3184,7 +3211,7 @@ var CASELENS_STYLE = [
   function learnCodeText(result) {
     if (!result) return;
     var notice = result.caseStatus;
-    if (!notice || notice.__error || notice.__empty) return;
+    if (!payloadUsable(notice)) return;
 
     var formType = pick(notice, FIELDS.caseStatus.formType);
     if (formType === null) formType = pick(result.caseDetail, FIELDS.caseDetail.formType);
@@ -3399,7 +3426,7 @@ var CASELENS_STYLE = [
   // a structured { range: { value, unit } } shape first, then fall back to
   // regexing "X months" out of free-text fields.
   function parseEstimateMonths(processingTimes) {
-    if (!processingTimes || processingTimes.__error || processingTimes.__empty) return null;
+    if (!payloadUsable(processingTimes)) return null;
 
     if (processingTimes.range && typeof processingTimes.range === 'object') {
       var value = processingTimes.range.value;
@@ -3702,7 +3729,7 @@ var CASELENS_STYLE = [
 
   // The case-detail endpoint: what was filed, and when USCIS last touched it.
   function summarizeCaseDetail(data) {
-    if (!data || data.__error || data.__empty) return null;
+    if (!payloadUsable(data)) return null;
     return {
       receiptNumber: pick(data, FIELDS.caseDetail.receiptNumber),
       // flattenValue, not the raw value. An object here reaches stageInfo as
@@ -3722,7 +3749,7 @@ var CASELENS_STYLE = [
   // The case_status endpoint: official status wording, action code, office, and
   // the dated status history. This is the richest source we have.
   function summarizeCaseStatus(data) {
-    if (!data || data.__error || data.__empty) return null;
+    if (!payloadUsable(data)) return null;
 
     var statusValue = pick(data, FIELDS.caseStatus.status);
     var detailValue = pick(data, FIELDS.caseStatus.statusDetail);
@@ -3747,7 +3774,7 @@ var CASELENS_STYLE = [
   // The secondary location endpoint. Usually returns nothing at all; the real
   // office name comes from the case_status jurisdiction instead.
   function summarizeLocation(data) {
-    if (!data || data.__error || data.__empty) return null;
+    if (!payloadUsable(data)) return null;
     return {
       office: flattenValue(pick(data, FIELDS.location.office)),
       address: flattenValue(pick(data, FIELDS.location.address))
@@ -3757,7 +3784,7 @@ var CASELENS_STYLE = [
   // Processing-time estimates. In practice this endpoint answers 204 with no
   // body, so callers must handle null and fall back to elapsed time.
   function summarizeProcessingTimes(data) {
-    if (!data || data.__error || data.__empty) return null;
+    if (!payloadUsable(data)) return null;
     var estimate = pick(data, FIELDS.processingTimes.estimate);
     var medianDays = pick(data, FIELDS.processingTimes.medianDays);
     if (estimate === null && medianDays === null) return null;
@@ -4648,7 +4675,7 @@ var CASELENS_STYLE = [
     return banner('', 'warning', all
       ? "Couldn't read your cases from USCIS on the last check."
       : plural(failed, 'case') + " couldn't be read on the last check.", [
-      'This is a problem reading the record — it says nothing about the case itself.',
+      'Your case at USCIS is unaffected — this is about reading the record, not about the case.',
       'Anything shown below is the last copy this browser saved, and is dated.'
     ], actions);
   }
@@ -4657,14 +4684,7 @@ var CASELENS_STYLE = [
     for (var i = 0; i < state.cases.length; i++) {
       if (state.cases[i].number === number) return; // duplicate: skip silently
     }
-    state.cases.push({
-      number: number,
-      label: label,
-      addedAt: new Date().toISOString(),
-      result: null,
-      loading: false,
-      changedSince: false
-    });
+    state.cases.push(makeCaseEntry({ number: number, label: label }));
     // Adding a case back is an explicit undo of any earlier removal.
     setDismissed(number, false);
     persistCases();
@@ -4835,12 +4855,6 @@ var CASELENS_STYLE = [
     URL.revokeObjectURL(url);
   }
 
-  function parseDateSafe(iso) {
-    if (!iso) return null;
-    var t = new Date(iso).getTime();
-    return isNaN(t) ? null : t;
-  }
-
   // Merge an imported backup into localStorage: union cases by number (never
   // overwrite an existing label), concat + dedupe history per case by
   // at+kind+to, keep existing snapshots unless a case has none locally, and
@@ -4872,11 +4886,7 @@ var CASELENS_STYLE = [
       var c = importedCases[i];
       if (!c || !isValidReceiptNumber(c.number)) continue;
       if (!byNumber[c.number]) {
-        byNumber[c.number] = {
-          number: c.number,
-          label: typeof c.label === 'string' ? c.label : '',
-          addedAt: c.addedAt || new Date().toISOString()
-        };
+        byNumber[c.number] = makeCaseEntry(c);
         addedCases++;
       }
     }
@@ -4908,7 +4918,7 @@ var CASELENS_STYLE = [
         deduped.push(h);
       }
       deduped.sort(function (a, b) {
-        var ta = parseDateSafe(a.at), tb = parseDateSafe(b.at);
+        var ta = parseUscisDate(a.at), tb = parseUscisDate(b.at);
         if (ta === null && tb === null) return 0;
         if (ta === null) return 1;
         if (tb === null) return -1;
@@ -5606,8 +5616,30 @@ var CASELENS_STYLE = [
     return snapshotHasContent(view.lastKnown) ? 'stale' : null;
   }
 
-  // Everything the card needs, computed once per render.
+  // Everything the card needs, computed once per render — now actually once.
+  //
+  // The sort, the rail and the card each called this, so it ran about twice per
+  // case per render, re-reading storage and rebuilding the whole timeline every
+  // time. At one to four cases that is invisible; at the 25-case ceiling with
+  // long histories it is a few hundred milliseconds of jank on every click.
+  //
+  // It matters more for correctness than for speed: collectTimelineItems and
+  // dedupe decorate the items they return, so "compute it twice and throw one
+  // away" was quietly load-bearing. Memoizing makes the single-computation
+  // claim true and removes that trap.
+  var caseViewMemo = Object.create(null);
+
+  function invalidateCaseViews() { caseViewMemo = Object.create(null); }
+
   function buildCaseView(entry) {
+    var key = String(entry.number).toUpperCase();
+    if (caseViewMemo[key]) return caseViewMemo[key];
+    var built = computeCaseView(entry);
+    caseViewMemo[key] = built;
+    return built;
+  }
+
+  function computeCaseView(entry) {
     var result = entry.result;
     var view = {
       detail: null, notice: null, docs: null, processing: null,
@@ -5616,7 +5648,22 @@ var CASELENS_STYLE = [
       // fromCache: this card is drawn from a stored snapshot because the
       // latest fetch failed. cachedAt is when that snapshot was taken.
       fromCache: false, cachedAt: null,
-      lastKnown: getSnapshot(entry.number), source: null
+      lastKnown: getSnapshot(entry.number), source: null,
+
+      // Facts about THIS check that the renderers need. They are derived here,
+      // once, rather than by each render function reaching back into
+      // entry.result — which is how "did the documents endpoint fail?" ended up
+      // being asked three different ways in three places, one of them wrong.
+      //
+      //   sourcesUnread   — neither core endpoint could be read
+      //   docsUnread      — the documents endpoint specifically failed
+      //   estimateUnread  — the processing-time endpoint failed
+      //   estimateMonths  — months USCIS published, or null if none/unreadable
+      //   checkedAt       — when this case was last read SUCCESSFULLY
+      //   history         — this panel's own recorded changes for the case
+      sourcesUnread: false, docsUnread: false, estimateUnread: false,
+      estimateMonths: null, checkedAt: null,
+      history: getHistory(entry.number)
     };
     if (!result) {
       view.source = caseContentSource(entry, view);
@@ -5633,6 +5680,13 @@ var CASELENS_STYLE = [
     view.docs = summarizeDocuments(result.documents);
     view.processing = summarizeProcessingTimes(result.processingTimes);
     view.hasData = !!(view.detail || view.notice || view.docs);
+
+    // Derived once, here, so no renderer has to ask entry.result anything.
+    view.sourcesUnread = payloadFailed(result.caseDetail) || payloadFailed(result.caseStatus);
+    view.docsUnread = !payloadUsable(result.documents);
+    view.estimateUnread = payloadFailed(result.processingTimes);
+    view.checkedAt = result.succeededAt || null;
+    view.estimateMonths = view.processing ? parseEstimateMonths(result.processingTimes) : null;
 
     view.office = view.notice && view.notice.office ? view.notice.office : null;
     if (!view.office) {
@@ -5980,7 +6034,7 @@ var CASELENS_STYLE = [
   // pasted into a forum post or an email. Clipboard only — this tool never
   // sends a case number anywhere.
   function codeDetailsText(entry, item) {
-    var detail = entry.result ? summarizeCaseDetail(entry.result.caseDetail) : null;
+    var detail = buildCaseView(entry).detail;
     var lines = [];
     lines.push('USCIS event code: ' + item.code);
     if (detail && detail.formType) lines.push('Form: ' + detail.formType);
@@ -6020,11 +6074,11 @@ var CASELENS_STYLE = [
 
     // "We could not read it" and "USCIS has published nothing" are different
     // claims about the record, and they never get the same sentence.
-    var sourcesUnread = payloadFailed(entry.result.caseDetail) || payloadFailed(entry.result.caseStatus);
+    var sourcesUnread = view.sourcesUnread;
 
     if (!items.length) {
       wrap.appendChild(el('div', { 'class': 'uscistr-note', text: sourcesUnread
-        ? 'We could not read this case’s history on this check, so this list is not the whole record. That is a problem reading the data, and says nothing about the case itself.'
+        ? 'We could not read this case’s history on this check, so this list is not the whole record.'
         : "USCIS hasn't published any history for this case — only its current status. This panel will record anything that changes from now on."
       }));
       return wrap;
@@ -6037,8 +6091,13 @@ var CASELENS_STYLE = [
     } else {
       visible = items.slice(0, TIMELINE_FOLD);
       // The origin of the record is always on screen, so the fold never hides
-      // where the case started.
-      if (items[items.length - 1].kind === 'filed') visible = visible.concat([items[items.length - 1]]);
+      // where the case started. Mark the join: everything between these two
+      // rows is hidden, so the gap across it is not a real quiet stretch.
+      if (items[items.length - 1].kind === 'filed') {
+        visible[visible.length - 1] = shallowCopy(visible[visible.length - 1]);
+        visible[visible.length - 1].foldEdge = true;
+        visible = visible.concat([items[items.length - 1]]);
+      }
     }
 
     var onlyLocal = true;
@@ -6072,7 +6131,13 @@ var CASELENS_STYLE = [
       // current silence comparable to past silences. Not next to a backend row
       // though: that row already carries its own lag in days, and the two
       // numbers side by side measure different things.
-      if (!isLast && visible[i].displayAt !== null && visible[i + 1].displayAt !== null &&
+      //
+      // Never across the fold either. The row above the filed anchor is
+      // followed by every hidden event, so labelling that span "— 312 days —"
+      // in the same visual language used for genuine silences asserts a quiet
+      // stretch that did not happen.
+      if (!isLast && !visible[i].foldEdge &&
+          visible[i].displayAt !== null && visible[i + 1].displayAt !== null &&
           visible[i].kind !== 'backend' && visible[i + 1].kind !== 'backend') {
         var gap = daysBetween(visible[i + 1].displayAt, visible[i].displayAt);
         if (gap >= GAP_LABEL_MIN_DAYS) wrap.appendChild(gapRow(gap));
@@ -6085,7 +6150,7 @@ var CASELENS_STYLE = [
     if (unexplainedCodes.length) {
       wrap.appendChild(el('div', { 'class': 'uscistr-timeline-footnote', text:
         'No published meaning for ' + unexplainedCodes.join(', ') +
-        '. USCIS uses codes outside the published standard; that is a gap in public documentation, not a problem with the case. Open the row for what we can say.' }));
+        '. USCIS uses codes outside the published standard, so this is a gap in public documentation. Each row says what is known about its code.' }));
     }
 
     // Naming the gap, rather than just the failure, lets a reader calibrate
@@ -6412,7 +6477,10 @@ var CASELENS_STYLE = [
           : null
       ]),
       el('div', { 'class': 'uscistr-progress-label', text:
-        'Measured against this case’s own history. It is not a comparison with anyone else, and it is not a warning.' })
+        // Positively, and once. This read "It is not a comparison with anyone
+        // else, and it is not a warning" — and nothing else on the card denies
+        // being a warning, so the denial was what made it sound like one.
+        'Measured against this case’s own history. Quiet stretches of weeks or months are ordinary in these records.' })
     ]);
   }
 
@@ -6502,7 +6570,7 @@ var CASELENS_STYLE = [
     // A percentage exists ONLY when USCIS itself published a range for this
     // case. That endpoint answers 204 for almost every case, so this almost
     // never renders — and it is never synthesized from elapsed time alone.
-    var months = view.processing ? parseEstimateMonths(entry.result.processingTimes) : null;
+    var months = view.estimateMonths;
     var progress = (view.processing && detail && detail.submissionDate)
       ? progressInfo(detail.submissionDate, months) : null;
     if (progress) {
@@ -6521,13 +6589,25 @@ var CASELENS_STYLE = [
     } else if (filedMs !== null) {
       // "We could not read it" and "USCIS publishes none" are different
       // claims, and collapsing them would be its own small dishonesty. The
-      // reasoning behind an absent estimate is identical on every card, so it
-      // is the same on every card, so it is stated plainly here instead of
-      // hanging a "Why is there no estimate?" button off each one.
-      wrap.appendChild(el('div', { 'class': 'uscistr-progress-label', text:
-        payloadFailed(entry.result.processingTimes)
-          ? "We could not read USCIS's processing-time endpoint on this check, so we do not know whether one is published for this case."
-          : 'USCIS publishes no processing-time estimate for this case.' }));
+      // The reasoning behind an absent estimate is the same on every card, so
+      // it is stated plainly here instead of hanging a "Why is there no
+      // estimate?" button off each one.
+      //
+      // Three outcomes, not two. USCIS sometimes publishes a range in a shape
+      // we cannot read — weeks rather than months, or a median with no range —
+      // and calling that "publishes none" is the same collapse of "we could not
+      // read it" into "there is nothing" that the rest of this panel refuses.
+      var absenceText;
+      if (view.estimateUnread) {
+        absenceText = "We could not read USCIS's processing-time endpoint on this check, " +
+          'so we do not know whether one is published for this case.';
+      } else if (view.processing) {
+        absenceText = 'USCIS published a processing-time estimate for this case in a form ' +
+          'this panel could not read. Check my.uscis.gov for it.';
+      } else {
+        absenceText = 'USCIS publishes no processing-time estimate for this case.';
+      }
+      wrap.appendChild(el('div', { 'class': 'uscistr-progress-label', text: absenceText }));
     }
     return wrap;
   }
@@ -6912,7 +6992,7 @@ var CASELENS_STYLE = [
     var note = el('div', { 'class': 'uscistr-note' }, [
       el('div', { 'class': 'uscistr-note-title', text: 'Record updated after the current status' }),
       el('p', { text: "USCIS's record for this case was touched " + plural(lag, 'day') + ' after the status was set — on ' +
-        formatDateFull(backendMs) + '. Their website does not show this.' })
+        formatDateFull(backendMs) + '. The public status page shows only the status, so this date does not appear there.' })
     ]);
     var backendMore = el('button', {
       'class': 'uscistr-more', type: 'button',
@@ -6926,8 +7006,11 @@ var CASELENS_STYLE = [
         el('p', { text: 'Every case in USCIS’s system carries a "last updated" date. For this case that date is ' +
           formatDateFull(backendMs) + ' — ' + plural(lag, 'day') + ' after the status above was written on ' + formatDateFull(statusMs) + '.' }),
         el('p', { text: 'So something in their system wrote to this case’s record after the status was set. We can see that it happened. We cannot see what it was, and USCIS does not publish it anywhere.' }),
-        el('p', { text: 'It could be routine maintenance, an internal note, a batch job, or a step that has no public status. It is not a decision, it is not an approval, and it does not mean an answer is coming soon. If USCIS had decided something, the status above would say so.' }),
-        el('p', { text: 'Why show it at all: it is a real fact about this case that USCIS’s own website leaves out.' })
+        // Four consecutive negations, naming "decision" and "approval" only to
+        // deny them, put both words in front of someone who had not been
+        // thinking either. One positive sentence carries the same fact.
+        el('p', { text: 'It could be routine maintenance, an internal note, a batch job, or a step that has no public status. USCIS announces decisions in the status above, so that is where one would appear.' }),
+        el('p', { text: 'It is shown because it is dated, verifiable, and part of the record — not because it means anything on its own.' })
       ]);
       linkDisclosure(backendMore, disclosed);
       note.appendChild(disclosed);
@@ -7116,7 +7199,7 @@ var CASELENS_STYLE = [
     // answered, so a documents endpoint that errored produced the flat
     // assertion "USCIS lists no documents on this case" — the exact collapse of
     // "we could not read it" into "there is nothing" this note exists to avoid.
-    if (!entry.result || !payloadUsable(entry.result.documents)) return null;
+    if (view.docsUnread) return null;
     return 'USCIS lists no documents on this case. That is not the same as there being none — ' +
       'documents sent by post may never appear here.';
   }
@@ -7174,7 +7257,7 @@ var CASELENS_STYLE = [
   function buildDocumentList(entry, view) {
     var docs = view.docs;
     var fresh = 0;
-    var historyList = getHistory(entry.number);
+    var historyList = view.history;
     var wrap = el('div', { 'class': 'uscistr-documents', hidden: 'hidden' });
     for (var i = 0; i < docs.length; i++) {
       var doc = docs[i];
@@ -7404,13 +7487,17 @@ var CASELENS_STYLE = [
       lines.push('Sign in again at my.uscis.gov, then choose Refresh. Your saved cases and history are safe in this browser.');
     } else if (network) {
       title = "Couldn't reach USCIS just now.";
-      lines.push('This is a connection problem between your browser and their servers — it says nothing about this case.');
+      lines.push('This is a connection problem between your browser and their servers.');
     } else if (unreadable) {
       title = "USCIS's response for this case didn't look like it usually does.";
-      lines.push('That usually means they changed something on their end, not that anything changed about this case. Check my.uscis.gov directly.');
+      lines.push('That usually means they changed something on their end. Check my.uscis.gov directly.');
     } else {
       title = "Couldn't load this case just now.";
-      lines.push('This says nothing about the case itself — it is a problem reading the record.');
+      // The panel banner above already says the case is unaffected. This card
+      // used to repeat it in rotated word order — "says nothing about the case
+      // itself" appeared three times on one screen, in three rewordings, which
+      // reads as defensiveness rather than reassurance.
+      lines.push('This is about reading the record.');
     }
     if (snapshotHasContent(snapshot) && snapshot.at) {
       lines.push('Last successful check: ' + formatDateFull(snapshot.at) + '.');
@@ -7765,12 +7852,11 @@ var CASELENS_STYLE = [
     // a card say "Checked just now" underneath a banner explaining that the
     // check had failed and everything shown was the last saved copy — the one
     // false sentence in an otherwise careful failure design.
-    var checkedMs = entry.result.succeededAt
-      ? parseUscisDate(entry.result.succeededAt)
+    var checkedMs = view.checkedAt ? parseUscisDate(view.checkedAt)
       : (view.cachedAt ? parseUscisDate(view.cachedAt) : null);
     var checkedText = checkedMs === null
       ? "Not read successfully yet"
-      : (entry.result.succeededAt ? 'Checked ' : 'Last read ') +
+      : (view.checkedAt ? 'Checked ' : 'Last read ') +
         (relativeDate(new Date(checkedMs).toISOString()) || 'just now');
 
     card.appendChild(el('div', { 'class': 'uscistr-muted uscistr-small', text:
@@ -8075,6 +8161,7 @@ var CASELENS_STYLE = [
     // another tab on my.uscis.gov shares this origin and can write between
     // renders, and one render is the right bound on how stale we may be.
     invalidateReadMemo();
+    invalidateCaseViews();
 
     // Wide mode has two independent scrollers, so capture both by selector
     // rather than assuming one body element.
@@ -8232,14 +8319,7 @@ var CASELENS_STYLE = [
       }
       if (exists) continue;
 
-      state.cases.push({
-        number: d.number,
-        label: d.label || '',
-        addedAt: new Date().toISOString(),
-        result: null,
-        loading: false,
-        changedSince: false
-      });
+      state.cases.push(makeCaseEntry({ number: d.number, label: d.label }));
       addedNumbers.push(d.number);
     }
 
