@@ -17,6 +17,9 @@ var CDP = require(path.join(__dirname, 'cdp-lite.js'));
 var ROOT = path.join(__dirname, '..');
 var OUT = path.join(ROOT, 'docs', 'store');
 var BASE = 'http://localhost:8899/test/harness.html';
+// The backdrop is a replica of the account page, loaded as an iframe behind
+// the panel so screenshots show it where it actually appears.
+var BACKDROP = 'http://localhost:8899/test/backdrop.html';
 var PORT = 9530;
 var W = 1280, H = 800;
 
@@ -96,21 +99,18 @@ async function main() {
     }
     // Replace the harness strip with a neutral backdrop so the shot reads as
     // the product, not as a test page.
-    // Hide the test scaffolding but KEEP the mock account page behind the
-    // panel. A panel floating on an empty canvas doesn't show what the product
-    // is; sitting over a case list does.
+    // Replace the harness scaffolding with the account-page replica, so the
+    // panel is shown over the page it actually overlays.
     await client.eval(
       "(function(){" +
-      "var strip=document.getElementById('harness-strip'); if(strip) strip.style.display='none';" +
-      "var log=document.getElementById('harness-log'); if(log) log.style.display='none';" +
-      "var lab=document.getElementById('harness-log-label'); if(lab) lab.style.display='none';" +
-      "var body=document.getElementById('harness-body'); if(body) body.style.padding='40px 32px';" +
-      "var acct=document.getElementById('harness-mock-account');" +
-      "if(acct){acct.style.maxWidth='620px';acct.style.boxShadow='0 1px 3px rgba(0,0,0,.06)';}" +
-      "document.documentElement.style.background=" + (shot.dark ? "'#1b1b20'" : "'#f4f5f7'") + ";" +
-      "document.body.style.background=" + (shot.dark ? "'#1b1b20'" : "'#f4f5f7'") + ";" +
-      (shot.dark ? "if(acct){acct.style.background='#26262d';acct.style.borderColor='#33333c';acct.style.color='#d6d6db';}" : "") +
+      "Array.prototype.forEach.call(document.body.children,function(n){" +
+      "  var c=String(n.className||''); if(c.indexOf('uscistr')===-1) n.style.display='none';});" +
+      "var f=document.createElement('iframe');" +
+      "f.src='" + BACKDROP + "';" +
+      "f.style.cssText='position:fixed;inset:0;width:100%;height:100%;border:0;z-index:0';" +
+      "document.body.insertBefore(f, document.body.firstChild);" +
       "})()");
+    await sleep(2500);
     if (shot.scroll) {
       await client.eval("(function(){var b=document.querySelector('.uscistr-body'); if(b) b.scrollTop=" + shot.scroll + ";})()");
       await sleep(500);

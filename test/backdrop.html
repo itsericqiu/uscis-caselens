@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>USCIS Account — Home Page</title>
+<!--
+  A replica of the my.uscis.gov account page, used as the backdrop for store
+  screenshots so the panel is shown where it actually appears.
+
+  Deliberately a replica rather than a saved copy of a real page. Capturing a
+  signed-in account would pull a real person's receipt numbers, name, attorney
+  and tracking numbers through the file on their way to a public repository,
+  and the PII gate only catches receipt numbers. Everything here is invented:
+  the same placeholder cases as test/fixtures.js.
+
+  Layout and wording follow the real page's structure — the government banner,
+  the account header, "Your Cases", the concurrent-filing badge, the per-case
+  tab row, and USCIS's own status phrasing.
+-->
+<style>
+  :root { --u-blue:#0b4778; --u-link:#0071bc; --u-border:#d6d7d9; --u-text:#212121; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:#fff; color:var(--u-text);
+         font:16px/1.5 "Source Sans Pro","Helvetica Neue",Helvetica,Arial,sans-serif; }
+
+  .gov-banner { background:#f0f0f0; font-size:12px; padding:6px 0; border-bottom:1px solid #dcdcdc; }
+  .gov-banner .inner { max-width:1140px; margin:0 auto; padding:0 24px; display:flex; gap:8px; align-items:center; }
+  .flag { width:16px; height:11px; background:linear-gradient(#b22234 0 33%, #fff 33% 66%, #b22234 66%); position:relative; }
+  .flag::before { content:""; position:absolute; inset:0 60% 45% 0; background:#3c3b6e; }
+
+  header.site { border-bottom:1px solid var(--u-border); }
+  header.site .inner { max-width:1140px; margin:0 auto; padding:14px 24px; display:flex; align-items:center; gap:18px; }
+  .seal { width:52px; height:52px; border-radius:50%; background:var(--u-blue); flex:none;
+          display:flex; align-items:center; justify-content:center; color:#fff; font-size:9px;
+          text-align:center; line-height:1.1; font-weight:700; letter-spacing:.02em; }
+  .wordmark { font-size:15px; font-weight:700; color:var(--u-blue); line-height:1.25; }
+  .acct { margin-left:auto; display:flex; align-items:center; gap:26px; font-size:15px; }
+  .acct a { color:var(--u-link); text-decoration:none; }
+  .acct .me { display:flex; align-items:center; gap:8px; font-weight:600; color:var(--u-text); }
+
+  nav.sub { border-bottom:1px solid var(--u-border); }
+  nav.sub .inner { max-width:1140px; margin:0 auto; padding:0 24px; display:flex; gap:28px; }
+  nav.sub a { padding:14px 0; font-size:15px; color:var(--u-text); text-decoration:none; border-bottom:3px solid transparent; }
+  nav.sub a.on { border-bottom-color:var(--u-blue); font-weight:600; }
+
+  main { max-width:1140px; margin:0 auto; padding:32px 24px 64px; }
+  .who { display:flex; align-items:center; gap:16px; margin-bottom:28px; }
+  .avatar { width:52px; height:52px; border-radius:50%; background:#e8eef4; color:var(--u-blue);
+            display:flex; align-items:center; justify-content:center; font-weight:700; }
+  .who h1 { margin:0; font-size:28px; font-weight:700; }
+  .who .view { font-size:14px; }
+  .who a { color:var(--u-link); text-decoration:none; }
+
+  h2.section { font-size:24px; margin:0 0 18px; }
+
+  .group-tag { display:inline-flex; align-items:center; gap:7px; background:var(--u-blue); color:#fff;
+               font-size:13px; font-weight:600; padding:6px 12px; border-radius:3px 3px 0 0; }
+  .case { border:1px solid var(--u-border); border-radius:0 3px 3px 3px; margin:0 0 26px; background:#fff; }
+  .case.standalone { border-radius:3px; }
+  .case .head { padding:18px 22px 0; }
+  .case .closed { display:inline-flex; gap:6px; align-items:center; font-size:14px; color:#5b616b; margin-bottom:6px; }
+  .case h3 { margin:0 0 6px; font-size:19px; font-weight:700; }
+  .case .meta { font-size:14px; color:#5b616b; margin-bottom:14px; }
+  .case .meta .sep { margin:0 10px; color:#c9c9c9; }
+  .tabs { display:flex; gap:26px; padding:0 22px; border-bottom:1px solid var(--u-border); }
+  .tabs span { padding:12px 0; font-size:15px; color:var(--u-link); border-bottom:3px solid transparent; }
+  .tabs span.on { color:var(--u-text); font-weight:600; border-bottom-color:var(--u-blue); }
+  .case .body { padding:20px 22px 24px; }
+  .case .date { font-size:14px; font-weight:600; margin-bottom:4px; }
+  .case .status { font-size:19px; font-weight:700; margin:0 0 12px; }
+  .case p { margin:0 0 10px; font-size:15px; max-width:70ch; }
+  .case a { color:var(--u-link); }
+  .case .asof { font-size:13px; color:#5b616b; }
+</style>
+</head>
+<body>
+
+<div class="gov-banner"><div class="inner">
+  <span class="flag"></span> An official website of the United States government
+</div></div>
+
+<header class="site"><div class="inner">
+  <div class="seal">DHS</div>
+  <div class="wordmark">U.S. Citizenship<br>and Immigration Services</div>
+  <div class="acct">
+    <span class="me">My Account</span>
+    <a href="#">Resources</a>
+    <a href="#">Sign Out</a>
+  </div>
+</div></header>
+
+<nav class="sub"><div class="inner">
+  <a href="#" class="on">Home</a>
+  <a href="#">My Cases</a>
+  <a href="#">Documents</a>
+  <a href="#">Messages</a>
+</div></nav>
+
+<main>
+  <div class="who">
+    <div class="avatar">SA</div>
+    <div>
+      <h1>Sample Applicant</h1>
+      <div class="view"><a href="#">View profile</a></div>
+    </div>
+  </div>
+
+  <h2 class="section">Your Cases</h2>
+
+  <div class="group-tag">Concurrent filing</div>
+  <div class="case">
+    <div class="head">
+      <h3>I-485, Application to Register Permanent Residence or Adjust Status</h3>
+      <div class="meta">Submitted on March 14, 2026 <span class="sep">|</span> Receipt # IOE0000000001</div>
+    </div>
+    <div class="tabs"><span class="on">Case Status</span><span>Case History</span><span>Documents</span><span>Representative</span></div>
+    <div class="body">
+      <div class="date">July 12, 2026</div>
+      <p class="status">USCIS Is Currently Processing The Case</p>
+      <p>As of July 12, 2026, USCIS is currently processing your Form I-485, Application to Register
+         Permanent Residence or Adjust Status, Receipt Number IOE0000000001. We do not currently need
+         anything from you but will contact you if we need additional information regarding your case.
+         If you move, go to <a href="#">www.uscis.gov/addresschange</a> to give us your new mailing address.</p>
+      <div class="asof">Current as of today at 9:14 a.m.</div>
+    </div>
+  </div>
+
+  <div class="case standalone">
+    <div class="head">
+      <div class="closed">Case closed</div>
+      <h3>I-765, Application for Employment Authorization</h3>
+      <div class="meta">Submitted on March 14, 2026 <span class="sep">|</span> Receipt # IOE0000000002</div>
+    </div>
+    <div class="tabs"><span class="on">Case Status</span><span>Case History</span><span>Documents</span><span>Representative</span></div>
+    <div class="body">
+      <div class="date">July 18, 2026</div>
+      <p class="status">Card Was Delivered To Me By The Post Office</p>
+      <p>On July 18, 2026, the Post Office delivered your new card for Receipt Number IOE0000000002,
+         to the address that you gave us. If you move, go to <a href="#">www.uscis.gov/addresschange</a>
+         to give us your new mailing address.</p>
+      <div class="asof">Current as of today at 9:14 a.m.</div>
+    </div>
+  </div>
+
+  <div class="case standalone">
+    <div class="head">
+      <h3>I-131, Application for Travel Documents, Parole Documents, and Arrival/Departure Records</h3>
+      <div class="meta">Submitted on March 14, 2026 <span class="sep">|</span> Receipt # IOE0000000003</div>
+    </div>
+    <div class="tabs"><span class="on">Case Status</span><span>Case History</span><span>Documents</span><span>Representative</span></div>
+    <div class="body">
+      <div class="date">March 16, 2026</div>
+      <p class="status">Case Was Received And A Receipt Notice Was Sent</p>
+      <p>On March 16, 2026, we received your Form I-131 and sent you a receipt notice. The notice
+         describes how we will process your case. Please follow the instructions in the notice.</p>
+      <div class="asof">Current as of today at 9:14 a.m.</div>
+    </div>
+  </div>
+</main>
+
+</body>
+</html>
