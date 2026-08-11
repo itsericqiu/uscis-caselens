@@ -197,22 +197,52 @@
   // key is missing, the stored text isn't valid JSON, or the parsed value's
   // shape doesn't match what the caller expects (array vs. plain object).
   function load(key, fallback) {
+    var raw = null;
     try {
-      var raw = localStorage.getItem(key);
+      raw = localStorage.getItem(key);
       if (raw === null) return fallback;
 
       var parsed = JSON.parse(raw);
 
       if (Array.isArray(fallback)) {
-        return Array.isArray(parsed) ? parsed : fallback;
+        if (Array.isArray(parsed)) return parsed;
+        rescueUnreadable(key, raw);
+        return fallback;
       }
       if (fallback !== null && typeof fallback === 'object') {
         var isPlainObject = parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed);
-        return isPlainObject ? parsed : fallback;
+        if (isPlainObject) return parsed;
+        rescueUnreadable(key, raw);
+        return fallback;
       }
       return parsed;
     } catch (e) {
+      rescueUnreadable(key, raw);
       return fallback;
+    }
+  }
+
+  // Data that cannot be rebuilt if we throw it away. Everything USCIS sends is
+  // re-fetchable and every harvested label re-derivable, but the change history
+  // is this panel's own observation of what moved and when — if a future
+  // version reads it with a different shape in mind, load()'s type check would
+  // quietly hand back an empty object and the record would be gone. So an
+  // unusable value is copied aside before the default is used, and never
+  // overwritten in place.
+  var IRREPLACEABLE_KEYS = {};
+  IRREPLACEABLE_KEYS['uscisTracker.history.v1'] = true;
+  IRREPLACEABLE_KEYS['uscisTracker.cases.v1'] = true;
+
+  function rescueUnreadable(key, raw) {
+    if (!IRREPLACEABLE_KEYS[key] || !raw) return;
+    var backup = key + '.unreadable';
+    try {
+      // Keep the first copy: a later bad write must not overwrite the good
+      // data rescued from the first one.
+      if (localStorage.getItem(backup) === null) localStorage.setItem(backup, raw);
+    } catch (e) {
+      // Storage full or unavailable. Nothing further we can do, and the
+      // original value is still in place under its own key.
     }
   }
 

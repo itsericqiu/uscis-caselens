@@ -71,6 +71,34 @@ better by being less certain than the data supports, the panel loses.
 - Case numbers are validated and URL-encoded before use in a request.
 - Imported backup files are untrusted input and are validated before storage.
 
+## Changing stored data
+
+Five keys live in `localStorage`, all prefixed `uscisTracker.`. Before changing
+any of their shapes, know which are regenerable and which are not:
+
+| Key | If lost |
+|---|---|
+| `snapshots` | Rebuilt on the next refresh |
+| `codeText` | Re-harvested from the user's own cases |
+| `prefs` | Settings reset; annoying, not damaging |
+| `dismissed` | Removed cases reappear; the user removes them again |
+| **`history`** | **Gone.** This is the panel's own record of what changed and when — USCIS does not publish it and it cannot be recovered |
+| **`cases`** | The user's tracked list and nicknames; auto-discovery restores only what is currently on the account page |
+
+Rules:
+
+- **Never rename a key to change a shape.** That orphans every existing user's
+  data with no path back.
+- Version the shape *inside* the value, as `codeText` does with `v: 2`, and
+  handle old versions explicitly — migrate them if the data matters, drop them
+  only if it's regenerable, and say which in a comment.
+- `load()` returns the default when a stored value doesn't match the expected
+  shape. For `history` and `cases` it first copies the unreadable value to
+  `<key>.unreadable` so a shape mistake degrades into a recoverable one. Keep
+  that property.
+- Test an upgrade, not just a fresh install: put the old shape in
+  `localStorage`, load the new build, and confirm nothing was lost.
+
 ## Code style
 
 Plain ES5-flavoured JavaScript, zero dependencies, no build step required to
