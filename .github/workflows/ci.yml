@@ -43,6 +43,9 @@ jobs:
           node -e "JSON.parse(require('fs').readFileSync('extensions/chrome/manifest.json', 'utf8')); console.log('extensions/chrome/manifest.json: valid JSON')"
           node -e "JSON.parse(require('fs').readFileSync('extensions/firefox/manifest.json', 'utf8')); console.log('extensions/firefox/manifest.json: valid JSON')"
 
+      - name: Unit tests — dates, change detection, redaction
+        run: node test/unit.js
+
       - name: Undefined-function gate — the bundle must not call what it never defines
         run: node scripts/undefined-check.js
 

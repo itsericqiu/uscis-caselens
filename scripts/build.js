@@ -109,7 +109,16 @@ const EXPECTED_MANIFEST = {
     run_at: 'document_idle'
   }]
 };
-const FORBIDDEN_MANIFEST_KEYS = ['permissions', 'host_permissions', 'background', 'web_accessible_resources', 'externally_connectable'];
+// Anything that would let the extension ask for more than it has. The optional_*
+// pair matters as much as the plain ones: `optional_host_permissions` plus a
+// runtime `permissions.request()` is exactly how a zero-permission extension
+// acquires host access without ever declaring it here.
+const FORBIDDEN_MANIFEST_KEYS = [
+  'permissions', 'optional_permissions',
+  'host_permissions', 'optional_host_permissions',
+  'background', 'web_accessible_resources', 'externally_connectable',
+  'declarative_net_request', 'content_security_policy'
+];
 
 function assertManifestShape(file, manifest) {
   const problems = [];
@@ -177,6 +186,11 @@ allOk &= writeOrCheck(firefoxContentOut, combinedContent);
 allOk &= updateManifest(chromeManifest, VERSION);
 allOk &= updateManifest(firefoxManifest, VERSION);
 
-if (checkMode && !allOk) {
+// Not just in --check mode. A manifest-shape violation (a forbidden
+// `permissions` key, say) made updateManifest refuse the write and print FAIL —
+// and the process still exited 0, so `node scripts/build.js && node
+// scripts/package.js` would happily package the offending manifest. The
+// zero-permission guarantee was only enforced on one of the two paths.
+if (!allOk) {
   process.exit(1);
 }

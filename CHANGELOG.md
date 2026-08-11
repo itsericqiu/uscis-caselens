@@ -4,6 +4,74 @@ Notable changes per release. The section matching a tag becomes that release's
 notes on GitHub, so keep entries written for someone deciding whether to update
 — not for someone reading a commit log.
 
+## 1.11.1
+
+**A check that read nothing no longer looks like a check that found nothing**
+
+If every USCIS endpoint answered but returned no content, the panel counted it
+as a successful check and said *"4 cases · nothing new · checked just now"* —
+while the card underneath said USCIS had returned no data at all. The
+reassuring line is the one people read. A check now only counts as successful
+if it actually learned something, and this state gets the same clear failure
+banner as a timeout.
+
+Related: a card footer read "Checked just now" after a failed check, because it
+printed the last *attempt*. It now shows the last successful read.
+
+**A failed endpoint could invent changes that never happened**
+
+Each check rebuilt every stored field from that response, so one endpoint
+failing blanked everything it supplies. The damage appeared on the *next*
+check: after a documents request failed once, all your documents were compared
+against an empty list and reported as new — *"6 changes since you last looked"*,
+six permanent history entries, and a desktop notification, with nothing having
+changed. The same path invented status and office changes and wiped the
+appointment a failed check is supposed to fall back on. Anything this check
+could not see is now kept rather than recorded as absent.
+
+**Three things the stage map claimed it could not know**
+
+- A closed case marked the final stage — "Card produced" — as done without
+  checking whether anything said it happened. Every denied, withdrawn or
+  abandoned case therefore read as though a card had been produced.
+- Codes with no published meaning were moving the map while the timeline told
+  you they did not: one of them marks a case **Approved**. The map still places
+  them, from our own curated list, but now says so instead of denying it.
+- The guard that stops the map running ahead of a booked appointment had been
+  silently dead since 1.10.0, when stage names were written out in full and
+  this check kept matching the old abbreviations. A card could show biometrics
+  as already passed just below a note saying the appointment is in ten days.
+
+**Other fixes**
+
+- "Hide receipt numbers" covers the change summary, the timeline and desktop
+  notifications, which printed the number in full inside document filenames.
+- A failed documents request no longer says "USCIS lists no documents on this
+  case."
+- An evidence request from years ago no longer raises a standing alert; when
+  USCIS says nothing is required, nothing is claimed.
+- The header says how many cases need something from you, not just how many
+  changed.
+- Dragging the panel no longer collapses the wide layout into an unreadable
+  column, and a background refresh during a drag can no longer strand it in the
+  corner.
+- Case rows, disclosures and the add-case link show a focus outline; they were
+  reachable by keyboard with nothing on screen to show it.
+- Settings scrolls, so "Erase everything" is no longer cut off mid-sentence.
+- Documents and raw responses stay open when a background refresh runs.
+- Impossible dates are rejected rather than rolled over into plausible wrong
+  ones, and several UTC-midnight spellings USCIS actually sends — including the
+  one used for document dates — no longer land a day early west of Greenwich.
+- A change marker survives a restart. It was written into the save format in
+  1.7.0 but never saved at the moment it was set.
+
+**Build**
+
+Adds `test/unit.js` — 62 unit tests over dates, change detection, redaction and
+receipt validation, run in CI. They found four of the bugs above. The build now
+fails, rather than silently continuing, if a manifest ever declares a
+permission, and the forbidden list covers the optional variants too.
+
 ## 1.11.0
 
 **The panel is quicker to draw, especially with several cases**

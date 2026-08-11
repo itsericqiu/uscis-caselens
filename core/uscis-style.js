@@ -212,6 +212,16 @@ var CASELENS_STYLE = [
   ".uscistr-root .uscistr-switch:focus-visible,",
   ".uscistr-root .uscistr-pill:focus-visible,",
   ".uscistr-root .uscistr-raw-summary:focus-visible,",
+  // Everything below was focusable with no visible focus ring, because the
+  // root sets `:focus { outline: none }` and restores it only for this list.
+  // The case rows are the primary control in the whole panel — a keyboard user
+  // tabbing through them saw nothing move. `uscistr-raw-toggle` is also a
+  // rename that left its old selector (`raw-summary`, above) behind.
+  ".uscistr-root .uscistr-collapsed:focus-visible,",
+  ".uscistr-root .uscistr-raw-toggle:focus-visible,",
+  ".uscistr-root .uscistr-more:focus-visible,",
+  ".uscistr-root .uscistr-add-toggle:focus-visible,",
+  ".uscistr-root .uscistr-row-toggle:focus-visible,",
   ".uscistr-root .uscistr-receipt:focus-visible,",
   ".uscistr-root .uscistr-link:focus-visible {",
   "  outline: 2px solid var(--ust-focus);",
@@ -1187,6 +1197,14 @@ var CASELENS_STYLE = [
   "  box-shadow: var(--ust-sh-pop), var(--ust-sh-inner);",
   "  animation: ust-pop-in var(--ust-d3) var(--ust-ease-out) both;",
   "  transform-origin: top right;",
+  // The popover is taller than a short panel, and the panel clips its
+  // overflow — so the bottom was simply unreachable. What fell off the end was
+  // "Erase everything", with its description cut mid-sentence and the button
+  // itself part-clipped: a destructive control the reader could neither fully
+  // read nor reliably press.
+  "  max-height: calc(100% - 52px);",
+  "  overflow-y: auto;",
+  "  overscroll-behavior: contain;",
   "}",
   ".uscistr-root .uscistr-popover-head {",
   "  padding: var(--ust-s2) var(--ust-s4) var(--ust-s4);",

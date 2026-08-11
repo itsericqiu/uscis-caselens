@@ -34,7 +34,7 @@
   // SECTION 1: Constants
   // ==========================================================================
 
-  var VERSION = '1.11.0';
+  var VERSION = '1.11.1';
 
   var STORAGE_KEYS = {
     cases: 'uscisTracker.cases.v1',      // [{ number, label, addedAt }]
@@ -977,13 +977,7 @@
     var snap = normalize(result);
     var prevSnap = getSnapshot(entry.number);
 
-    // A form type USCIS told us before is still a fact about this case even if
-    // this refresh came back empty — form types don't change. Carry it forward
-    // so the card keeps its identity instead of degrading to "Case". Only
-    // identity is retained; status and dates must always reflect this fetch.
-    if (snap.formType === null && prevSnap && prevSnap.formType) {
-      snap.formType = prevSnap.formType;
-    }
+    carryForwardUnread(snap, prevSnap, result);
 
     // Every endpoint answered, and every one of them was empty. That tells us
     // nothing new about the case, and overwriting a snapshot that has real
@@ -1010,8 +1004,62 @@
     if (changes.length) {
       appendHistory(entry.number, changes);
       entry.changedSince = true;
+      // Persist the marker at the moment it is set. 1.7.0 added the field to
+      // persistCases() and never called it here, so the fix was inert: the
+      // snapshot advanced, the tab closed, and the next diff found nothing —
+      // losing the one answer this tool exists to give.
+      persistCases();
       maybeNotify(entry, changes);
     }
+  }
+
+  // Which endpoint supplies which snapshot field.
+  //
+  // `office` is deliberately absent: it has two sources (caseStatus's
+  // jurisdiction, falling back to the location endpoint), and the "only if
+  // still absent" rule below handles it correctly without needing to say which
+  // one answered.
+  var SNAPSHOT_SOURCES = [
+    { key: 'caseDetail', fields: ['formType', 'formName', 'submissionDate', 'backendAt',
+      'closed', 'actionRequired', 'evidenceCount', 'appointments'] },
+    { key: 'caseStatus', fields: ['status', 'actionCode', 'statusAt'] },
+    { key: 'documents', fields: ['docNames'] }
+  ];
+
+  // Keep what this check could not see, rather than recording it as absent.
+  //
+  // normalize() rebuilds every field from the current response, so one endpoint
+  // failing used to blank everything it supplies. The damage landed on the NEXT
+  // check: documents fails once, the stored list becomes empty, and when the
+  // endpoint recovers all six documents diff against nothing and are reported
+  // as new. The card reads "6 changes since you last looked", six rows go into
+  // permanent history, and the OS notification fires — with nothing having
+  // changed. The same path fabricated status and office changes, and wiped the
+  // cached appointment that a failed check is supposed to be able to fall back
+  // on.
+  //
+  // A value is only carried forward when this check did not supply one, so a
+  // real change always wins and a genuinely emptied field (USCIS removing a
+  // document) is still recorded as long as its own endpoint answered.
+  function carryForwardUnread(snap, prevSnap, result) {
+    if (!prevSnap) return;
+    for (var i = 0; i < SNAPSHOT_SOURCES.length; i++) {
+      var source = SNAPSHOT_SOURCES[i];
+      if (payloadUsable(result[source.key])) continue;   // it answered; trust it
+      for (var f = 0; f < source.fields.length; f++) {
+        var field = source.fields[f];
+        if (!isAbsentValue(snap[field]) || isAbsentValue(prevSnap[field])) continue;
+        snap[field] = prevSnap[field];
+      }
+    }
+    // Two sources, so it is handled by absence rather than by endpoint.
+    if (snap.office === null && prevSnap.office) snap.office = prevSnap.office;
+  }
+
+  function isAbsentValue(value) {
+    if (value === null || value === undefined) return true;
+    if (Array.isArray(value)) return value.length === 0;
+    return value === 0;   // evidenceCount
   }
 
   // A stored snapshot is only worth showing the user when it carries something
@@ -1026,17 +1074,24 @@
   // True when at least one endpoint returned usable data. An endpoint that
   // answered "nothing here" (__empty) counts as a real answer about the case;
   // an error does not.
+  // Did this check actually learn anything about the case?
+  //
+  // Only the three endpoints that carry the case count. `location` and
+  // `processingTimes` are supplementary and answer "nothing here" for almost
+  // every case, so counting them made a check that read nothing at all look
+  // like a success: with every endpoint returning `{"data": null}`, the header
+  // said "4 cases · nothing new · checked just now" while the card underneath
+  // said "USCIS returned no case data at all on this check". The reassuring
+  // line is the one a person reads at 2am.
+  //
+  // "Answered with nothing" is still a real answer about a *field* — that
+  // distinction is kept everywhere else. It is not a real answer about the
+  // *case* when it is the only answer we got.
   function resultHasAnyData(result) {
     if (!result) return false;
-    var parts = [
-      result.caseDetail, result.caseStatus, result.location,
-      result.processingTimes, result.documents
-    ];
-    for (var i = 0; i < parts.length; i++) {
-      var part = parts[i];
-      if (part && !part.__error) return true;
-    }
-    return false;
+    return payloadUsable(result.caseDetail) ||
+      payloadUsable(result.caseStatus) ||
+      payloadUsable(result.documents);
   }
 
   // Fire a browser Notification for the first detected change, but only if
@@ -1083,7 +1138,7 @@
       return 'Status changed to "' + change.to + '"';
     }
     if (change.kind === 'document') {
-      return 'New document: ' + change.to;
+      return 'New document: ' + displayFileName(change.to);
     }
     if (change.kind === 'office') {
       return 'Office changed to ' + change.to;
@@ -1414,7 +1469,7 @@
       '("(?:' + REDACT_JSON_FIELDS.join('|') + ')"\\s*:\\s*)"(?:[^"\\\\]|\\\\.)*"', 'gi');
 
     return text
-      .replace(/[A-Z]{3}[0-9]{10}/g, function (n) { return redactNumber(n); })
+      .replace(/[A-Z]{3}[0-9]{10}/gi, function (n) { return redactNumber(n); })
       .replace(valueRe, '$1"[hidden]"');
   }
 
@@ -1516,33 +1571,50 @@
     // moves them a day backwards anywhere west of Greenwich — which showed a
     // case filed May 29 as "filed May 28" and shifted every day count by one.
     // Build these as local dates so the calendar day survives.
-    if (typeof value === 'string') {
-      var dateOnly = value.match(/^(\d{4})-(\d{2})-(\d{2})(?:T00:00:00(?:\.000)?Z)?$/);
-      if (dateOnly) {
-        var local = new Date(+dateOnly[1], +dateOnly[2] - 1, +dateOnly[3]);
-        return isNaN(local.getTime()) ? null : local.getTime();
-      }
-    }
-    if (typeof value !== 'string') {
-      var direct = new Date(value);
-      return isNaN(direct.getTime()) ? null : direct.getTime();
+    // Only strings. `new Date(['2026-05-29'])` stringifies the array and parses
+    // it as UTC, quietly producing a date a day early west of Greenwich — an
+    // object where a string was expected should be nothing, not a wrong answer.
+    if (typeof value !== 'string') return null;
+
+    // Midnight-UTC in ANY spelling, matched on the value rather than on a
+    // whitelist of formats. The whitelist was `Z`, `.000Z` or nothing — but
+    // USCIS returns document dates as `+0000` (see test/fixtures.js), and
+    // `.0Z`, `.000000Z` and `T00:00Z` all occur in ISO output too. Every one of
+    // those fell through to the instant branch and lost a day.
+    var utcMidnight = value.match(
+      /^(\d{4})-(\d{2})-(\d{2})(?:[T ]00:00(?::00(?:\.0+)?)?(?:Z|[+-]00:?00)?)?$/);
+    if (utcMidnight) {
+      return localDate(+utcMidnight[1], +utcMidnight[2], +utcMidnight[3], 0, 0, 0);
     }
 
+    // USCIS's status history: "MM-DD-YYYY HH:mm:ss", which no browser parses
+    // consistently.
     var m = value.match(/^(\d{2})-(\d{2})-(\d{4})(?:\s+(\d{2}):(\d{2}):(\d{2}))?$/);
     if (m) {
-      var parsed = new Date(
-        parseInt(m[3], 10),
-        parseInt(m[1], 10) - 1,
-        parseInt(m[2], 10),
-        m[4] ? parseInt(m[4], 10) : 0,
-        m[5] ? parseInt(m[5], 10) : 0,
-        m[6] ? parseInt(m[6], 10) : 0
-      );
-      return isNaN(parsed.getTime()) ? null : parsed.getTime();
+      return localDate(+m[3], +m[1], +m[2],
+        m[4] ? +m[4] : 0, m[5] ? +m[5] : 0, m[6] ? +m[6] : 0);
     }
 
     var iso = new Date(value);
     return isNaN(iso.getTime()) ? null : iso.getTime();
+  }
+
+  // Build a local-time date, refusing anything the calendar does not contain.
+  //
+  // The Date constructor rolls over silently: month 13 becomes January of the
+  // next year, day 45 becomes the middle of the following month, and February
+  // 30th becomes March 2nd. Both hand-rolled branches above fed unvalidated
+  // components straight into it, so a sentinel or a schema wobble rendered as a
+  // confident, plausible, wrong date instead of as nothing. Round-tripping the
+  // components is the check: if the date that came out is not the date that
+  // went in, it was never a real date.
+  function localDate(year, month, day, hh, mm, ss) {
+    if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+    if (hh > 23 || mm > 59 || ss > 59) return null;
+    var d = new Date(year, month - 1, day, hh, mm, ss);
+    if (isNaN(d.getTime())) return null;
+    if (d.getFullYear() !== year || d.getMonth() !== month - 1 || d.getDate() !== day) return null;
+    return d.getTime();
   }
 
   // Every event USCIS gives us for a case, from two sources of differing
@@ -1825,6 +1897,11 @@
     // Needs attention, but USCIS is not waiting on a response.
     LFA: 'delivery'     // "Card returned as undeliverable"
   };
+
+  // How long an action code stays worth raising. USCIS publishes no deadline
+  // with these codes, so age is the only honest signal available — and a
+  // response window measured in weeks means a year-old code is history.
+  var ACTION_CODE_MAX_AGE_MS = 365 * 24 * 60 * 60 * 1000;
 
   var ACTION_CODE_COPY = {
     evidence: {
@@ -2247,7 +2324,12 @@
     var panel = e.currentTarget.parentNode;
     var rect = panel.getBoundingClientRect();
     dragState = { startX: e.clientX, startY: e.clientY, origX: rect.left, origY: rect.top, panel: panel };
-    panel.className = 'uscistr-panel uscistr-is-dragging';
+    // classList, not className. Assigning the whole string wiped every other
+    // class on the panel — including uscistr-is-wide, so one drag with a case
+    // open dropped the panel back to 400px while its body kept the two-column
+    // grid, giving a 150px detail column that rendered the case title one
+    // character per line.
+    panel.classList.add('uscistr-is-dragging');
     document.addEventListener('mousemove', onDragMove);
     document.addEventListener('mouseup', onDragEnd);
     e.preventDefault();
@@ -2267,7 +2349,7 @@
   function onDragEnd() {
     if (!dragState) return;
     var rect = dragState.panel.getBoundingClientRect();
-    dragState.panel.className = 'uscistr-panel';
+    dragState.panel.classList.remove('uscistr-is-dragging');
     state.prefs.panelPos = { x: rect.left, y: rect.top };
     persistPrefs();
     dragState = null;
@@ -2387,13 +2469,32 @@
     return failed;
   }
 
+  // How many cases are asking something of this person right now.
+  function demandingCaseCount() {
+    var count = 0;
+    for (var i = 0; i < state.cases.length; i++) {
+      if (!state.cases[i].result) continue;
+      if (collapsedDemands(buildCaseView(state.cases[i])).length) count++;
+    }
+    return count;
+  }
+
   // One line answering "anything new anywhere?" before the user reads a card.
   function headerSubtitle() {
     if (!state.cases.length) return 'No cases tracked yet';
     var parts = [plural(state.cases.length, 'case')];
     var changed = changedCaseCount();
     var failed = failedCaseCount();
+    var needsYou = demandingCaseCount();
     var newest = newestFetchedAt();
+
+    // A deadline outranks a change: "something changed" is interesting,
+    // "USCIS is waiting for you" has a consequence. The summary aggregated
+    // only changes, so the second half of the glance question — does anything
+    // need me — could only be answered by scanning every row.
+    if (needsYou > 0) {
+      parts.push(needsYou + ' needing you');
+    }
 
     // "nothing new" is a claim about the cases. It may only be made when we
     // actually heard back. When checks failed we learned nothing, which is a
@@ -2402,7 +2503,7 @@
       parts.push(changed + ' with something new');
     } else if (failed > 0) {
       parts.push("couldn't check " + failed);
-    } else if (newest !== null) {
+    } else if (newest !== null && needsYou === 0) {
       parts.push('nothing new');
     }
 
@@ -2523,7 +2624,11 @@
       var result = state.cases[i].result;
       if (!result) continue;
       checked++;
-      if (coreSourcesFailed(result)) failed++;
+      // The same test the header uses. Asking whether the two core endpoints
+      // *errored* missed the case where every endpoint returned 200 with an
+      // empty envelope: the header correctly said "couldn't check 4" while no
+      // banner appeared at all, because nothing had technically failed.
+      if (!resultHasAnyData(result)) failed++;
     }
     if (!failed) return null;
 
@@ -3710,7 +3815,7 @@
 
   // The body behind a row: the full official prose, the exact timestamp, and a
   // plain-English sentence about where the words came from.
-  function timelineBody(item, spanish) {
+  function timelineBody(item, spanish, movesStage) {
     var lines = [];
     if (item.provenance === 'official') {
       var body = spanish && item.bodyEs ? item.bodyEs : item.body;
@@ -3744,7 +3849,15 @@
       } else {
         lines.push('USCIS logged this code on your case, and no meaning for it is published — not in the status text USCIS wrote for this account, and not in the federal schema.');
         lines.push('USCIS does use codes outside the published standard, so this is a gap in public documentation rather than a problem with the case. We would rather say so than guess.');
-        lines.push('It does not move this case forward or back on the stage map above: an unrecognised code does not vote.');
+        // Only claim it had no effect when it had no effect. Five of the codes
+        // in our curated stage table — including SA, which marked a real case
+        // approved — have no published meaning, so this sentence used to be
+        // printed under codes that had just moved the rail, sometimes all the
+        // way to Approved. The table is a deliberate curation (see SPEC, X-1);
+        // what was wrong was denying it existed.
+        lines.push(movesStage
+          ? 'This panel does place this code on the stage map above, from its own curated list — that placement is our reading, not a published fact, and no source defines this code.'
+          : 'It does not move this case forward or back on the stage map above: an unrecognised code does not vote.');
       }
     } else if (item.kind === 'backend') {
       if (item.runCount) {
@@ -3768,7 +3881,7 @@
     return lines;
   }
 
-  function buildTimelineRow(entry, item, isLast, spanish) {
+  function buildTimelineRow(entry, item, isLast, spanish, movesStage) {
     var glyph = timelineGlyph(item);
     var nodeCell = el('div', { 'class': 'uscistr-node uscistr-node-' + glyph.tone + (isLast ? ' uscistr-node-last' : '') });
     var icon = buildIcon(glyph.icon);
@@ -3805,7 +3918,7 @@
       meta.appendChild(chip(item.labelSource === 'niem' ? 'system description' : 'from another case', 'quiet'));
     }
 
-    var bodyLines = timelineBody(item, spanish);
+    var bodyLines = timelineBody(item, spanish, movesStage);
     var cell = el('div', { 'class': 'uscistr-timeline-cell' });
     var stack = el('div', { 'class': 'uscistr-timeline-body' }, [head, meta]);
     if (item.fileName) {
@@ -3937,9 +4050,18 @@
       if (items[i].labelSource === 'none' && items[i].code) unexplainedCodes.push(items[i].code);
     }
 
+    // Does this case's form have a stage sequence, and does it place this code?
+    // A row may only say a code had no effect on the rail when that is true.
+    var stageSeq = null;
+    var stageFormType = (view.detail && view.detail.formType) ||
+      (view.notice && view.notice.formNumber) || null;
+    if (stageFormType) stageSeq = STAGE_SEQUENCES[String(stageFormType).toUpperCase()] || null;
+
     for (i = 0; i < visible.length; i++) {
       var isLast = i === visible.length - 1;
-      wrap.appendChild(buildTimelineRow(entry, visible[i], isLast, spanish));
+      var movesStage = !!(stageSeq && visible[i].code &&
+        stageIndexOfCode(stageSeq, visible[i].code) >= 0);
+      wrap.appendChild(buildTimelineRow(entry, visible[i], isLast, spanish, movesStage));
       // Gap labels convert a list of dates into a visible rhythm, and make the
       // current silence comparable to past silences. Not next to a backend row
       // though: that row already carries its own lag in days, and the two
@@ -4024,10 +4146,18 @@
 
       // Match the appointment to a stage by name. Biometrics is the case that
       // matters in practice; the label is USCIS's own notice wording.
+      // These must match STAGE_SEQUENCES[].name exactly. They read 'Bio' and
+      // 'Intvw' until 1.11.1, matching an abbreviated `label` field that was
+      // deleted in 1.10.0 when stage names were written out for translation —
+      // so this function silently always returned -1 and both clamps below it
+      // became no-ops. The guard it exists to provide had stopped running: a
+      // card could show biometrics as already passed a few hundred pixels
+      // below a band saying the appointment is in ten days, and because the
+      // rail is sticky it would not recover for the rest of the session.
       var label = String(item.label || '').toLowerCase();
       var wanted = null;
-      if (label.indexOf('biometric') !== -1 || label.indexOf('fingerprint') !== -1) wanted = 'Bio';
-      else if (label.indexOf('interview') !== -1) wanted = 'Intvw';
+      if (label.indexOf('biometric') !== -1 || label.indexOf('fingerprint') !== -1) wanted = 'Biometrics';
+      else if (label.indexOf('interview') !== -1) wanted = 'Interview';
       if (!wanted) continue;
 
       for (var i = 0; i < seq.length; i++) {
@@ -4178,9 +4308,24 @@
       } else if (seg.stage === index) {
         // A closed case is finished, not waiting at a stage: the end of the
         // rail is a terminus and there is no "you are here".
-        stateClass = closed ? 'uscistr-is-done' : 'uscistr-is-current';
-        glyph = closed ? 'cap' : 'pulse';
-        current = closed ? null : seg;
+        //
+        // But "closed" only says the case is over — never how it ended. This
+        // branch used to mark the terminal stage DONE without the evidence
+        // check every lower stage gets, and the terminal stage is "Card
+        // produced" / "Document produced". A denied, withdrawn or abandoned
+        // case therefore rendered as though a card had been produced, which is
+        // the most consequential thing this rail can say and was false in every
+        // one of those cases. A closed case now caps the rail without claiming
+        // the last stage happened unless a code on this case says it did.
+        if (closed && !segmentEvidenced(info, seg)) {
+          stateClass = 'uscistr-is-passed';
+          glyph = 'cap';
+          current = null;
+        } else {
+          stateClass = closed ? 'uscistr-is-done' : 'uscistr-is-current';
+          glyph = closed ? 'cap' : 'pulse';
+          current = closed ? null : seg;
+        }
       } else if (segmentEvidenced(info, seg)) {
         stateClass = 'uscistr-is-done';
         glyph = seg.collapsed ? 'cap' : 'disc';
@@ -4478,7 +4623,7 @@
       } else if (change.kind === 'office') {
         lines.push('Office on record changed' + (change.from ? ' from ' + change.from : '') + ' to ' + change.to + '.');
       } else if (change.kind === 'document') {
-        lines.push('New document on file: ' + change.to + '.');
+        lines.push('New document on file: ' + displayFileName(change.to) + '.');
       } else if (change.kind === 'backend') {
         lines.push("USCIS's record was updated. The public status text did not change.");
       }
@@ -4522,6 +4667,8 @@
       onclick: function () {
         entry.changedSince = false;
         entry.newChanges = null;
+        // Clearing it has to persist too, or the marker comes back on reload.
+        persistCases();
         render();
       }
     }));
@@ -4794,11 +4941,27 @@
     var found = null;
     var kind = null;
     var source = null;
+
+    // USCIS's own structured answer wins. When the API says nothing is required
+    // of this person, an old evidence-request code is a historical event, not a
+    // live obligation — and the banner scans the whole history, so without this
+    // an RFE answered two years ago and long since superseded by an approval
+    // still said "USCIS has asked you for something. There is normally a
+    // deadline." forever, directly above a status pill saying nothing is
+    // required. `null` means USCIS did not say, so the codes still speak.
+    if (view.detail && view.detail.actionRequired === false) return null;
+
+    // A code older than this is not something to act on today. USCIS supplies
+    // no deadline, so the only honest cutoff is the age of the event itself.
+    var staleBefore = new Date().getTime() - ACTION_CODE_MAX_AGE_MS;
+
     for (var i = 0; i < view.items.length; i++) {
       var item = view.items[i];
       if (!item.code) continue;
       var category = ACTION_CODES[String(item.code).toUpperCase()];
       if (!category) continue;
+      if (item.displayAt === null || item.displayAt === undefined) continue;
+      if (item.displayAt < staleBefore) continue;
       item.attention = true;
       if (!found) {
         found = item;
@@ -4912,7 +5075,11 @@
       if (doc.source) parts.push(String(doc.source));
       if (parts.length) return parts.join(' · ');
     }
-    return name || '(unnamed document)';
+    // Redacted on the way out. USCIS names files after the receipt number, and
+    // when type and source are both missing this falls through to the raw
+    // name — printing the full number as the link text, on the same row as the
+    // masked copy beside it.
+    return displayFileName(name) || '(unnamed document)';
   }
 
   // A document counts as new when this panel recorded first seeing it within
@@ -4938,6 +5105,12 @@
   function documentsNoteText(entry, view) {
     if (!view || !view.hasData) return null;
     if (view.docs && view.docs.length) return null;
+    // Gate on the documents endpoint specifically, not on whether the card has
+    // any data at all. `hasData` is true whenever case detail or status
+    // answered, so a documents endpoint that errored produced the flat
+    // assertion "USCIS lists no documents on this case" — the exact collapse of
+    // "we could not read it" into "there is nothing" this note exists to avoid.
+    if (!entry.result || !payloadUsable(entry.result.documents)) return null;
     return 'USCIS lists no documents on this case. That is not the same as there being none — ' +
       'documents sent by post may never appear here.';
   }
@@ -4968,17 +5141,18 @@
     var label = plural(docs.length, 'document') + ' on file';
     if (list.fresh) label += ' · ' + list.fresh + ' new';
 
+    // Open/closed lives in caseUi like every other disclosure, so the 15-minute
+    // background refresh cannot close a section someone is reading. Toggling
+    // the DOM directly meant the documents list and the raw responses silently
+    // shut on a timer while every other disclosure on the card stayed open.
+    var docsOpen = !!caseUi(entry).showDocuments;
     var chevron = buildIcon('chevron');
     var toggle = el('button', {
-      'class': 'uscistr-raw-toggle', type: 'button', 'aria-expanded': 'false',
-      onclick: function (e) {
-        var button = e.currentTarget;
-        var open = button.getAttribute('aria-expanded') === 'true';
-        button.setAttribute('aria-expanded', open ? 'false' : 'true');
-        if (open) list.el.setAttribute('hidden', 'hidden');
-        else list.el.removeAttribute('hidden');
-      }
+      'class': 'uscistr-raw-toggle', type: 'button',
+      'aria-expanded': docsOpen ? 'true' : 'false',
+      onclick: function () { caseUi(entry).showDocuments = !docsOpen; render(); }
     });
+    if (docsOpen) list.el.removeAttribute('hidden');
     toggle.appendChild(chevron || el('span'));
     toggle.appendChild(el('span', { text: label }));
     if (list.fresh) toggle.appendChild(chip('NEW', 'accent'));
@@ -5100,17 +5274,14 @@
     var label = 'Raw data from USCIS · ' + plural(body.rows, 'response');
     if (body.failed) label += ' · ' + body.failed + " couldn't be read";
 
+    var rawOpen = !!caseUi(entry).showRawJson;
     var chevron = buildIcon('chevron');
     var toggle = el('button', {
-      'class': 'uscistr-raw-toggle', type: 'button', 'aria-expanded': 'false',
-      onclick: function (e) {
-        var button = e.currentTarget;
-        var open = button.getAttribute('aria-expanded') === 'true';
-        button.setAttribute('aria-expanded', open ? 'false' : 'true');
-        if (open) body.el.setAttribute('hidden', 'hidden');
-        else body.el.removeAttribute('hidden');
-      }
+      'class': 'uscistr-raw-toggle', type: 'button',
+      'aria-expanded': rawOpen ? 'true' : 'false',
+      onclick: function () { caseUi(entry).showRawJson = !rawOpen; render(); }
     });
+    if (rawOpen) body.el.removeAttribute('hidden');
     toggle.appendChild(chevron || el('span'));
     toggle.appendChild(el('span', { text: label }));
 
@@ -5583,9 +5754,21 @@
     if (notes) card.appendChild(notes);
 
     // K · freshness, then the three labelled per-case actions.
+    //
+    // The last successful READ, not the last attempt. Printing the attempt made
+    // a card say "Checked just now" underneath a banner explaining that the
+    // check had failed and everything shown was the last saved copy — the one
+    // false sentence in an otherwise careful failure design.
+    var checkedMs = entry.result.succeededAt
+      ? parseUscisDate(entry.result.succeededAt)
+      : (view.cachedAt ? parseUscisDate(view.cachedAt) : null);
+    var checkedText = checkedMs === null
+      ? "Not read successfully yet"
+      : (entry.result.succeededAt ? 'Checked ' : 'Last read ') +
+        (relativeDate(new Date(checkedMs).toISOString()) || 'just now');
+
     card.appendChild(el('div', { 'class': 'uscistr-muted uscistr-small', text:
-      'Checked ' + (relativeDate(entry.result.fetchedAt) || 'just now') +
-      (view.office ? ' · ' + String(view.office) : '') }));
+      checkedText + (view.office ? ' · ' + String(view.office) : '') }));
 
     card.appendChild(el('div', { 'class': 'uscistr-card-footer' }, [
       el('button', {
@@ -5874,6 +6057,13 @@
     // keyboard focus die with the old DOM, and the background refresh calls
     // this twice per case on a timer, so a reader mid-way down a card gets
     // thrown to the top while reading. Capture both, restore both.
+    // Never rebuild the panel mid-drag. render() replaces the element that
+    // dragState is holding, so the drag then moves a detached node and
+    // onDragEnd measures it at 0,0 — persisting the panel to the top-left
+    // corner. A 15-minute background refresh landing while someone is moving
+    // the panel is enough to trigger it.
+    if (dragState) return;
+
     // Start every render from real storage. save() already invalidates what it
     // writes, so this is not needed for our own writes — it is here because
     // another tab on my.uscis.gov shares this origin and can write between
