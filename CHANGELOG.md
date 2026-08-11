@@ -4,6 +4,24 @@ Notable changes per release. The section matching a tag becomes that release's
 notes on GitHub, so keep entries written for someone deciding whether to update
 — not for someone reading a commit log.
 
+## 1.6.1
+
+**A stylesheet bug was making the tool's own disclaimers louder than USCIS's words**
+
+Four blocks of CSS had lost their selector lines, which left the declarations
+orphaned. A declaration with no selector makes the browser treat the *next*
+rule as part of its broken prelude and discard it — so four working rules were
+silently dropped, including the one that makes small print small.
+
+The visible effect: every caveat this panel writes about itself rendered at the
+same size and a darker colour than the actual status USCIS published for the
+case. Explanations looked more important than the thing being explained, which
+is a large part of why the panel read as a wall of text.
+
+Caused by an earlier sweep that removed unused CSS classes line by line,
+deleting selectors while leaving their bodies. `scripts/css-check.js` now fails
+the build on any orphaned declaration or unbalanced brace, and runs in CI.
+
 ## 1.6.0
 
 **Every case collapses; you choose which to open**

@@ -1413,12 +1413,6 @@ var CASELENS_STYLE = [
   "  background: var(--ust-accent-solid);",
   "  transition: width var(--ust-d4) var(--ust-ease-out);",
   "}",
-  "  background: repeating-linear-gradient(115deg,",
-  "    var(--ust-accent-solid) 0 8px,",
-  "    color-mix(in srgb, var(--ust-accent-solid) 55%, transparent) 8px 16px);",
-  "  background-size: 200% 100%;",
-  "  animation: ust-drift 1.6s linear infinite;",
-  "}",
   ".uscistr-root .uscistr-progress-label { font-size: var(--ust-fs-micro); line-height: 1.4; color: var(--ust-text-3); }",
   ".uscistr-root .uscistr-section { display: flex; flex-direction: column; gap: var(--ust-s4); }",
   ".uscistr-root .uscistr-section-title {",
@@ -1498,22 +1492,6 @@ var CASELENS_STYLE = [
   "}",
   ".uscistr-root .uscistr-timeline-row.uscistr-is-current .uscistr-timeline-text { font-weight: 560; }",
   ".uscistr-root .uscistr-timeline-meta { display: flex; align-items: center; gap: var(--ust-s3); flex-wrap: wrap; }",
-  "  font-size: var(--ust-fs-micro);",
-  "  line-height: 1.4;",
-  "  color: var(--ust-text-3);",
-  "}",
-  "  content: \"unofficial\";",
-  "  display: inline-block;",
-  "  margin-left: var(--ust-s3);",
-  "  padding: 0 4px;",
-  "  border: 1px solid var(--ust-border-1);",
-  "  border-radius: var(--ust-r-xs);",
-  "  font-size: 9px;",
-  "  letter-spacing: 0.04em;",
-  "  text-transform: uppercase;",
-  "  color: var(--ust-text-3);",
-  "  vertical-align: 1px;",
-  "}",
   ".uscistr-root .uscistr-documents { display: flex; flex-direction: column; gap: var(--ust-s1); }",
   ".uscistr-root .uscistr-doc-row {",
   "  display: grid;",
@@ -1666,15 +1644,6 @@ var CASELENS_STYLE = [
   ".uscistr-root .uscistr-truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }",
   ".uscistr-root .uscistr-error { color: var(--ust-danger-text); font-size: var(--ust-fs-meta); line-height: 1.45; }",
   ".uscistr-root .uscistr-link { color: var(--ust-accent); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; border-radius: var(--ust-r-xs); }",
-  "  position: absolute !important;",
-  "  width: 1px; height: 1px;",
-  "  padding: 0; margin: -1px;",
-  "  overflow: hidden;",
-  "  clip: rect(0 0 0 0);",
-  "  clip-path: inset(50%);",
-  "  white-space: nowrap;",
-  "  border: 0;",
-  "}",
   ".uscistr-root .uscistr-skeleton {",
   "  border-radius: var(--ust-r-xs);",
   "  background: linear-gradient(90deg, var(--ust-bg-inset) 25%, var(--ust-bg-hover) 37%, var(--ust-bg-inset) 63%);",
@@ -1966,7 +1935,7 @@ var CASELENS_STYLE = [
   // SECTION 1: Constants
   // ==========================================================================
 
-  var VERSION = '1.6.0';
+  var VERSION = '1.6.1';
 
   var STORAGE_KEYS = {
     cases: 'uscisTracker.cases.v1',      // [{ number, label, addedAt }]

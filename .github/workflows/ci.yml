@@ -46,6 +46,9 @@ jobs:
       - name: Undefined-function gate — the bundle must not call what it never defines
         run: node scripts/undefined-check.js
 
+      - name: CSS gate — no orphaned declarations in the stylesheet
+        run: node scripts/css-check.js
+
       - name: Privacy gate — only my.uscis.gov may appear as a live URL
         run: node scripts/privacy-gate.js
 
