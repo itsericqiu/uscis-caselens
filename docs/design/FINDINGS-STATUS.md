@@ -86,10 +86,10 @@ Line numbers move, so citations use function names.
 | SE-2 | "Remove" leaves the receipt number behind | Security | **DONE** (1.7.0) — `forgetCase` clears the receipt number from learned wording |
 | SE-3 | `privacy-gate.js` greps one file and is bypassable | Security | **DONE** (1.7.0) — scans all three shipped files |
 | SE-4 | `package.js` zips whole directories | Security | **NOT DONE** |
-| SE-5 | `release-on-bump` auto-publishes with no review gate | Security | **NOT DONE** |
+| SE-5 | `release-on-bump` auto-publishes with no review gate | Security | **ACCEPTED RISK** — auto-tag-on-merge is the chosen release model, and the job runs only after `verify`, `version-bump-check` and `package` all pass. Revisit if the project takes outside contributors |
 | SE-6 | `npx` tools unpinned in the release workflow | Security | **DONE** (1.7.0) — pinned to exact versions |
 | SE-7 | Unbounded growth in learned code text | Security | **PARTIAL** — `codeText` uncapped; `docNames` is not a live issue |
-| SE-8 | Auto-discovery is uncapped and unconfirmed | Security | **NOT DONE** |
+| SE-8 | Auto-discovery is uncapped and unconfirmed | Security | **DONE** (1.7.1) — `MAX_TRACKED_CASES = 25` ceiling on automatic discovery; manual adds uncapped |
 | SE-9 | `loadAll` doesn't validate what `mergeImport` does | Security | **PARTIAL** — `__proto__` closed; asymmetry stands |
 | SE-10 | `redactRawJson`'s regex breaks on escaped quotes | Security | **NOT DONE** |
 | SE-11 | `pii-gate.js` matches only `IOE` prefixes | Security | **DONE** (1.7.0) — matches every three-letter prefix |

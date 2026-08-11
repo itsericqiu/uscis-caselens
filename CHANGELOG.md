@@ -4,6 +4,19 @@ Notable changes per release. The section matching a tag becomes that release's
 notes on GitHub, so keep entries written for someone deciding whether to update
 — not for someone reading a commit log.
 
+## 1.7.1
+
+**Two remaining ways the panel could go quiet on its own**
+
+- Automatic discovery now stops at 25 cases. Every tracked case costs six
+  requests to USCIS on every refresh, and discovery re-reads the page on each
+  in-app navigation — so a page listing far more receipt numbers than anyone
+  actually has would have turned into hundreds of requests on a timer. Nobody
+  has more cases than this, and anything beyond it can still be added by hand.
+- A form type that arrives as an object rather than a string no longer deletes
+  the whole stage rail. It failed the lookup and rendered nothing, which looks
+  exactly like the legitimate "we don't have a map for this form" case.
+
 ## 1.7.0
 
 **A failed check is no longer invisible**

@@ -1997,7 +1997,7 @@ var CASELENS_STYLE = [
   // SECTION 1: Constants
   // ==========================================================================
 
-  var VERSION = '1.7.0';
+  var VERSION = '1.7.1';
 
   var STORAGE_KEYS = {
     cases: 'uscisTracker.cases.v1',      // [{ number, label, addedAt }]
@@ -2025,6 +2025,9 @@ var CASELENS_STYLE = [
   var RECEIPT_NUMBER_RE = /\b(IOE[0-9]{10})\b/g; // for scraping the account page
   var DEFAULT_FORM_TYPE = 'I-765';
   var HISTORY_CAP = 200;
+  // Ceiling on cases added automatically from the page. Manual adds are not
+  // capped: someone who types a receipt number meant it.
+  var MAX_TRACKED_CASES = 25;
   var MIN_REFRESH_MS = 5 * 60 * 1000;
   var DEFAULT_REFRESH_MS = 15 * 60 * 1000;
   var STAGGER_MS = 300;
@@ -3473,8 +3476,11 @@ var CASELENS_STYLE = [
     if (!data || data.__error || data.__empty) return null;
     return {
       receiptNumber: pick(data, FIELDS.caseStatus.receiptNumber),
-      formType: pick(data, FIELDS.caseStatus.formType),
-      formName: pick(data, FIELDS.caseStatus.formName),
+      // flattenValue, not the raw value. An object here reaches stageInfo as
+      // "[OBJECT OBJECT]", misses the lookup, and renders no stage rail at all
+      // — indistinguishable from the legitimate unknown-form path, and silent.
+      formType: flattenValue(pick(data, FIELDS.caseStatus.formType)),
+      formName: flattenValue(pick(data, FIELDS.caseStatus.formName)),
       submissionDate: pick(data, FIELDS.caseStatus.submissionDate),
       backendUpdatedAt: pick(data, FIELDS.caseStatus.updatedAt),
       closed: pick(data, FIELDS.caseStatus.closed) === true,
@@ -7515,6 +7521,13 @@ var CASELENS_STYLE = [
 
     for (var i = 0; i < discovered.length; i++) {
       var d = discovered[i];
+      // Every tracked case costs six requests to USCIS on every refresh, and
+      // discovery re-reads the page on each in-app navigation. Without a
+      // ceiling, an account page (or a page USCIS later changes the shape of)
+      // listing far more receipt numbers than a person actually has would turn
+      // into hundreds of requests on a timer. Nobody has more cases than this;
+      // anything beyond it can still be added by hand.
+      if (state.cases.length >= MAX_TRACKED_CASES) break;
       // The user removed this one. Auto-discovery must not undo that.
       if (dismissed[d.number.toUpperCase()]) continue;
       var exists = false;
