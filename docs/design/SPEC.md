@@ -112,10 +112,13 @@ system: node shape + a plain-English meta-line suffix (`· USCIS`,
 system (colour light+dark, type scale, spacing, radii, shadows, motion); every
 component spec; the host-CSS immunity layers; the uncertainty treatments
 (dashed note boxes, HTTP status chips on raw blocks, `UNOFFICIAL` tag on guessed
-labels with the raw code never hidden); the stylesheet in §6 including its
-compatibility aliases, which let it drop onto the current markup. Honour §5.1's
-two hard-won findings: do not let the reset collapse SVG geometry, and paint
-icons via CSS class not presentation attributes.
+labels with the raw code never hidden). Honour §5.1's two hard-won findings: do
+not let the reset collapse SVG geometry, and paint icons via CSS class not
+presentation attributes.
+
+> ~~the stylesheet in §6 including its compatibility aliases~~ — **superseded
+> (DC-2, 1.10.0).** `02` §6 no longer contains a stylesheet. The shipped one is
+> [`core/uscis-style.js`](../../core/uscis-style.js) and is the only copy.
 
 **From `01-information-architecture.md`:** the card ordering (identity+change
 state first, status headline second — a returning reader should not have to
@@ -131,9 +134,13 @@ the "floor" guaranteeing a sparse case reads as *nothing to find* rather than
 day group; 36h dedupe window gated on code equality; local status-change rows
 absorbed into the matching official row as "You first saw this on …" rather
 than printed twice); never rendering a time we did not receive; the per-form
-stage sequences with a fully-hollow rail when nothing maps; the co-filed group
-strip; and the rejection list (no predicted dates, no "cases like yours take N
-months", no fabricated timestamps, no gamification, no pulsing Now node).
+stage sequences with a fully-hollow rail when nothing maps; and the rejection
+list (no predicted dates, no "cases like yours take N months", no fabricated
+timestamps, no gamification, no pulsing Now node).
+
+> ~~the co-filed group strip~~ — **REJECTED (SP-10).** `concurrentCases` is
+> empty on every live case observed, and grouping by filing date instead would
+> assert a legal relationship between two cases that the data does not state.
 
 ## Event codes: three tiers of knowledge, and how we admit ignorance
 

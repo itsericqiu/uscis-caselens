@@ -2,11 +2,19 @@
 
 A panel that appears on [my.uscis.gov](https://my.uscis.gov) showing every case on your account in one place: status, a merged timeline, which office holds it, your documents, and what changed since you last looked. Free, open source, and stored only in your own browser — no account, no server.
 
-<p align="center">
-  <img src="docs/screenshots/panel-light.png" alt="The CaseLens panel: each case is one line, with one open showing its status, an appointment on record, a note that USCIS updated the record after the status, the stage map, and a merged timeline." width="420">
-</p>
+**Unofficial and independent.** CaseLens is not affiliated with, endorsed by, or connected to USCIS or the Department of Homeland Security. It shows you the data your own USCIS account already holds; it is not legal advice, and your mailed notices and my.uscis.gov remain the authority on your case.
 
-<sub>Sample cases, not real data. <a href="docs/screenshots/panel-dark.png">Dark mode.</a></sub>
+<!--
+  The screenshots here were taken at v1.5.0 and show a layout that no longer
+  exists — one long expanded card, an always-open add-case form, abbreviated
+  stage names. Showing someone a picture of software they will not meet is
+  worse than showing them none, so the image is out until the set is
+  regenerated against the current build:
+      node scripts/screenshots.js        (README set)
+      node scripts/store-screenshots.js  (1280x800 store set)
+  Include one shot of the wide reading layout — it is the thing most worth
+  showing and no current image has it.
+-->
 
 ## Is it safe?
 
@@ -14,8 +22,8 @@ A panel that appears on [my.uscis.gov](https://my.uscis.gov) showing every case 
 - **Your cases and history stay in your browser** (`localStorage`). No accounts, no analytics, no tracking.
 - **It uses your existing login** and never sees, asks for, or stores your password.
 - **It only reads.** It cannot submit, change, withdraw, or respond to anything, or upload documents. If it ever appears to, that's a bug — please open an issue.
-- **It's one readable file** — [`core/uscis-tracker-core.js`](core/uscis-tracker-core.js), plus a list of event-code definitions. No minified bundle.
-- **The userscript and extensions are generated from those two files and nothing else.** Verify with `node scripts/build.js --check`.
+- **It's three readable files** — [`core/uscis-tracker-core.js`](core/uscis-tracker-core.js) is the whole tool, [`core/uscis-style.js`](core/uscis-style.js) is its stylesheet, and [`core/uscis-codes.js`](core/uscis-codes.js) is a list of event-code definitions. No minified bundle, no dependencies.
+- **The userscript and the extensions are those three files concatenated, and nothing else.** Verify with `node scripts/build.js --check`.
 
 Technical detail — permissions, untrusted-input handling, threat model — is in [SECURITY.md](SECURITY.md).
 
@@ -51,7 +59,7 @@ These are the same endpoints the official dashboard loads for you. We verified e
 - **When you'll get a decision.** Nothing here estimates or guesses at it.
 - **Whether the news is good or bad.** A record update is activity, not a verdict.
 - **Why anything happened.** The data contains no reasons.
-- **Paper-filed cases.** These endpoints only cover cases in a `my.uscis.gov` online account, which use `IOE` receipt numbers. `EAC`, `WAC`, `LIN`, `SRC` and `MSC` cases are stored in an older USCIS system. These endpoints do not cover it.
+- **Paper-filed cases.** Only receipt numbers beginning `IOE` work. Any other prefix — `EAC`, `WAC`, `LIN`, `SRC`, `MSC`, `YSC` — was filed on paper and lives in an older USCIS system these endpoints do not reach.
 - **Anything while you're signed out.** The panel renders nothing at all.
 
 **About the data.** These are undocumented endpoints — USCIS didn't design them for outside use and could change or remove them without warning, which would break this tool until it's updated. Several often return nothing. Processing-time estimates almost always return nothing. Empty means USCIS published nothing there, not that something is broken.
@@ -60,28 +68,30 @@ These are the same endpoints the official dashboard loads for you. We verified e
 
 CaseLens currently installs as a **userscript**. Browser-store versions (Firefox Add-ons, Chrome Web Store) are planned, which will make it a one-click install that updates itself.
 
-1. Install a userscript manager — [Violentmonkey](https://violentmonkey.github.io/) on Chrome, Edge or Firefox, or [Userscripts](https://github.com/quoid/userscripts) on Safari. Both are open source and collect nothing, so you can audit them the same way you can audit this. (Tampermonkey works but has been closed-source since 2013 — turn off "Anonymous statistics" if you use it.)
-2. Open the [latest release build](https://github.com/itsericqiu/uscis-caselens/releases/latest/download/caselens.user.js) and confirm the install. That link always points at the newest tagged release, and your copy updates itself from it.
-3. Log in at [my.uscis.gov](https://my.uscis.gov). A **CaseLens** pill appears bottom-right.
+1. **Install a userscript manager.** This is a browser add-on that runs small scripts on the sites you choose; CaseLens is one of those scripts. Use [Violentmonkey](https://violentmonkey.github.io/) on Chrome, Edge or Firefox, or [Userscripts](https://github.com/quoid/userscripts) on Safari. Both are open source and collect nothing, so you can check them the same way you can check this. (Tampermonkey also works; if you use it, turn off "Anonymous statistics" in its settings.)
+2. **Open the [CaseLens install file](https://github.com/itsericqiu/uscis-caselens/releases/latest/download/caselens.user.js).** Your userscript manager will intercept it and show you the whole script with an **Install** button — read as much of it as you like, then confirm. That link always points at the newest tested release, and your copy updates itself from it.
+3. **Log in at [my.uscis.gov](https://my.uscis.gov).** A **CaseLens** pill appears in the bottom-right corner. Click it, or press **Alt+U**.
 
 ### If nothing appears
 
 Recent versions of Chrome require user scripts to be allowed explicitly. Go to `chrome://extensions`, open your userscript manager's details, and switch on **Allow user scripts**. Until that's on, the script silently never runs — no error, no pill.
 
-The script is a single file you can read in full before it runs. A userscript manager can see every site you visit — that is how it adds scripts to pages — so you are trusting it as well as this tool. The store versions will not need one.
+The script is a single file you can read in full before it runs. A userscript manager can see every site you visit — that is how it adds scripts to pages — so you are trusting it as well as this tool. Store versions won't need a userscript manager at all.
+
+**Userscript or extension?** Store versions aren't published yet, so the userscript is the route for now. Two honest differences, once they are: the extensions run in their own isolated world, so a compromised script on my.uscis.gov could not read what CaseLens fetches — the userscript shares a page with that site's own scripts and could be. The userscript's advantage is that it is one file you can read in full before it runs, and it gets a fix days sooner, because store review takes time. Either way nothing leaves your browser.
 
 ## Using it
 
-- **Each case is one line.** Click a line to open the full record. The one that most needs reading opens by itself: a case with an appointment or a deadline first, then one that changed, then the newest open case.
+- **Every case is one line, and nothing opens by itself.** The row carries what you came for: the form, USCIS's own status and its date, how long the case has been running, and any deadline. Click a line to open the full record. On a window wide enough for it, opening a case widens the panel and keeps the rest of your cases in a column beside it, so reading one never hides the others; click its row again to go back. A single case opens straight away — there is nothing to choose between.
 - **Your cases appear automatically.** The panel reads the receipt numbers already printed on your account page — no extra request to USCIS.
-- **Add a case manually** by receipt number, including one someone else shared with you. Receipt numbers are 13 characters, on your I-797C notice.
+- **Add a case manually** by receipt number. Receipt numbers are 13 characters, printed on your I-797C notice. These endpoints answer for the account you are signed into, so a case that is not on your own account will most likely come back empty.
 - **Nicknames** — label a case "My EAD" so it's easier to pick out.
 - **Status is USCIS's exact wording.** The panel never rewrites or summarizes it, and never characterizes a case as going well or badly.
 - **The changed badge** appears when something differs from your last visit, and says what changed. "Mark seen" clears it; the entry stays in the timeline.
 - **The timeline** marks where each entry came from: USCIS's own status history, a raw event code USCIS logged, or a change this panel noticed between checks. Entries are never dropped, including codes with no known meaning.
 - **This shows how many days have passed, not when a decision will come.** USCIS publishes an estimate for very few cases, so most of the time the panel shows what it knows: days elapsed, and how this quiet stretch compares to the longest one before it. When USCIS does publish an estimate, it shows how much of that range has elapsed.
-- **Export / Import** your cases and history as a JSON file you keep yourself.
-- **Hide receipt numbers** (in Settings) masks receipt numbers and hides names inside the raw responses, so a screenshot is safe to share.
+- **Export / Import** your cases and history as a JSON file you keep yourself. The file is plain, unencrypted text and holds your full receipt numbers even when "Hide receipt numbers" is on — a masked backup could not restore anything. Keep it where you'd keep a copy of your notices. (The panel says this before it downloads.)
+- **Hide receipt numbers** (in Settings) masks every receipt number on screen and blanks names, addresses, email, phone numbers and document ids inside the raw responses, document filenames, and desktop notifications — so a screenshot or a screen share is safe.
 - **Raw responses** can be expanded in the panel to show exactly what USCIS sent.
 - **Notifications** are optional. They only work while the my.uscis.gov tab is open **and in front of you** — nothing runs in the background. Record-touched updates deliberately don't notify; see below.
 - **Spanish** — USCIS includes Spanish status wording in its own data, and the panel can show it.
@@ -117,13 +127,13 @@ Never, in any version:
 Your USCIS login timed out, as it does on the official site. Log back in, then click Refresh.
 
 **Will this get me in trouble with USCIS?**
-It reads the same data your dashboard already loads, one request at a time, only while the tab is open. It doesn't enumerate other people's cases or reach anything your account can't. But these are unofficial endpoints, so USCIS could change or remove them at any time and the tool would stop working — **You are not breaking any USCIS rule.** The only risk is that USCIS changes these endpoints and the tool stops working.
+No. It reads the same data your dashboard already loads, one request at a time, only while the tab is open. It cannot reach anything your account can't, and it never touches anyone else's case. The only real risk is that USCIS changes these unofficial endpoints and the tool stops working until it's updated.
 
 **Can it check while my browser is closed?**
 No. Nothing runs outside your browser, and today it only checks while the my.uscis.gov tab is open and in front of you. Background checking would need extra permissions, so it would ship as a separate, clearly-labelled version rather than being added to this one.
 
 **How do I delete everything?**
-Uninstall the userscript, then clear site data for my.uscis.gov in your browser settings. Uninstalling alone does not remove what was saved, because it lives in that site's storage.
+Open **Settings** in the panel and choose **Erase everything**. It deletes your saved cases, every stored copy of a status, your record of what changed, your settings and your removals — from this browser only. Nothing at USCIS is touched. If you have already uninstalled, clear site data for my.uscis.gov in your browser settings instead; uninstalling alone does not remove what was saved, because it lives in that site's storage.
 
 **Someone else uses this computer.**
 Anything saved is visible to anyone using the same browser profile on this machine. There is no password on the panel.
@@ -138,4 +148,4 @@ Anything saved is visible to anyone using the same browser profile on this machi
 
 ## Disclaimer
 
-Unofficial and independent. **Not affiliated with, endorsed by, or connected to USCIS or the Department of Homeland Security.** Not legal advice. Rely on your official notices and your USCIS account for anything that matters, and confirm important details with an immigration attorney. [MIT License](LICENSE). Use at your own risk.
+Confirm anything that matters with an immigration attorney. [MIT License](LICENSE). Use at your own risk. (The full statement is [at the top](#caselens--uscis-case-tracker).)

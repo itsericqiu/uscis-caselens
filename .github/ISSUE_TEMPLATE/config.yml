@@ -1,0 +1,13 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security or privacy report
+    url: https://github.com/itsericqiu/uscis-caselens/security/advisories/new
+    about: >
+      Report privately instead of opening a public issue — especially anything
+      suggesting data could leave the browser. See SECURITY.md.
+  - name: My case data looks wrong
+    url: https://my.uscis.gov
+    about: >
+      CaseLens only displays what USCIS returns and never changes a case.
+      my.uscis.gov and your mailed notices are the authority — check there
+      first, and file an issue here only if CaseLens disagrees with them.

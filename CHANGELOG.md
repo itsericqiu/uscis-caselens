@@ -6,28 +6,20 @@ notes on GitHub, so keep entries written for someone deciding whether to update
 
 ## 1.11.0
 
-**The panel redraws about five times faster**
+**The panel is quicker to draw, especially with several cases**
 
 Every redraw was re-reading and re-parsing browser storage once per case per
-event code. Measured on four cases: **47 reads taking 52ms, 26 of them
-re-parsing the same dictionary.** Storage reads are now parsed once per redraw:
-**11 reads, 9.5ms.** Any write clears it immediately, so a read after a write
-always sees the write, and each redraw starts fresh in case another tab wrote
-something.
+event code — 47 reads on a four-case account. It now reads once per redraw and
+reuses the result, which is about five times faster. Any write clears it
+immediately, so nothing can be drawn from a stale copy.
 
-**Internal: three things that were working by accident**
+**Internal**
 
-- Which sections you had opened on a card was stored on the case record itself
-  — the same object written to browser storage. It stayed out of storage only
-  because the save function happens to list its fields by hand. It is now kept
-  separately, so that separation is a boundary rather than a coincidence.
-- Four section headers still credited the agents that first wrote them, which
-  means nothing to anyone reading the file now.
-- The "settings popover" heading covered about 700 lines, including the whole
-  timeline pipeline and the function that assembles a case for display. In a
-  file whose point is that a stranger can audit it, a heading that misdescribes
-  what follows is worse than no heading. That region now has its own, accurate
-  one marking the line between data and drawing.
+Which sections you had open on a card was being kept on the case record itself
+— the same object written to storage. It stayed out of storage by luck; it is
+now held separately. Section headers in the source were corrected where they no
+longer described the code beneath them, which matters in a file whose point is
+that a stranger can audit it.
 
 ## 1.10.0
 
@@ -414,6 +406,10 @@ Deliberately not built: a separate status board (the collapsed rows already are
 one, without rendering every case's identity a second time) and a case
 switcher (tabs would make "anything new anywhere?" take four clicks instead of
 one glance).
+
+*(Superseded: 1.6.0 stopped opening a card by rule — with more than one case,
+everything stays collapsed. 1.9.0 made it one open case at a time, beside the
+list rather than inside it.)*
 
 > **Where 1.3.0–1.3.4 landed.** Five releases in a row argued with each other
 > about one line: how to print an appointment time. Reading them in order is

@@ -141,6 +141,18 @@ node scripts/smoke-test.js     # starts its own server + headless Chrome
 Add a `## X.Y.Z` section to `CHANGELOG.md`. That section becomes the GitHub
 release body verbatim; without it the release ships a list of commit subjects.
 
+**If your change alters the layout, regenerate the screenshots** — both sets,
+because nothing else enforces it and they have drifted before:
+
+```sh
+node scripts/screenshots.js        # README set
+node scripts/store-screenshots.js  # 1280x800 store set
+```
+
+They went five releases out of date once, to the point where the README showed
+a layout that had been replaced twice. A picture of software the reader will not
+meet is worse than no picture.
+
 Fixtures can't catch everything. The harness has no timezone, no real
 Chrome policy, and no live account — a filing date rendered a day early and a
 Chrome setting that stops the script running were both found only by installing

@@ -1,0 +1,67 @@
+name: Bug report
+description: Something in the panel is wrong, missing, or looks broken.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Please do not paste real receipt numbers, names, addresses, or
+        screenshots showing them.** Turn on **Settings → Hide receipt numbers**
+        before taking a screenshot, or replace the number with
+        `IOE0000000000`.
+
+        This is a public issue tracker — anything you post here is visible to
+        everyone, forever. Nothing in this project needs your real case data to
+        reproduce a bug.
+
+        If you think you have found a security or privacy problem, please do not
+        file it here — see [SECURITY.md](../blob/main/SECURITY.md) for the
+        private reporting route.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you see, and what did you expect to see instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Opened the panel on my.uscis.gov
+        2. Clicked ...
+        3. ...
+    validations:
+      required: false
+  - type: input
+    id: version
+    attributes:
+      label: CaseLens version
+      description: Shown in the bottom-right corner of the panel, e.g. `v1.11.0`.
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser
+      placeholder: Chrome 141 / Firefox 133 / Safari 18
+    validations:
+      required: true
+  - type: input
+    id: install
+    attributes:
+      label: How did you install it
+      placeholder: Violentmonkey / Tampermonkey / Userscripts / unpacked extension
+    validations:
+      required: true
+  - type: textarea
+    id: console
+    attributes:
+      label: Console errors, if any
+      description: >
+        Open DevTools → Console and copy anything red. Check it for receipt
+        numbers before pasting.
+      render: text
+    validations:
+      required: false

@@ -143,51 +143,35 @@ a dropped request.
 - **DC-4 — README trims.** Never written down as specific edits, so there is
   nothing concrete to verify against. The README was rewritten ~45% shorter in
   1.2.0; treat this as closed unless someone names a section.
-
 Where the DONEs cluster matters more than the total. All eight HARMFUL items
 are genuinely fixed, and so are eight of the ten binding SPEC decisions (the
-other two are recorded rejections). Nothing that could mislead someone about
-the facts of their own case is outstanding.
+other two are recorded rejections).
 
-The remainder is lopsided. The security review is almost entirely unactioned
-(10 NOT DONE + 2 PARTIAL of 12), and so is the architecture review (16 + 3 of
-20). Both landed late and were never worked.
+## History
 
-### Where the changelog overstates the code
+Everything in this section describes the state at the **1.6.1 audit**, and is
+kept because how a backlog got worked is worth recording. Where a paragraph
+below describes an open problem, check the table above — **the table is
+authoritative** and is re-verified against the code at each pass.
 
-- **1.5.1, "A refused write to browser storage now says so."** It does not.
-  `save()` sets a module-level `storageFailed` and nothing reads that variable.
-  The second half of the same bullet (no re-notifying) *is* implemented.
-- **1.1.0, "Removing a case now sticks, and deletes its stored history as the
-  confirmation promises."** `forgetCase` deletes `snapshots` and `history` but
-  leaves the number in learned code text and in any `.unreadable` rescue copy.
-- **`REVIEW-TRIAGE.md`'s consolidated removals list is 50% unimplemented**
-  (C-2, C-5, R-4, R-7, R-8 outstanding; R-3 half-done). Issue #4 independently
-  re-discovered three of them.
+At that baseline the remainder was lopsided: the security review was almost
+entirely unactioned (10 NOT DONE + 2 PARTIAL of 12), and the architecture review
+nearly so (16 + 3 of 20). Both landed late in a long session and had never been
+worked. They were worked in 1.8.0–1.10.0 and are now closed.
 
-## Found during the audit, not previously raised
+Three changelog entries overstated what the code did, and all three have since
+been made true or corrected in place:
 
-1. **The one-footnote consolidation renders larger than the rows it
-   annotates.** R-1 replaced a per-row sentence with a single
-   `uscistr-timeline-footnote` — but that class has no CSS rule, so the
-   footnote comes out as full-size body text. On a sparse card the loudest text
-   in the timeline is the disclaimer about not knowing what the codes mean:
-   the exact outcome R-1 existed to prevent.
+- **1.5.1, "A refused write to browser storage now says so."** It did not —
+  `save()` set a module-level flag nothing read. Implemented in 1.7.0
+  (`state.storageBlocked`, surfaced by `buildStorageBanner()`), and the 1.5.1
+  entry now carries its own correction.
+- **1.1.0, "Removing a case … deletes its stored history as the confirmation
+  promises."** It left the receipt number in the learned-wording map. Fixed in
+  1.7.0 (SE-2).
+- **`REVIEW-TRIAGE.md`'s consolidated removals list was 50% unimplemented**
+  (C-2, C-5, R-4, R-7, R-8). All five landed in 1.7.0.
 
-2. **When storage is refused, the panel stops recording history and says
-   nothing.** `applyFetchResult` correctly returns early if `setSnapshot`
-   fails — but that early return also skips `appendHistory`, `changedSince`
-   and `maybeNotify`. In private browsing or at quota, a real status change is
-   detected, discarded and never mentioned. The comment two lines above says
-   "silently failing to record history is the one failure this tool must not
-   hide."
-
-3. **A non-string `formType` silently deletes the stage rail.** `stageInfo`
-   does `String(...)`, misses the lookup, and returns `mode: 'none'` —
-   indistinguishable from the legitimate unknown-form path.
-
-4. **`isValidReceiptNumber` and `CASE_NUMBER_RE` disagree, and the stricter one
-   guards the user-facing path.** The add-case form validates `IOE` only while
-   import accepts any three letters. The form's error message correctly says
-   "three letters and ten digits", so a user with an `EAC` receipt is told the
-   right rule, shown an error anyway, and has to click "Add anyway".
+The four items the audit itself turned up — the unstyled timeline footnote, the
+silent storage failure, a non-string `formType` deleting the stage rail, and two
+receipt-number regexes that disagreed — were closed in 1.7.0–1.8.0.

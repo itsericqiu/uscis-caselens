@@ -51,13 +51,22 @@ stores a password.
 ## How to verify this yourself
 
 - **Network traffic:** open DevTools → Network while using the tool. Every
-  request goes to `my.uscis.gov`. Nothing else appears, because nothing
-  else is reachable — see the zero-permission point above.
+  request goes to `my.uscis.gov`, because those are the only requests the code
+  makes — there are exactly two `fetch` call sites and both build their URL
+  from the `ENDPOINTS` map.
+
+  Be precise about what enforces that, because the honest answer is weaker than
+  it first looks. Zero permissions stop an extension *reading* a cross-origin
+  response; they do not stop it *sending* one, and sending is all exfiltration
+  needs. The userscript ships `@grant none`, so it can reach whatever the page
+  can. What actually holds the line is that the code contains no such call, and
+  that you can check it — by reading it, by watching the Network tab, and by
+  `scripts/privacy-gate.js`, whose limits are stated below.
 - **Source integrity:** `node scripts/build.js --check` proves the shipped
-  userscript (`userscript/caselens.user.js`) and all three browser
-  extensions are byte-identical to the audited source
-  (`core/uscis-tracker-core.js` + `core/uscis-codes.js`). It exits non-zero
-  if anything has drifted.
+  userscript (`userscript/caselens.user.js`) and both browser extensions'
+  `content.js` are byte-identical to the audited source
+  (`core/uscis-codes.js` + `core/uscis-style.js` + `core/uscis-tracker-core.js`,
+  concatenated in that order). It exits non-zero if anything has drifted.
 - **Surface area:** every URL the code can construct lives in one
   `ENDPOINTS` map; every response field it reads lives in one `FIELDS` map.
   Both are grep-able in a single file — there is no scattered request logic
@@ -86,10 +95,23 @@ Stating these plainly is more useful than implying the list is empty.
   `@grant none`, which means it shares a JavaScript realm with the page. A
   hostile script on that origin could read the case data CaseLens fetches, or
   stop the panel appearing at all. The browser extensions run in an isolated
-  world and do not have this exposure — that is a real reason to prefer them.
+  world, so the tool's own code and its responses are out of reach — a real
+  reason to prefer them. It is not total: local storage is scoped to the origin
+  rather than to the world, and the panel's rendered text is in the page, so a
+  hostile script on my.uscis.gov could still read both.
 - **Anyone with access to your browser profile.** Saved cases and history sit in
   that site's local storage with no password on them.
 - **What `--check` proves.** It proves the shipped files are exactly what the
   build produces from the source in this repo. It does not prove the build
   script itself is honest — read `scripts/build.js`; it is short.
+- **What the automated gates prove.** `scripts/privacy-gate.js` greps the three
+  shipped files for URL literals outside an allow-list, and
+  `scripts/pii-gate.js` greps tracked text files for receipt numbers. Both are
+  regular expressions over text, so both catch mistakes and neither resists
+  someone deliberate: a URL assembled by concatenation, a protocol-relative
+  address, a `wss://` scheme, or a receipt number split across two lines all
+  pass. `pii-gate` does not look inside images at all, which is where a
+  live-session screenshot would leak. They are there to stop an accident
+  shipping, and that is the only claim made for them. Reading the code is still
+  the thing that proves the code.
 
