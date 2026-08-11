@@ -4,6 +4,36 @@ Notable changes per release. The section matching a tag becomes that release's
 notes on GitHub, so keep entries written for someone deciding whether to update
 — not for someone reading a commit log.
 
+## 1.3.2
+
+**Appointment times are back, correctly labelled**
+
+Confirmed against a real notice: USCIS sends appointments as properly-converted
+UTC instants — a 3:00 PM Eastern appointment arrives as `19:00Z`. Converting to
+the viewer's clock is therefore right for anyone whose computer is set to the
+office's timezone, which is the normal case, and a US appointment (8am–4pm
+local) never crosses a date boundary when converted.
+
+1.3.0 printed raw UTC and 1.3.1 removed the time entirely; both were
+overcorrections for a problem the data does not have. The time is shown again,
+labelled "in this computer's time zone", with the notice named as the
+authority.
+
+**A standing note that USCIS is authoritative**
+
+This panel reshapes what USCIS sends — most of all with dates, which arrive in
+more than one shape. If USCIS changes those shapes, our handling becomes the
+thing that is wrong. So:
+
+- The persistent footer now reads `Unofficial · your USCIS notices are
+  authoritative`, replacing the privacy line, which was already stated at
+  length in the README and is still in the footer tooltip. The authority
+  statement previously sat at the bottom of a long scroll, where a first-time
+  reader would never reach it.
+- Every interpreted date row carries a note that the value was read from USCIS
+  data by this panel, and that the notice and my.uscis.gov are correct if they
+  disagree.
+
 ## 1.3.1
 
 **Appointment times are no longer shown at all**

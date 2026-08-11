@@ -574,7 +574,7 @@ var USCIS_CODE_SOURCE = 'NIEM scr:BenefitDocumentStatusCategoryCodeSimpleType';
   // SECTION 1: Constants
   // ==========================================================================
 
-  var VERSION = '1.3.1';
+  var VERSION = '1.3.2';
 
   var STORAGE_KEYS = {
     cases: 'uscisTracker.cases.v1',      // [{ number, label, addedAt }]
@@ -4245,10 +4245,20 @@ var USCIS_CODE_SOURCE = 'NIEM scr:BenefitDocumentStatusCategoryCodeSimpleType';
     });
 
     var left = el('div', { 'class': 'uscistr-footer-left' }, [
+      // The persistent line is the authority statement, not the privacy one.
+      // This panel reads an undocumented API and normalises some of its
+      // quirks — notably dates, which USCIS sends in more than one shape. If
+      // USCIS changes those shapes, our handling could be the thing that is
+      // wrong. Whoever is reading this needs to know, at all times and without
+      // scrolling, which source wins. The privacy claim is in the tooltip and
+      // stated at length in the README.
       el('span', {
         'class': 'uscistr-truncate',
-        title: 'Everything this panel stores stays in this browser. It talks only to my.uscis.gov.',
-        text: 'Local only · nothing leaves this browser'
+        title: 'CaseLens is unofficial and reads an undocumented USCIS API. Dates and ' +
+          'labels are interpreted from that data and can be wrong. Your mailed notices ' +
+          'and my.uscis.gov are authoritative. Everything this panel stores stays in ' +
+          'this browser; it talks only to my.uscis.gov.',
+        text: 'Unofficial · your USCIS notices are authoritative'
       })
     ]);
     var right = el('div', { 'class': 'uscistr-footer-right' }, [
@@ -5819,14 +5829,17 @@ var USCIS_CODE_SOURCE = 'NIEM scr:BenefitDocumentStatusCategoryCodeSimpleType';
           // office, which we cannot know. For a biometrics appointment that is
           // a costly thing to get wrong, so the label says what it actually is
           // and points at the notice.
-          // No time is shown. USCIS sends the appointment as an instant but
-          // never says which timezone the office is in, so any clock time we
-          // print is only right if this computer happens to be set to that
-          // zone — and a wrong time on a biometrics appointment is the most
-          // expensive thing this panel could get wrong. The notice has it.
+          // USCIS sends this as a correctly-converted UTC instant — a 3:00 PM
+          // Eastern appointment arrives as 19:00Z — so converting it to this
+          // computer's clock gives the right wall time for anyone whose
+          // machine is set to the office's zone, which is the normal case. It
+          // is wrong for someone travelling with a laptop still on another
+          // zone, and we cannot detect that, so the label says whose clock
+          // this is and the notice is named as the authority.
           el('div', { 'class': 'uscistr-upcoming-meta', text:
-            'The time is on your appointment notice' +
-            (appt.letterId ? ' (notice ' + appt.letterId + ')' : '') + '.' })
+            formatTimeOfDay(appt.displayAt) + ' in this computer’s time zone' +
+            (appt.letterId ? ' · notice ' + appt.letterId : '') +
+            ' · confirm on your appointment notice' })
         ]),
         el('span', { 'class': 'uscistr-upcoming-meta', text:
           'in ' + plural(daysBetween(now, appt.displayAt), 'day') })
@@ -6016,10 +6029,21 @@ var USCIS_CODE_SOURCE = 'NIEM scr:BenefitDocumentStatusCategoryCodeSimpleType';
     return banner('danger', 'warning', 'USCIS may need something from you', lines, null);
   }
 
-  function fieldRow(labelText, valueChildren) {
+  // Dates are the one place this panel reshapes what USCIS sent: the API
+  // returns calendar dates and real instants in different shapes, and we read
+  // each accordingly. If USCIS changes those shapes, our handling becomes the
+  // thing that is wrong — so every date row carries the same standing note
+  // that the notice governs.
+  var DATE_CAVEAT = 'Read from USCIS data by this panel. If it disagrees with ' +
+    'your notice or my.uscis.gov, those are correct.';
+
+  function fieldRow(labelText, valueChildren, caveat) {
     var wrap = document.createDocumentFragment();
     wrap.appendChild(el('div', { 'class': 'uscistr-field-label', text: labelText }));
-    wrap.appendChild(el('div', { 'class': 'uscistr-field-value' }, valueChildren));
+    wrap.appendChild(el('div', {
+      'class': 'uscistr-field-value',
+      title: caveat || null
+    }, valueChildren));
     return wrap;
   }
 
@@ -6033,7 +6057,7 @@ var USCIS_CODE_SOURCE = 'NIEM scr:BenefitDocumentStatusCategoryCodeSimpleType';
       wrap.appendChild(fieldRow('Filed', [
         el('span', { text: formatDateFull(detail.submissionDate) }),
         filedMs !== null ? el('span', { 'class': 'uscistr-rel', text: 'day ' + daysBetween(filedMs, new Date().getTime()) }) : null
-      ]));
+      ], DATE_CAVEAT));
     }
 
     if (notice && notice.actionCodeDate) {
@@ -6041,7 +6065,7 @@ var USCIS_CODE_SOURCE = 'NIEM scr:BenefitDocumentStatusCategoryCodeSimpleType';
         el('span', { text: formatDateFull(notice.actionCodeDate) }),
         el('span', { 'class': 'uscistr-rel', text: relativeDate(notice.actionCodeDate) }),
         notice.actionCode ? codeChip(notice.actionCode) : null
-      ]));
+      ], DATE_CAVEAT));
     }
 
     if (detail && detail.backendUpdatedAt) {
@@ -6052,7 +6076,7 @@ var USCIS_CODE_SOURCE = 'NIEM scr:BenefitDocumentStatusCategoryCodeSimpleType';
         el('span', { text: formatDateFull(detail.backendUpdatedAt) }),
         el('span', { 'class': 'uscistr-rel', text: relativeDate(detail.backendUpdatedAt) }),
         newer ? chip('newer than status', 'quiet') : null
-      ]));
+      ], DATE_CAVEAT));
     }
 
     // People actively hunt for the office, so its absence is stated rather
