@@ -176,8 +176,14 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Checkout
+      # Full history and tags: the notes step needs the previous release tag to
+      # know which CHANGELOG sections this release is carrying. A shallow
+      # checkout has no tags, so that lookup would silently find nothing and
+      # quietly go back to publishing one section.
+      - name: Checkout with tags
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Read VERSION from core
         id: version
@@ -217,7 +223,18 @@ jobs:
           # Handwritten notes when the version has a CHANGELOG section; fall
           # back to GitHub's generated commit list when it doesn't, so a
           # release never ships with empty notes.
-          if node scripts/release-notes.js "${{ steps.version.outputs.version || env.VERSION }}" > /tmp/notes.md 2>/dev/null; then
+          #
+          # --since covers every version bumped since the last published
+          # release. A release is cut per VERSION bump, not per commit, so
+          # pushing several bumps together tags only the last one and would
+          # otherwise strand the notes for everything skipped over.
+          PREV=$(git tag --list 'v*' --sort=-v:refname | head -n 1 | sed 's/^v//')
+          if [ -n "$PREV" ]; then
+            SINCE_ARG="--since $PREV"
+          else
+            SINCE_ARG=""
+          fi
+          if node scripts/release-notes.js "${{ steps.version.outputs.version || env.VERSION }}" $SINCE_ARG > /tmp/notes.md 2>/dev/null; then
             echo "Using CHANGELOG.md section for ${{ steps.version.outputs.version || env.VERSION }}"
             {
               echo 'body<<CASELENS_NOTES_EOF'
