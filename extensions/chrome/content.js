@@ -574,7 +574,7 @@ var USCIS_CODE_SOURCE = 'NIEM scr:BenefitDocumentStatusCategoryCodeSimpleType';
   // SECTION 1: Constants
   // ==========================================================================
 
-  var VERSION = '1.3.3';
+  var VERSION = '1.3.4';
 
   var STORAGE_KEYS = {
     cases: 'uscisTracker.cases.v1',      // [{ number, label, addedAt }]
@@ -5856,11 +5856,16 @@ var USCIS_CODE_SOURCE = 'NIEM scr:BenefitDocumentStatusCategoryCodeSimpleType';
           // is wrong for someone travelling with a laptop still on another
           // zone, and we cannot detect that, so the label says whose clock
           // this is and the notice is named as the authority.
+          // The zone is named so a mismatch with the office is visible, and the
+          // notice is named as the tiebreaker in the same breath — a time is
+          // the one value here where acting on the wrong number means missing
+          // an appointment.
           el('div', { 'class': 'uscistr-upcoming-meta', text:
             formatTimeOfDay(appt.displayAt) +
             (apptZone ? ' ' + apptZone : '') +
-            ' · your device’s time zone, which may not be the office’s' +
-            (appt.letterId ? ' · notice ' + appt.letterId : '') })
+            ' · shown in your device’s time zone, which may not be the office’s.' +
+            ' If this differs from your notice, follow the notice' +
+            (appt.letterId ? ' (' + appt.letterId + ')' : '') + '.' })
         ]),
         el('span', { 'class': 'uscistr-upcoming-meta', text:
           'in ' + plural(daysBetween(now, appt.displayAt), 'day') })

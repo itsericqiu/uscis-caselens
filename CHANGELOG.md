@@ -4,6 +4,19 @@ Notable changes per release. The section matching a tag becomes that release's
 notes on GitHub, so keep entries written for someone deciding whether to update
 — not for someone reading a commit log.
 
+## 1.3.4
+
+**Appointments say which source wins**
+
+The appointment line now reads: `3:00 PM EDT · shown in your device's time
+zone, which may not be the office's. If this differs from your notice, follow
+the notice (440000001).`
+
+Naming the zone makes a mismatch visible; naming the notice says what to do
+about it. That advisory had been in the band's tooltip only, which is no use on
+a touchscreen and easy to miss anywhere. A time is the one value in this panel
+where acting on the wrong number means missing an appointment.
+
 ## 1.3.3
 
 **Appointment times name their time zone**
