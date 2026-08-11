@@ -4,6 +4,42 @@ Notable changes per release. The section matching a tag becomes that release's
 notes on GitHub, so keep entries written for someone deciding whether to update
 — not for someone reading a commit log.
 
+## 1.5.0
+
+**Security: a hostile document link could have pointed off-site**
+
+The check that decided whether a document link was safe to click was
+hand-rolled, and could be fooled by a backslash or an embedded tab — a URL like
+`/\\evil.com/x` looked relative but resolved to another site. A malicious or
+compromised response could have rendered a link labelled like your own USCIS
+notice that led somewhere else, inside a panel sitting on a government page.
+Links are now resolved with the browser's URL parser and compared by origin.
+
+**The settings could not be opened with a mouse**
+
+Dark mode, notifications, hide-receipt-numbers and the refresh interval were
+all unreachable: clicking anything in the settings popover closed it before the
+click landed. Keyboard use was unaffected, which is why it was not spotted
+sooner.
+
+**Zero permissions is now enforced, not just claimed**
+
+The build only checked the version field in each extension manifest, so a
+manifest could have gained `<all_urls>`, a background worker or a second script
+and still reported OK. `build.js --check` now fails if any manifest requests
+anything.
+
+**Other fixes**
+
+- A document named `constructor` or `toString` was silently never reported as
+  new, because filename maps inherited from `Object.prototype`.
+- "Hide receipt numbers" masked the raw responses but still showed the
+  representative's name on the card.
+- `SECURITY.md` claimed three things the code did not do. Corrected, and a
+  "What this does not defend against" section added — including that the
+  userscript shares a page with my.uscis.gov's own scripts, which the
+  extensions do not.
+
 ## 1.4.1
 
 **Irreplaceable stored data is no longer dropped on a shape mismatch**

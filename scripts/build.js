@@ -93,6 +93,39 @@ function writeOrCheck(filePath, content) {
   }
 }
 
+// The zero-permissions claim in README.md and SECURITY.md was previously
+// enforced by nothing: --check only compared the version field, so a manifest
+// could gain <all_urls>, a background worker, or a second content script and
+// still report OK. These are the shapes both manifests must keep.
+const EXPECTED_MANIFEST = {
+  manifest_version: 3,
+  content_scripts: [{
+    matches: ['https://my.uscis.gov/*'],
+    js: ['content.js'],
+    run_at: 'document_idle'
+  }]
+};
+const FORBIDDEN_MANIFEST_KEYS = ['permissions', 'host_permissions', 'background', 'web_accessible_resources', 'externally_connectable'];
+
+function assertManifestShape(file, manifest) {
+  const problems = [];
+  for (const key of FORBIDDEN_MANIFEST_KEYS) {
+    if (key in manifest) problems.push(`declares "${key}" — this extension must request nothing`);
+  }
+  if (manifest.manifest_version !== EXPECTED_MANIFEST.manifest_version) {
+    problems.push(`manifest_version is ${manifest.manifest_version}, expected ${EXPECTED_MANIFEST.manifest_version}`);
+  }
+  const actual = JSON.stringify(manifest.content_scripts);
+  const expected = JSON.stringify(EXPECTED_MANIFEST.content_scripts);
+  if (actual !== expected) problems.push(`content_scripts is ${actual}, expected ${expected}`);
+  if (problems.length) {
+    console.error(`FAIL: ${file}`);
+    for (const p of problems) console.error(`  ${p}`);
+    return false;
+  }
+  return true;
+}
+
 function updateManifest(manifestPath, version) {
   if (checkMode) {
     try {
@@ -104,6 +137,7 @@ function updateManifest(manifestPath, version) {
         console.log(`MISMATCH: ${manifestPath}`);
         return false;
       }
+      if (!assertManifestShape(manifestPath, manifest)) return false;
       if (content !== updated) {
         console.log(`MISMATCH: ${manifestPath}`);
         return false;
@@ -118,6 +152,7 @@ function updateManifest(manifestPath, version) {
     try {
       const content = fs.readFileSync(manifestPath, 'utf8');
       const manifest = JSON.parse(content);
+      if (!assertManifestShape(manifestPath, manifest)) return false;
       manifest.version = version;
       fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n', 'utf8');
       console.log(`${manifestPath}`);

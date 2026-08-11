@@ -37,9 +37,8 @@ response data is treated as untrusted:
 - Document links are only rendered as clickable when they resolve to the
   same origin, `my.uscis.gov`. Both a protocol-relative link (`//evil.com`)
   and a prefix-collision hostname (`my.uscis.gov.evil.com`) are rejected —
-  origin comparison, not a substring or prefix check.
-- Case numbers are validated against the expected receipt-number shape and
-  URL-encoded before they are used to build any request.
+  resolved with the URL parser and compared by origin, so separator tricks (backslashes, embedded tabs) cannot escape it.
+- Case numbers are URL-encoded before they are used to build any request, so no input can reshape a URL. Shape validation is advisory — the add-case form lets you override it.
 - Imported backup files (export/import, JSON) are validated before their
   contents are written to storage.
 
@@ -78,3 +77,19 @@ vulnerability) rather than a public issue.
 
 There is no bounty program. Good-faith reports are welcomed and will be
 credited unless you'd prefer otherwise.
+
+## What this does not defend against
+
+Stating these plainly is more useful than implying the list is empty.
+
+- **A compromised script on my.uscis.gov itself.** The userscript runs with
+  `@grant none`, which means it shares a JavaScript realm with the page. A
+  hostile script on that origin could read the case data CaseLens fetches, or
+  stop the panel appearing at all. The browser extensions run in an isolated
+  world and do not have this exposure — that is a real reason to prefer them.
+- **Anyone with access to your browser profile.** Saved cases and history sit in
+  that site's local storage with no password on them.
+- **What `--check` proves.** It proves the shipped files are exactly what the
+  build produces from the source in this repo. It does not prove the build
+  script itself is honest — read `scripts/build.js`; it is short.
+

@@ -73,7 +73,7 @@ better by being less certain than the data supports, the panel loses.
 
 ## Changing stored data
 
-Five keys live in `localStorage`, all prefixed `uscisTracker.`. Before changing
+Six keys live in `localStorage`, all prefixed `uscisTracker.`. Before changing
 any of their shapes, know which are regenerable and which are not:
 
 | Key | If lost |
@@ -121,7 +121,13 @@ node --check core/uscis-tracker-core.js
 node --check core/uscis-codes.js
 node scripts/build.js          # regenerate userscript + extension copies
 node scripts/build.js --check  # must exit 0
+node scripts/privacy-gate.js   # no origin other than my.uscis.gov
+node scripts/pii-gate.js       # no real receipt numbers
+node scripts/smoke-test.js     # starts its own server + headless Chrome
 ```
+
+Add a `## X.Y.Z` section to `CHANGELOG.md`. That section becomes the GitHub
+release body verbatim; without it the release ships a list of commit subjects.
 
 Fixtures can't catch everything. The harness has no timezone, no real
 Chrome policy, and no live account — a filing date rendered a day early and a

@@ -184,12 +184,12 @@ block. It still appears in the timeline with its raw code.
 2. **Nothing maps** — render the rail fully hollow, state plainly that we
    can't place this case, and name the codes we couldn't resolve. Never guess a
    position.
-3. **Unknown form type** — we ship sequences for I-485, I-492, I-131, I-485J.
+3. **Unknown form type** — we ship sequences for I-485, I-765, I-131, I-485J.
    For any other form, **render no rail at all** and fall back to `Day N`, the
    quiet-stretch meter, and the timeline. A wrong journey is worse than none.
    Never show a generic rail implying stages a form may not have.
 4. **Code maps to a stage absent from this form's sequence** (e.g. an interview
-   code on an I-492) — trust the data over our model: show the event normally
+   code on an I-765) — trust the data over our model: show the event normally
    in the timeline and drop the rail for that case rather than forcing the code
    into a shape it doesn't fit. Our sequence being incomplete is the likelier
    explanation, and the rail is the disposable part.

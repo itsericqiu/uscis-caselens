@@ -1,5 +1,11 @@
 # 03 — Timeline & Progress
 
+> **Status: input document, partly superseded.** Written as a specialist
+> deliverable before implementation. The binding decisions are in
+> [SPEC.md](SPEC.md) and [REVIEW-TRIAGE.md](REVIEW-TRIAGE.md); where this file
+> disagrees with those, they win. Kept for the reasoning, not as a build target.
+
+
 Design spec for the centerpiece of the USCIS Case Tracker panel: how case
 progress and event history are displayed.
 
@@ -172,7 +178,10 @@ user only to themselves), and it *changes over time even when nothing happens* �
 so the panel has something new to say on a visit where the answer is "no news."
 
 **B4 — What typically comes next.** One muted line under the stage rail:
-> Cases at this stage usually move to **Interview** next. USCIS has not said this
+> ~~Cases at this stage usually move to **Interview** next.~~ **REJECTED — do not
+> build.** This is invented population data; see REVIEW-TRIAGE.md finding D and
+> the "no predicted dates" rule in CONTRIBUTING.md. Original text followed for
+> the record: USCIS has not said this
 > will happen, and the order varies.
 
 Sourced only from the shipped stage sequence, never from an ETA. It is the
@@ -820,7 +829,7 @@ real safety.
 │  Recv   Bio    Review  Intvw  Decision                     │  9.5px caps
 │                ▲ you are here                              │
 │                                                            │
-│  Cases at this stage usually move to Interview next.       │  11.5px muted
+│  [REJECTED: next-step prediction — not built]              │
 │  USCIS has not said this will happen, and order varies.    │
 │                                                            │
 │  Quiet for 22 days                            longest: 41  │

@@ -1,5 +1,11 @@
 # 02 · Visual system — "Quiet Instrument"
 
+> **Status: input document, partly superseded.** Written as a specialist
+> deliverable before implementation. The binding decisions are in
+> [SPEC.md](SPEC.md) and [REVIEW-TRIAGE.md](REVIEW-TRIAGE.md); where this file
+> disagrees with those, they win. Kept for the reasoning, not as a build target.
+
+
 The complete visual specification for the floating case-status panel injected onto
 `my.uscis.gov`. Live rendering: **[`mockup-visual-system.html`](./mockup-visual-system.html)**
 (standalone, no network, light + dark side by side, working toggles).

@@ -159,5 +159,6 @@ already fired.
   live data — `SA`, `RCV0` — are absent from NIEM anyway, so the swap doesn't
   help where the real gap is. SPEC.md is superseded on this point.
 - **Do not loosen the quiet-meter gate** (see adjudication above).
-- **Do not add a status board or per-case collapse** for the 4-case scroll
-  problem yet. Real, but it's new surface area; revisit after these land.
+- **Do not add a status board.** Per-case collapse was revisited and shipped in
+  1.4.0; the collapsed rows are the overview, so a separate board would render
+  every case's identity a second time.

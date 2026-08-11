@@ -559,8 +559,8 @@ var USCIS_CODE_SOURCE = 'NIEM scr:BenefitDocumentStatusCategoryCodeSimpleType';
 //     ever sent anywhere else. No analytics, no telemetry, no third parties.
 //   - No eval, no innerHTML: all DOM is built with createElement/textContent.
 //
-// This file is the single source of truth. The Tampermonkey userscript and the
-// Chrome/Firefox/Safari extensions embed this exact file — verify with
+// This file is the single source of truth. The userscript and the Chrome and
+// Firefox extensions are generated from it and core/uscis-codes.js — verify with
 // `node scripts/build.js --check`.
 // ============================================================================
 
@@ -574,7 +574,7 @@ var USCIS_CODE_SOURCE = 'NIEM scr:BenefitDocumentStatusCategoryCodeSimpleType';
   // SECTION 1: Constants
   // ==========================================================================
 
-  var VERSION = '1.4.1';
+  var VERSION = '1.5.0';
 
   var STORAGE_KEYS = {
     cases: 'uscisTracker.cases.v1',      // [{ number, label, addedAt }]
@@ -1341,7 +1341,7 @@ var USCIS_CODE_SOURCE = 'NIEM scr:BenefitDocumentStatusCategoryCodeSimpleType';
 
     // Counted, not set-membership: USCIS reuses filenames, and a second file
     // with a name we have already seen is still a new document on this case.
-    var remaining = {};
+    var remaining = Object.create(null);
     var i;
     var name;
     if (Array.isArray(prev.docNames)) {
@@ -4856,7 +4856,7 @@ var USCIS_CODE_SOURCE = 'NIEM scr:BenefitDocumentStatusCategoryCodeSimpleType';
       if (Array.isArray(requests)) view.evidenceCount = requests.length;
     }
 
-    var docNames = {};
+    var docNames = Object.create(null);
     if (view.docs) {
       for (var d = 0; d < view.docs.length; d++) {
         if (view.docs[d].name) docNames[String(view.docs[d].name)] = true;
@@ -6175,7 +6175,9 @@ var USCIS_CODE_SOURCE = 'NIEM scr:BenefitDocumentStatusCategoryCodeSimpleType';
 
     // No attorney is a normal state, not missing data: hide it when absent.
     if (detail && detail.representativeName) {
-      wrap.appendChild(fieldRow('Representative', [el('span', { text: String(detail.representativeName) })]));
+      wrap.appendChild(fieldRow('Representative', [el('span', {
+        text: (state.prefs && state.prefs.redact) ? '[hidden]' : String(detail.representativeName)
+      })]));
     }
 
     return wrap;
@@ -6187,69 +6189,19 @@ var USCIS_CODE_SOURCE = 'NIEM scr:BenefitDocumentStatusCategoryCodeSimpleType';
   //   "javascript:..."             — script execution
   //   "//evil.com/x"               — protocol-relative, resolves off-origin
   //   "https://my.uscis.gov.evil.com" — prefix match that is a different host
+  // Document URLs come from an undocumented API and are untrusted. Hand-rolled
+  // prefix checks are not safe here: the URL parser treats a backslash as a
+  // separator and strips tab/CR/LF anywhere, so "/\\evil.com/x" and
+  // "/<TAB>/evil.com" both resolve off-origin while looking relative. Let the
+  // parser resolve it, then compare the origin it actually produced.
   function isSafeDocUrl(url) {
     if (typeof url !== 'string' || !url) return false;
-
-    // Site-relative path, but not protocol-relative ("//host").
-    if (url.charAt(0) === '/') return url.charAt(1) !== '/';
-
-    var prefix = 'https://my.uscis.gov';
-    if (url.indexOf(prefix) !== 0) return false;
-
-    // The character after the origin must end it, not extend the hostname.
-    var next = url.charAt(prefix.length);
-    return next === '' || next === '/' || next === '?' || next === '#';
-  }
-
-  // "NEW" if this document's name shows up in a locally-recorded kind:
-  // 'document' history entry from within the last 7 days.
-  function isRecentDocument(name, historyList) {
-    var cutoff = new Date().getTime() - 7 * MS_PER_DAY;
-    for (var i = 0; i < historyList.length; i++) {
-      var h = historyList[i];
-      if (h.kind === 'document' && h.to === name) {
-        var t = parseDateSafe(h.at);
-        if (t !== null && t >= cutoff) return true;
-      }
+    try {
+      var resolved = new URL(url, location.href);
+      return resolved.protocol === 'https:' && resolved.hostname === 'my.uscis.gov';
+    } catch (e) {
+      return false;
     }
-    return false;
-  }
-
-  // USCIS names uploaded files like "IOE0000000001-0000000000000-part1.tif",
-  // which tells a reader nothing. The label therefore derives from sourceType,
-  // and the raw filename stays visible underneath — it is the only identifier
-  // that lets someone match this row against what they see on the USCIS site.
-  function documentLabel(doc) {
-    if (doc.source && String(doc.source) === 'Applicant Provided') return 'Provided by you';
-    if (doc.source) return String(doc.source);
-    if (doc.type) return String(doc.type);
-    return 'Document on file';
-  }
-
-  // An empty documents array is not USCIS asserting that no documents exist,
-  // and a failed read is not an empty array. Both get their own sentence.
-  // Paragraphs, not a bare text node, so several of these can be merged into
-  // one box without the first-child margin rule collapsing the gap.
-  function noteBox(lines) {
-    var box = el('div', { 'class': 'uscistr-note' });
-    for (var i = 0; i < lines.length; i++) {
-      if (lines[i]) box.appendChild(el('p', { text: lines[i] }));
-    }
-    return box;
-  }
-
-  function documentsNoteText(entry, view) {
-    var payload = entry.result.documents;
-    if (payloadFailed(payload)) {
-      return 'We could not read the document list on this check, so we do not know what is on file. Check my.uscis.gov directly.';
-    }
-    if (view.docs && view.docs.length === 0) {
-      return 'USCIS lists no documents on this case. That is not the same as there being none — if you see documents on my.uscis.gov that are not here, they are stored somewhere this panel cannot read.';
-    }
-    if (!view.docs) {
-      return 'USCIS returned nothing at all for the document list on this check, so we cannot say what is on file. Check my.uscis.gov directly.';
-    }
-    return null;
   }
 
   function buildDocuments(entry, view) {
@@ -6996,11 +6948,15 @@ var USCIS_CODE_SOURCE = 'NIEM scr:BenefitDocumentStatusCategoryCodeSimpleType';
       // So does clicking anywhere outside it.
       document.addEventListener('mousedown', function (e) {
         if (!uiState.settingsOpen || !ROOT) return;
-        var node = e.target;
-        while (node) {
-          if (node.className && String(node.className).indexOf('uscistr-settings') !== -1) return;
-          if (node.getAttribute && node.getAttribute('data-uscistr-settings-toggle')) return;
-          node = node.parentNode;
+        // The popover's class is uscistr-popover. An earlier version of this
+        // handler looked for "uscistr-settings", which matches nothing — so a
+        // mousedown inside the popover closed it and re-rendered before the
+        // click could land, making every setting unreachable by mouse. Use
+        // closest() so a future rename fails loudly rather than silently.
+        var target = e.target;
+        if (target && target.closest) {
+          if (target.closest('.uscistr-popover')) return;
+          if (target.closest('[data-uscistr-settings-toggle]')) return;
         }
         uiState.settingsOpen = false;
         render();

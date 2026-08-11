@@ -1,5 +1,11 @@
 # Information architecture & content design
 
+> **Status: input document, partly superseded.** Written as a specialist
+> deliverable before implementation. The binding decisions are in
+> [SPEC.md](SPEC.md) and [REVIEW-TRIAGE.md](REVIEW-TRIAGE.md); where this file
+> disagrees with those, they win. Kept for the reasoning, not as a build target.
+
+
 Panel overlaying `my.uscis.gov`. Audience: people whose ability to work, travel, or
 remain in the country depends on these records. They check at 2am. They check for
 months with nothing changing. Many read English as a second language. Many are not
