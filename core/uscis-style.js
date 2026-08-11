@@ -326,6 +326,15 @@ var CASELENS_STYLE = [
   "  max-height: 92vh;",
   "}",
   ".uscistr-root .uscistr-notices { flex: none; }",
+  // Shown once. Solid rather than dashed: this one is an introduction, not a
+  // caveat about missing data like the other note boxes.
+  ".uscistr-root .uscistr-intro {",
+  "  border-style: solid;",
+  "  border-color: var(--ust-accent-soft-border);",
+  "  background: var(--ust-accent-soft);",
+  "  gap: var(--ust-s3);",
+  "}",
+  ".uscistr-root .uscistr-intro button { align-self: flex-start; margin-top: var(--ust-s2); }",
   // Two independently scrolling columns. The rail keeps its own scroll so a
   // long case never scrolls the overview away.
   ".uscistr-root .uscistr-body-split {",
@@ -1371,15 +1380,19 @@ var CASELENS_STYLE = [
   ".uscistr-root .uscistr-stage-node svg { width: 11px; height: 11px; }",
   ".uscistr-root .uscistr-stage-seg.uscistr-is-done .uscistr-stage-node,",
   ".uscistr-root .uscistr-stage-seg.uscistr-is-current .uscistr-stage-node { color: var(--ust-accent); }",
+  // Full stage names, wrapped rather than abbreviated. "Recv" and "Intvw"
+  // saved four characters each and cannot be translated, read aloud, or
+  // guessed by someone who has not seen them before — on a rail that is
+  // already labelled as this tool's own reading of the codes.
   ".uscistr-root .uscistr-stage-label {",
   "  font-size: 9.5px;",
-  "  line-height: 1.25;",
+  "  line-height: 1.2;",
   "  text-align: center;",
   "  color: var(--ust-text-3);",
   "  letter-spacing: 0.01em;",
-  "  overflow: hidden;",
-  "  text-overflow: ellipsis;",
   "  max-width: 100%;",
+  "  overflow-wrap: break-word;",
+  "  hyphens: auto;",
   "}",
   ".uscistr-root .uscistr-stage-seg.uscistr-is-done .uscistr-stage-label { color: var(--ust-text-2); }",
   ".uscistr-root .uscistr-stage-seg.uscistr-is-current .uscistr-stage-label { color: var(--ust-text-1); font-weight: 600; }",

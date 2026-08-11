@@ -866,6 +866,15 @@ var CASELENS_STYLE = [
   "  max-height: 92vh;",
   "}",
   ".uscistr-root .uscistr-notices { flex: none; }",
+  // Shown once. Solid rather than dashed: this one is an introduction, not a
+  // caveat about missing data like the other note boxes.
+  ".uscistr-root .uscistr-intro {",
+  "  border-style: solid;",
+  "  border-color: var(--ust-accent-soft-border);",
+  "  background: var(--ust-accent-soft);",
+  "  gap: var(--ust-s3);",
+  "}",
+  ".uscistr-root .uscistr-intro button { align-self: flex-start; margin-top: var(--ust-s2); }",
   // Two independently scrolling columns. The rail keeps its own scroll so a
   // long case never scrolls the overview away.
   ".uscistr-root .uscistr-body-split {",
@@ -1911,15 +1920,19 @@ var CASELENS_STYLE = [
   ".uscistr-root .uscistr-stage-node svg { width: 11px; height: 11px; }",
   ".uscistr-root .uscistr-stage-seg.uscistr-is-done .uscistr-stage-node,",
   ".uscistr-root .uscistr-stage-seg.uscistr-is-current .uscistr-stage-node { color: var(--ust-accent); }",
+  // Full stage names, wrapped rather than abbreviated. "Recv" and "Intvw"
+  // saved four characters each and cannot be translated, read aloud, or
+  // guessed by someone who has not seen them before — on a rail that is
+  // already labelled as this tool's own reading of the codes.
   ".uscistr-root .uscistr-stage-label {",
   "  font-size: 9.5px;",
-  "  line-height: 1.25;",
+  "  line-height: 1.2;",
   "  text-align: center;",
   "  color: var(--ust-text-3);",
   "  letter-spacing: 0.01em;",
-  "  overflow: hidden;",
-  "  text-overflow: ellipsis;",
   "  max-width: 100%;",
+  "  overflow-wrap: break-word;",
+  "  hyphens: auto;",
   "}",
   ".uscistr-root .uscistr-stage-seg.uscistr-is-done .uscistr-stage-label { color: var(--ust-text-2); }",
   ".uscistr-root .uscistr-stage-seg.uscistr-is-current .uscistr-stage-label { color: var(--ust-text-1); font-weight: 600; }",
@@ -2009,7 +2022,7 @@ var CASELENS_STYLE = [
   // SECTION 1: Constants
   // ==========================================================================
 
-  var VERSION = '1.9.0';
+  var VERSION = '1.10.0';
 
   var STORAGE_KEYS = {
     cases: 'uscisTracker.cases.v1',      // [{ number, label, addedAt }]
@@ -2162,7 +2175,8 @@ var CASELENS_STYLE = [
     dark: false,
     refreshMs: DEFAULT_REFRESH_MS,
     notify: false,
-    redact: false
+    redact: false,
+    seenIntro: false
   };
 
   // Mutable app state (not persisted except via the storage layer)
@@ -2266,7 +2280,10 @@ var CASELENS_STYLE = [
     state.cases = [];
     for (var i = 0; i < storedCases.length; i++) {
       var c = storedCases[i];
-      if (!c || typeof c !== 'object' || !c.number) continue;
+      // The same validation import applies. These paths read the same store, so
+      // accepting anything truthy here made the stricter check on import
+      // decorative: a value that could not be imported could still be loaded.
+      if (!c || typeof c !== 'object' || !isValidReceiptNumber(c.number)) continue;
       state.cases.push({
         number: c.number,
         label: typeof c.label === 'string' ? c.label : '',
@@ -3085,7 +3102,13 @@ var CASELENS_STYLE = [
       if (!clean) return;
       var existing = dict.byCode[key];
       if (existing && existing.text === clean && existing.from === from) return;
-      dict.byCode[key] = { text: clean, from: from === null ? null : String(from) };
+      // `at` is only ever used to decide what to drop first when the map is
+      // capped — never shown, never compared for equality above.
+      dict.byCode[key] = {
+        text: clean,
+        from: from === null ? null : String(from),
+        at: new Date().getTime()
+      };
       changed = true;
     }
 
@@ -3101,7 +3124,29 @@ var CASELENS_STYLE = [
       }
     }
 
-    if (changed) save(STORAGE_KEYS.codeText, dict);
+    if (changed) {
+      pruneLearned(dict);
+      save(STORAGE_KEYS.codeText, dict);
+    }
+  }
+
+  // Nothing ever removed an entry from this map. It only grows: one key per
+  // code per form type, written on every refresh, for as long as the tool is
+  // installed. Realistically that is dozens of keys, but "realistically" is
+  // doing load-bearing work in a store with no ceiling — and a full quota
+  // blocks the snapshot writes this tool actually depends on.
+  //
+  // Entries are dropped oldest-written first. Losing one costs nothing: the
+  // next refresh of a case carrying that code writes it back.
+  var LEARNED_CODE_CAP = 400;
+
+  function pruneLearned(dict) {
+    var keys = Object.keys(dict.byCode);
+    if (keys.length <= LEARNED_CODE_CAP) return;
+    keys.sort(function (a, b) {
+      return (dict.byCode[a].at || 0) - (dict.byCode[b].at || 0);
+    });
+    for (var i = 0; i < keys.length - LEARNED_CODE_CAP; i++) delete dict.byCode[keys[i]];
   }
 
   // Translate an event code for display, in the caller's own case's context.
@@ -3662,31 +3707,31 @@ var CASELENS_STYLE = [
   // do not guess a sequence for a form we have not verified.
   var STAGE_SEQUENCES = {
     'I-485': [
-      { label: 'Recv', name: 'Received', codes: ['RCV0', 'H001', 'IAF', 'IAA'] },
-      { label: 'Bio', name: 'Biometrics', codes: ['FNA', 'IMAF', 'FNB', 'MA70', 'H008', 'FNG', 'FNH'] },
-      { label: 'Review', name: 'Under review', codes: ['FSA0', 'FTA0', 'FT0'] },
-      { label: 'Intvw', name: 'Interview', codes: ['FH', 'FHB', 'FJ', 'IM', 'HG', 'FM'] },
-      { label: 'Decision', name: 'Decision', codes: ['DA', 'DB', 'SA', 'APR0', 'IEA', 'IEC', 'IEE'] },
-      { label: 'Card', name: 'Card produced', codes: ['LAA', 'LBA', 'LDA', 'LEA'] }
+      { name: 'Received', codes: ['RCV0', 'H001', 'IAF', 'IAA'] },
+      { name: 'Biometrics', codes: ['FNA', 'IMAF', 'FNB', 'MA70', 'H008', 'FNG', 'FNH'] },
+      { name: 'Under review', codes: ['FSA0', 'FTA0', 'FT0'] },
+      { name: 'Interview', codes: ['FH', 'FHB', 'FJ', 'IM', 'HG', 'FM'] },
+      { name: 'Decision', codes: ['DA', 'DB', 'SA', 'APR0', 'IEA', 'IEC', 'IEE'] },
+      { name: 'Card produced', codes: ['LAA', 'LBA', 'LDA', 'LEA'] }
     ],
     'I-765': [
-      { label: 'Recv', name: 'Received', codes: ['RCV0', 'H001', 'IAF', 'IAA'] },
-      { label: 'Bio', name: 'Biometrics', codes: ['FNA', 'IMAF', 'FNB', 'MA70', 'H008', 'FNG', 'FNH'] },
-      { label: 'Review', name: 'Under review', codes: ['FSA0', 'FTA0', 'FT0'] },
-      { label: 'Approved', name: 'Approved', codes: ['DA', 'DB', 'SA', 'IEA', 'IEE'] },
-      { label: 'Card', name: 'Card produced', codes: ['LAA', 'LBA', 'LDA', 'LEA'] }
+      { name: 'Received', codes: ['RCV0', 'H001', 'IAF', 'IAA'] },
+      { name: 'Biometrics', codes: ['FNA', 'IMAF', 'FNB', 'MA70', 'H008', 'FNG', 'FNH'] },
+      { name: 'Under review', codes: ['FSA0', 'FTA0', 'FT0'] },
+      { name: 'Approved', codes: ['DA', 'DB', 'SA', 'IEA', 'IEE'] },
+      { name: 'Card produced', codes: ['LAA', 'LBA', 'LDA', 'LEA'] }
     ],
     'I-131': [
-      { label: 'Recv', name: 'Received', codes: ['RCV0', 'H001', 'IAF', 'IAA'] },
-      { label: 'Bio', name: 'Biometrics', codes: ['FNA', 'IMAF', 'FNB', 'MA70', 'H008', 'FNG', 'FNH'] },
-      { label: 'Review', name: 'Under review', codes: ['FSA0', 'FTA0', 'FT0'] },
-      { label: 'Approved', name: 'Approved', codes: ['DA', 'DB', 'SA', 'IEA', 'IEE'] },
-      { label: 'Document', name: 'Document produced', codes: ['LAA', 'LBA', 'LDA', 'LEA'] }
+      { name: 'Received', codes: ['RCV0', 'H001', 'IAF', 'IAA'] },
+      { name: 'Biometrics', codes: ['FNA', 'IMAF', 'FNB', 'MA70', 'H008', 'FNG', 'FNH'] },
+      { name: 'Under review', codes: ['FSA0', 'FTA0', 'FT0'] },
+      { name: 'Approved', codes: ['DA', 'DB', 'SA', 'IEA', 'IEE'] },
+      { name: 'Document produced', codes: ['LAA', 'LBA', 'LDA', 'LEA'] }
     ],
     'I-485J': [
-      { label: 'Recv', name: 'Received', codes: ['RCV0', 'H001', 'IAF', 'IAA'] },
-      { label: 'Review', name: 'Under review', codes: ['FSA0', 'FTA0', 'FT0'] },
-      { label: 'Done', name: 'Reviewed', codes: ['DA', 'DB', 'SA'] }
+      { name: 'Received', codes: ['RCV0', 'H001', 'IAF', 'IAA'] },
+      { name: 'Under review', codes: ['FSA0', 'FTA0', 'FT0'] },
+      { name: 'Reviewed', codes: ['DA', 'DB', 'SA'] }
     ]
   };
 
@@ -3762,6 +3807,20 @@ var CASELENS_STYLE = [
   //   keys starting with 'on' + a function -> addEventListener
   //   anything else (title, type, placeholder, href, target, rel, ...) -> setAttribute
   // null/undefined attr values are skipped entirely. `children` may contain
+  // Ties a disclosure button to the thing it opens, so a screen reader says
+  // what "Explain" or "Show full text" is about to reveal instead of just
+  // announcing a button whose label is a verb with no object.
+  //
+  // render() rebuilds the whole panel, so ids only have to be unique within one
+  // render pass; the counter never resets and never collides.
+  var domIdSeq = 0;
+  function linkDisclosure(button, target) {
+    if (!button || !target) return target;
+    if (!target.id) target.id = 'uscistr-d' + (++domIdSeq);
+    button.setAttribute('aria-controls', target.id);
+    return target;
+  }
+
   // strings (become text nodes), elements, or null/undefined (skipped) so
   // callers can inline conditional children without extra filtering.
   function el(tag, attrs, children) {
@@ -4185,18 +4244,28 @@ var CASELENS_STYLE = [
       el('span', { 'class': 'uscistr-pill-label uscistr-brand-name', text: 'CaseLens' })
     ];
     if (state.cases.length) {
-      children.push(el('span', { 'class': 'uscistr-pill-count', text: String(state.cases.length) }));
+      // aria-hidden on the visible glyphs, because the accessible name below
+      // says the same thing in words. A bare numeral and a coloured dot are
+      // legible to someone looking at them and meaningless read aloud.
+      children.push(el('span', {
+        'class': 'uscistr-pill-count', 'aria-hidden': 'true', text: String(state.cases.length)
+      }));
     }
     if (changed > 0) {
-      children.push(el('span', { 'class': 'uscistr-pill-dot' }));
+      children.push(el('span', { 'class': 'uscistr-pill-dot', 'aria-hidden': 'true' }));
     }
+
+    var spoken = 'Open CaseLens';
+    if (state.cases.length) spoken += ', tracking ' + plural(state.cases.length, 'case');
+    if (changed > 0) spoken += ', ' + plural(changed, 'case') + ' changed since you last looked';
+
     return el('button', {
       'class': 'uscistr-pill',
       type: 'button',
       title: changed > 0
         ? 'Open CaseLens (Alt+U) — ' + plural(changed, 'case') + ' changed since you last looked'
-        : 'Open CaseLens (Alt+U)',
-      'aria-label': 'Open CaseLens',
+        : 'Open CaseLens (Alt+U) — ' + plural(state.cases.length, 'case'),
+      'aria-label': spoken,
       onclick: function () {
         state.prefs.collapsed = false;
         persistPrefs();
@@ -4577,6 +4646,18 @@ var CASELENS_STYLE = [
       dismissed: load(STORAGE_KEYS.dismissed, {}),
       codeText: load(STORAGE_KEYS.codeText, {})
     };
+    // The file is unencrypted and carries full receipt numbers and every
+    // recorded change, whatever "Hide receipt numbers" is set to — masking a
+    // backup would make it useless for restoring. Someone about to email this
+    // to themselves, or drop it in shared cloud storage, should know that
+    // before the download lands, not after.
+    var ok = window.confirm(
+      'Save a backup of your CaseLens data?\n\n' +
+      'The file will contain your full receipt numbers, every status this ' +
+      'panel has recorded, and your saved notes — as plain, unencrypted text.\n\n' +
+      'Keep it somewhere you would keep a copy of your immigration notices.');
+    if (!ok) return;
+
     var blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     var url = URL.createObjectURL(blob);
     var dateStr = new Date().toISOString().slice(0, 10);
@@ -4603,8 +4684,18 @@ var CASELENS_STYLE = [
       window.alert('That file does not look like a CaseLens backup.');
       return;
     }
+    // Valid JSON is not the same as a backup. `{}` passed the type check,
+    // imported nothing, and re-rendered with no message at all — which is
+    // indistinguishable from a successful import of a file with your cases in
+    // it, and from the tool being broken.
+    if (!Array.isArray(parsed.cases) && !parsed.snapshots && !parsed.history) {
+      window.alert('That file is valid JSON, but it has no CaseLens cases, ' +
+        'snapshots or history in it. Nothing was changed.');
+      return;
+    }
 
     var i, key;
+    var addedCases = 0;
 
     var byNumber = {};
     var existingCases = load(STORAGE_KEYS.cases, []);
@@ -4619,6 +4710,7 @@ var CASELENS_STYLE = [
           label: typeof c.label === 'string' ? c.label : '',
           addedAt: c.addedAt || new Date().toISOString()
         };
+        addedCases++;
       }
     }
     var mergedCases = [];
@@ -4671,10 +4763,36 @@ var CASELENS_STYLE = [
     for (key in existingSnapshots) { if (existingSnapshots.hasOwnProperty(key)) mergedSnapshots[key] = existingSnapshots[key]; }
     save(STORAGE_KEYS.snapshots, mergedSnapshots);
 
+    // Removals are restored so a backup does not silently un-remove every case
+    // you removed, on the next auto-discovery pass.
+    var existingDismissed = loadDismissed();
+    var importedDismissed = (parsed.dismissed && typeof parsed.dismissed === 'object') ? parsed.dismissed : {};
+    for (key in importedDismissed) {
+      if (importedDismissed.hasOwnProperty(key) && isValidReceiptNumber(key) && !existingDismissed[key]) {
+        existingDismissed[key] = importedDismissed[key];
+      }
+    }
+    save(STORAGE_KEYS.dismissed, existingDismissed);
+
     // prefs: intentionally not merged/imported.
 
     loadAll();
     render();
+
+    // Say what happened. Merge semantics here are genuinely safe — union by
+    // receipt number, anything already present wins, settings untouched — and
+    // saying so is what makes that trustworthy rather than merely true.
+    var totalCases = load(STORAGE_KEYS.cases, []).length;
+    window.alert(
+      (addedCases
+        ? 'Imported ' + plural(addedCases, 'new case') + '. You are now tracking ' +
+          plural(totalCases, 'case') + '.'
+        : 'Nothing new to add — every case in that file was already here. You are ' +
+          'tracking ' + plural(totalCases, 'case') + '.') +
+      '\n\nHistory and saved snapshots were merged in. Where a case existed in ' +
+      'both, what was already in this browser was kept. Your settings were not ' +
+      'changed.');
+
     refreshAll();
   }
 
@@ -5666,6 +5784,7 @@ var CASELENS_STYLE = [
       if (item.provenance === 'coded' && item.labelSource === 'none') {
         disclosure.appendChild(codeCopyButton(entry, item));
       }
+      linkDisclosure(toggle, disclosure);
       cell.appendChild(disclosure);
     }
     return el('div', { 'class': 'uscistr-timeline-row' }, [nodeCell, cell]);
@@ -5950,11 +6069,11 @@ var CASELENS_STYLE = [
     var i;
     if (seq.length <= 5 || index < 4) {
       var count = Math.min(seq.length, 5);
-      for (i = 0; i < count; i++) segments.push({ label: seq[i].label, name: seq[i].name, stage: i });
+      for (i = 0; i < count; i++) segments.push({ name: seq[i].name, stage: i });
       return segments;
     }
     segments.push({ label: 'Filed', name: 'Filed', stage: 1, collapsed: true });
-    for (i = 2; i < seq.length; i++) segments.push({ label: seq[i].label, name: seq[i].name, stage: i });
+    for (i = 2; i < seq.length; i++) segments.push({ name: seq[i].name, stage: i });
     return segments;
   }
 
@@ -6011,7 +6130,7 @@ var CASELENS_STYLE = [
         node,
         el('div', {
           'class': 'uscistr-stage-label',
-          text: seg.label,
+          text: seg.name,
           title: stateClass === 'uscistr-is-passed'
             ? seg.name + ' — no code on this case marks this stage'
             : seg.name
@@ -6136,17 +6255,19 @@ var CASELENS_STYLE = [
       railNotes.push('This stage map is our own reading of the codes on this case, not a USCIS status. Segments are equal width on purpose: none of them measures time.');
 
       var railOpen = !!entry.uiShowRailNote;
-      wrap.appendChild(el('button', {
+      var railBtn = el('button', {
         'class': 'uscistr-more', type: 'button',
         'aria-expanded': railOpen ? 'true' : 'false',
         text: railOpen ? 'Hide' : 'How we read this map',
         onclick: function () { entry.uiShowRailNote = !entry.uiShowRailNote; render(); }
-      }));
+      });
+      wrap.appendChild(railBtn);
       if (railOpen) {
         var railNote = el('div', { 'class': 'uscistr-disclosure' });
         for (var rn = 0; rn < railNotes.length; rn++) {
           railNote.appendChild(el('p', { text: railNotes[rn] }));
         }
+        linkDisclosure(railBtn, railNote);
         wrap.appendChild(railNote);
       }
     }
@@ -6526,12 +6647,14 @@ var CASELENS_STYLE = [
         text: detailText
       });
       block.appendChild(para);
-      block.appendChild(el('button', {
+      var moreBtn = el('button', {
         'class': 'uscistr-more', type: 'button',
         'aria-expanded': open ? 'true' : 'false',
         text: open ? 'Show less' : 'Show full text',
         onclick: function () { entry.uiShowStatusText = !entry.uiShowStatusText; render(); }
-      }));
+      });
+      linkDisclosure(moreBtn, para);
+      block.appendChild(moreBtn);
     }
 
     // USCIS ships its own Spanish. This toggle swaps only USCIS-authored
@@ -6541,9 +6664,12 @@ var CASELENS_STYLE = [
         'class': 'uscistr-more', type: 'button',
         'aria-pressed': spanish ? 'true' : 'false',
         title: spanish
-          ? 'Switch back to the English text USCIS wrote for this status.'
-          : 'Español — the Spanish text USCIS wrote for this status. Not a translation by this panel.',
-        text: spanish ? 'English' : 'Español',
+          ? 'Switch this status back to the English wording USCIS published.'
+          : 'Show the Spanish wording USCIS published for this status. The rest of this panel stays in English.',
+        // Labelled for what it does — swap USCIS's own status wording — rather
+        // than "Español", which promises a Spanish interface and delivers one
+        // Spanish paragraph inside an English explanation.
+        text: spanish ? 'Ver en inglés' : 'Ver estado en español',
         onclick: function () { entry.uiSpanish = !entry.uiSpanish; render(); }
       }));
     }
@@ -6568,18 +6694,23 @@ var CASELENS_STYLE = [
       el('p', { text: "USCIS's record for this case was touched " + plural(lag, 'day') + ' after the status was set — on ' +
         formatDateFull(backendMs) + '. Their website does not show this.' })
     ]);
-    note.appendChild(el('button', {
+    var backendMore = el('button', {
       'class': 'uscistr-more', type: 'button',
       'aria-expanded': open ? 'true' : 'false',
       text: open ? 'Show less' : 'Explain',
       onclick: function () { entry.uiShowBackendNote = !entry.uiShowBackendNote; render(); }
-    }));
+    });
+    note.appendChild(backendMore);
     if (open) {
-      note.appendChild(el('p', { text: 'Every case in USCIS’s system carries a "last updated" date. For this case that date is ' +
-        formatDateFull(backendMs) + ' — ' + plural(lag, 'day') + ' after the status above was written on ' + formatDateFull(statusMs) + '.' }));
-      note.appendChild(el('p', { text: 'So something in their system wrote to this case’s record after the status was set. We can see that it happened. We cannot see what it was, and USCIS does not publish it anywhere.' }));
-      note.appendChild(el('p', { text: 'It could be routine maintenance, an internal note, a batch job, or a step that has no public status. It is not a decision, it is not an approval, and it does not mean an answer is coming soon. If USCIS had decided something, the status above would say so.' }));
-      note.appendChild(el('p', { text: 'Why show it at all: it is a real fact about this case that USCIS’s own website leaves out.' }));
+      var disclosed = el('div', { 'class': 'uscistr-disclosure' }, [
+        el('p', { text: 'Every case in USCIS’s system carries a "last updated" date. For this case that date is ' +
+          formatDateFull(backendMs) + ' — ' + plural(lag, 'day') + ' after the status above was written on ' + formatDateFull(statusMs) + '.' }),
+        el('p', { text: 'So something in their system wrote to this case’s record after the status was set. We can see that it happened. We cannot see what it was, and USCIS does not publish it anywhere.' }),
+        el('p', { text: 'It could be routine maintenance, an internal note, a batch job, or a step that has no public status. It is not a decision, it is not an approval, and it does not mean an answer is coming soon. If USCIS had decided something, the status above would say so.' }),
+        el('p', { text: 'Why show it at all: it is a real fact about this case that USCIS’s own website leaves out.' })
+      ]);
+      linkDisclosure(backendMore, disclosed);
+      note.appendChild(disclosed);
     }
     return note;
   }
@@ -6785,6 +6916,9 @@ var CASELENS_STYLE = [
     toggle.appendChild(el('span', { text: label }));
     if (list.fresh) toggle.appendChild(chip('NEW', 'accent'));
 
+    linkDisclosure(toggle, list.el);
+
+
     wrap.appendChild(toggle);
     wrap.appendChild(list.el);
     return wrap;
@@ -6913,6 +7047,9 @@ var CASELENS_STYLE = [
     toggle.appendChild(chevron || el('span'));
     toggle.appendChild(el('span', { text: label }));
 
+    linkDisclosure(toggle, body.el);
+
+
     wrap.appendChild(toggle);
     wrap.appendChild(body.el);
     return wrap;
@@ -6955,6 +7092,10 @@ var CASELENS_STYLE = [
       summary.appendChild(chevron || el('span'));
       summary.appendChild(el('span', { 'class': 'uscistr-raw-path', text: section.label }));
       summary.appendChild(chip(status.text, status.variant));
+      // The visible label is a URL path; say what it is out loud.
+      summary.setAttribute('aria-label',
+        'Raw response from ' + section.label + ' — ' + status.text);
+      linkDisclosure(summary, pre);
 
       wrap.appendChild(summary);
       wrap.appendChild(pre);
@@ -7505,10 +7646,47 @@ var CASELENS_STYLE = [
     return panel;
   }
 
+  // Shown once, to someone who has never seen this panel before.
+  //
+  // Cases are discovered automatically, so the first run produces a populated
+  // panel with no explanation of where it came from — a box that appeared on a
+  // government website already knowing your receipt numbers. The empty state
+  // explains the tool, but that only fires when nothing was found, which is the
+  // uncommon path.
+  //
+  // Dismissed by the reader, and the dismissal is remembered. It says what this
+  // is, who made it, and where the data goes, because those are the three
+  // questions someone is entitled to have answered before they trust it.
+  function buildFirstRunNote() {
+    if (state.prefs.seenIntro) return null;
+    if (!state.cases.length) return null;   // the empty state already explains
+
+    return el('div', { 'class': 'uscistr-note uscistr-intro' }, [
+      el('div', { 'class': 'uscistr-note-title', text: 'This is CaseLens, and it found your cases automatically.' }),
+      el('p', { text: 'It is an unofficial, open-source panel — not USCIS. It read the receipt ' +
+        'numbers already on this page and asked the same USCIS endpoints this website uses, ' +
+        'signed in as you.' }),
+      el('p', { text: 'Nothing leaves this browser. There is no account and no server: your cases, ' +
+        'their history and your settings are stored on this computer only. You can erase all of ' +
+        'it from Settings.' }),
+      el('p', { text: 'USCIS and your mailed notices remain the authority on your case.' }),
+      el('button', {
+        'class': 'uscistr-btn uscistr-btn-sm uscistr-btn-outline', type: 'button', text: 'Got it',
+        onclick: function () {
+          state.prefs.seenIntro = true;
+          persistPrefs();
+          render();
+        }
+      })
+    ]);
+  }
+
   // Narrow: one scrolling column. Also the layout for a lone open case, which
   // needs the width but has no list to keep beside it.
   function buildSingleBody(ordered) {
     var body = el('div', { 'class': 'uscistr-body' });
+    var intro = buildFirstRunNote();
+    if (intro) body.appendChild(intro);
     body.appendChild(buildAddCaseSection());
 
     if (!ordered.length) {
@@ -7541,6 +7719,8 @@ var CASELENS_STYLE = [
     var railCol = el('div', { 'class': 'uscistr-rail' }, [railList, buildAddCaseSection()]);
 
     var detail = el('div', { 'class': 'uscistr-detail' });
+    var splitIntro = buildFirstRunNote();
+    if (splitIntro) detail.appendChild(splitIntro);
     if (open) {
       detail.appendChild(buildCaseCard(open, ordered));
     } else {

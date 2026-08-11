@@ -4,6 +4,53 @@ Notable changes per release. The section matching a tag becomes that release's
 notes on GitHub, so keep entries written for someone deciding whether to update
 — not for someone reading a commit log.
 
+## 1.10.0
+
+**It now tells you what it is, the first time you see it**
+
+Cases are found automatically, so the first thing a new user met was a box that
+had appeared on a government website already knowing their receipt numbers,
+with no explanation. There is now a short note, shown once and dismissed for
+good, saying what CaseLens is, that it is not USCIS, that it read the numbers
+already on the page, and that nothing leaves the browser.
+
+**Export and import say what they are doing**
+
+- Export asks first, and says the file will hold your full receipt numbers and
+  recorded history as plain unencrypted text — before the download, not after.
+  It stays unmasked even with "Hide receipt numbers" on, because a masked
+  backup cannot restore anything.
+- Import reports what it did: how many cases were added, and that where a case
+  existed in both, what was already here was kept. A valid JSON file that is
+  not a backup now says so instead of appearing to succeed.
+- Import also restores your removals, so a backup no longer silently
+  un-removes every case you removed.
+
+**Reachable without a mouse or a screen**
+
+- The launcher says "Open CaseLens, tracking 4 cases, 2 cases changed since you
+  last looked" instead of just "Open CaseLens" with an unexplained number.
+- Every expandable section now says what it expands, so "Explain" and "Show
+  full text" are no longer verbs with no object.
+- Stage names are written out — "Received", "Biometrics", "Interview" — rather
+  than "Recv", "Bio", "Intvw". The abbreviations saved four characters each and
+  could not be translated or read aloud.
+- The Spanish button says what it actually does: it swaps USCIS's own status
+  wording, and the rest of the panel stays in English. Calling it "Español"
+  promised a Spanish interface it does not provide.
+
+**Under the hood**
+
+- The store of status wording learned from your cases is capped. Nothing ever
+  removed an entry, and a full quota blocks the snapshot writes this tool
+  depends on.
+- Loading now validates receipt numbers the same way importing does. The
+  stricter check on import was decorative while the other path accepted
+  anything.
+- Packaging lists the five files an extension contains instead of zipping
+  whatever is in the directory, and refuses to build if anything else is
+  present.
+
 ## 1.9.0
 
 **Opening a case no longer hides the others**
