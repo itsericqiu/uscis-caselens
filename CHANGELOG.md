@@ -4,6 +4,37 @@ Notable changes per release. The section matching a tag becomes that release's
 notes on GitHub, so keep entries written for someone deciding whether to update
 — not for someone reading a commit log.
 
+## 1.5.1
+
+**Fixes the panel disappearing shortly after it loads**
+
+If any of your cases had documents on file, the panel would appear and then
+vanish. Three helper functions were called by the documents section and defined
+nowhere — a crash that fired the moment a card with documents rendered. Anyone
+with documents on a case, which is most people, had a panel that did not work.
+
+It escaped every check because `node --check` only parses the file, and calling
+a function that does not exist is valid syntax; it throws only when that line
+runs. The smoke test asserted that a launcher pill appears, and the pill appears
+before any card renders.
+
+Two permanent guards were added rather than just the three definitions:
+
+- `scripts/undefined-check.js` fails the build if the bundle calls a function it
+  never defines. Verified by deleting one and confirming the refusal.
+- The smoke test now opens the panel and asserts that case cards render, so the
+  code path where cards are built is actually executed in CI.
+
+**Also**
+
+- Scroll position and keyboard focus survive a re-render. Previously every
+  disclosure click and every background refresh threw you back to the top.
+- A refused write to browser storage now says so, and no longer causes the same
+  change to be re-detected and re-notified on every refresh.
+- The stylesheet moved to `core/uscis-style.js`. The file people install is
+  still one file; the core is 1,378 lines shorter, so the parts an auditor
+  needs are easier to find.
+
 ## 1.5.0
 
 **Security: a hostile document link could have pointed off-site**

@@ -43,6 +43,9 @@ jobs:
           node -e "JSON.parse(require('fs').readFileSync('extensions/chrome/manifest.json', 'utf8')); console.log('extensions/chrome/manifest.json: valid JSON')"
           node -e "JSON.parse(require('fs').readFileSync('extensions/firefox/manifest.json', 'utf8')); console.log('extensions/firefox/manifest.json: valid JSON')"
 
+      - name: Undefined-function gate — the bundle must not call what it never defines
+        run: node scripts/undefined-check.js
+
       - name: Privacy gate — only my.uscis.gov may appear as a live URL
         run: node scripts/privacy-gate.js
 

@@ -183,6 +183,24 @@ function checkNormal(CDP) {
       } else {
         fail('normal scenario should render a panel or launcher pill', 'zero elements after ' + NORMAL_TIMEOUT_MS + 'ms');
       }
+      // Opening the panel is where cards render, and card rendering is where a
+      // missing helper throws. Asserting only that a pill appears let a
+      // ReferenceError ship that made the panel vanish on open for anyone whose
+      // case had documents.
+      return client.eval("(function(){var p=document.querySelector('.uscistr-pill'); if (p) p.click(); return !!p;})()");
+    })
+    .then(function () {
+      return sleep(2500);
+    })
+    .then(function () {
+      return client.eval('document.querySelectorAll(".uscistr-card").length');
+    })
+    .then(function (cards) {
+      if (cards > 0) {
+        pass('panel opens and renders ' + cards + ' case card(s)');
+      } else {
+        fail('panel should render case cards when opened', 'zero .uscistr-card elements after opening');
+      }
       return client.eval('window.__caselensErrors || []');
     })
     .then(function (errors) {

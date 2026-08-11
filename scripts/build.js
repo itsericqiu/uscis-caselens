@@ -5,6 +5,7 @@ const path = require('path');
 
 // Paths relative to this script's location
 const rootDir = path.join(__dirname, '..');
+const styleFile = path.join(rootDir, 'core', 'uscis-style.js');
 const codesFile = path.join(rootDir, 'core', 'uscis-codes.js');
 const coreFile = path.join(rootDir, 'core', 'uscis-tracker-core.js');
 const userscriptOut = path.join(rootDir, 'userscript', 'caselens.user.js');
@@ -22,9 +23,10 @@ try {
   process.exit(1);
 }
 
-let coreContent;
+let coreContent, styleContent;
 try {
   coreContent = fs.readFileSync(coreFile, 'utf8');
+  styleContent = fs.readFileSync(styleFile, 'utf8');
 } catch (err) {
   console.error(`Error reading ${coreFile}:`, err.message);
   process.exit(1);
@@ -41,7 +43,9 @@ const VERSION = versionMatch[1];
 // The codes file defines USCIS_CODE_MEANINGS as a plain top-level `var`, and
 // must be concatenated BEFORE the core file (which wraps itself in an IIFE)
 // so the constant is defined by the time the core code references it.
-const combinedContent = codesContent + '\n' + coreContent;
+// Order matters: both files declare top-level vars the core closure reads.
+// The shipped artifact is this concatenation and nothing else.
+const combinedContent = codesContent + '\n' + styleContent + '\n' + coreContent;
 
 // Userscript header template
 // download/updateURL point at the latest tagged release rather than the raw

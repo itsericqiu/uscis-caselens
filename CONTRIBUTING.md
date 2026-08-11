@@ -101,6 +101,15 @@ Rules:
 
 ## Code style
 
+The source is three files, concatenated in this order by `scripts/build.js`:
+`core/uscis-codes.js` (event-code dictionary), `core/uscis-style.js` (the
+stylesheet), `core/uscis-tracker-core.js` (everything else). The file people
+install is that concatenation and nothing else, which `--check` proves.
+
+Each file must parse on its own (`node --check`), so the closure in the core
+file cannot be opened in one file and closed in another. Anything extracted has
+to be a top-level `var`, as the dictionary and the stylesheet are.
+
 Plain ES5-flavoured JavaScript, zero dependencies, no build step required to
 read it:
 
@@ -119,10 +128,12 @@ read it:
 ```sh
 node --check core/uscis-tracker-core.js
 node --check core/uscis-codes.js
+node --check core/uscis-style.js
 node scripts/build.js          # regenerate userscript + extension copies
 node scripts/build.js --check  # must exit 0
 node scripts/privacy-gate.js   # no origin other than my.uscis.gov
 node scripts/pii-gate.js       # no real receipt numbers
+node scripts/undefined-check.js # every called function is defined
 node scripts/smoke-test.js     # starts its own server + headless Chrome
 ```
 
