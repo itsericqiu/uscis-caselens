@@ -173,20 +173,37 @@ jobs:
     needs: [version-check, build, release]
     if: >-
       needs.version-check.outputs.tag != '' &&
-      github.event.inputs.publish_stores == 'true' &&
-      secrets.AMO_JWT_ISSUER != '' &&
-      secrets.AMO_JWT_SECRET != ''
+      github.event.inputs.publish_stores == 'true'
     runs-on: ubuntu-latest
+    env:
+      # The `secrets` context is not available in a job-level `if:`, so the
+      # "skip cleanly when unconfigured" behaviour is enforced here instead.
+      WEB_EXT_API_KEY: ${{ secrets.AMO_JWT_ISSUER }}
+      WEB_EXT_API_SECRET: ${{ secrets.AMO_JWT_SECRET }}
     steps:
+      - name: Check AMO credentials are configured
+        id: creds
+        shell: bash
+        run: |
+          if [ -z "$WEB_EXT_API_KEY" ] || [ -z "$WEB_EXT_API_SECRET" ]; then
+            echo "AMO secrets not set — skipping Firefox publish."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Checkout
+        if: steps.creds.outputs.ready == 'true'
         uses: actions/checkout@v4
 
       - name: Set up Node
+        if: steps.creds.outputs.ready == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
       - name: Sign and publish to addons.mozilla.org
+        if: steps.creds.outputs.ready == 'true'
         env:
           WEB_EXT_API_KEY: ${{ secrets.AMO_JWT_ISSUER }}
           WEB_EXT_API_SECRET: ${{ secrets.AMO_JWT_SECRET }}
@@ -206,27 +223,45 @@ jobs:
     needs: [version-check, build, release]
     if: >-
       needs.version-check.outputs.tag != '' &&
-      github.event.inputs.publish_stores == 'true' &&
-      secrets.CWS_CLIENT_ID != '' &&
-      secrets.CWS_CLIENT_SECRET != '' &&
-      secrets.CWS_REFRESH_TOKEN != '' &&
-      secrets.CWS_EXTENSION_ID != ''
+      github.event.inputs.publish_stores == 'true'
     runs-on: ubuntu-latest
+    env:
+      # See the note in publish-firefox: `secrets` cannot be used in a
+      # job-level `if:`, so the skip is enforced in the first step.
+      EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
+      CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+      CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+      REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
     steps:
+      - name: Check Chrome Web Store credentials are configured
+        id: creds
+        shell: bash
+        run: |
+          if [ -z "$EXTENSION_ID" ] || [ -z "$CLIENT_ID" ] || [ -z "$CLIENT_SECRET" ] || [ -z "$REFRESH_TOKEN" ]; then
+            echo "Chrome Web Store secrets not set — skipping Chrome publish."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Checkout
+        if: steps.creds.outputs.ready == 'true'
         uses: actions/checkout@v4
 
       - name: Set up Node
+        if: steps.creds.outputs.ready == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
       - name: Download artifacts
+        if: steps.creds.outputs.ready == 'true'
         uses: actions/download-artifact@v4
         with:
           name: caselens-release-artifacts
 
       - name: Upload and publish via the Chrome Web Store API
+        if: steps.creds.outputs.ready == 'true'
         env:
           EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
           CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
