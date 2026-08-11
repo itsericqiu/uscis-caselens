@@ -95,6 +95,12 @@ node scripts/build.js          # regenerate userscript + extension copies
 node scripts/build.js --check  # must exit 0
 ```
 
+Fixtures can't catch everything. The harness has no timezone, no real
+Chrome policy, and no live account — a filing date rendered a day early and a
+Chrome setting that stops the script running were both found only by installing
+it for real. Test against a real account before shipping anything that changes
+how data is read or displayed.
+
 Then open `test/harness.html` (serve the repo root, e.g.
 `python3 -m http.server`) and exercise **every** scenario in the control strip:
 `normal`, `changed`, `expired`, `notFound`, `malformed`, `emptyEnvelope`, and

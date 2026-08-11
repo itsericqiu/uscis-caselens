@@ -34,7 +34,7 @@
   // SECTION 1: Constants
   // ==========================================================================
 
-  var VERSION = '1.2.0';
+  var VERSION = '1.2.1';
 
   var STORAGE_KEYS = {
     cases: 'uscisTracker.cases.v1',      // [{ number, label, addedAt }]
@@ -1254,6 +1254,20 @@
   // timestamp in milliseconds, or null when the value is unusable.
   function parseUscisDate(value) {
     if (!value) return null;
+
+    // USCIS sends calendar dates two ways: bare "2026-05-29", and the same day
+    // as UTC midnight ("2026-05-29T00:00:00.000Z"). Both mean a date, not an
+    // instant. Parsing them as UTC and then rendering in the viewer's zone
+    // moves them a day backwards anywhere west of Greenwich — which showed a
+    // case filed May 29 as "filed May 28" and shifted every day count by one.
+    // Build these as local dates so the calendar day survives.
+    if (typeof value === 'string') {
+      var dateOnly = value.match(/^(\d{4})-(\d{2})-(\d{2})(?:T00:00:00(?:\.000)?Z)?$/);
+      if (dateOnly) {
+        var local = new Date(+dateOnly[1], +dateOnly[2] - 1, +dateOnly[3]);
+        return isNaN(local.getTime()) ? null : local.getTime();
+      }
+    }
     if (typeof value !== 'string') {
       var direct = new Date(value);
       return isNaN(direct.getTime()) ? null : direct.getTime();

@@ -4,6 +4,23 @@ Notable changes per release. The section matching a tag becomes that release's
 notes on GitHub, so keep entries written for someone deciding whether to update
 — not for someone reading a commit log.
 
+## 1.2.1
+
+**Filing dates were a day early west of Greenwich**
+
+USCIS sends calendar dates as UTC midnight (`2026-05-29T00:00:00.000Z`).
+Rendering that in the viewer's timezone moved it back a day in every US zone —
+a case filed May 29 displayed as "filed May 28", and every day count was off by
+one. Date-only values are now built as local dates so the calendar day
+survives. Caught on first install against a real account, where the panel
+disagreed with the USCIS page directly behind it.
+
+**Install**
+
+- Added a troubleshooting note: recent Chrome requires "Allow user scripts" to
+  be switched on for the userscript manager, in `chrome://extensions`. Until
+  it is, the script silently never runs.
+
 ## 1.2.0
 
 **Install and updates**

@@ -53,6 +53,8 @@ Technical detail — permissions, untrusted-input handling, threat model — is 
 
 Then log in at [my.uscis.gov](https://my.uscis.gov). A **CaseLens** pill appears bottom-right.
 
+**If nothing appears:** recent versions of Chrome require user scripts to be allowed explicitly. Go to `chrome://extensions`, open your userscript manager's details, and switch on **Allow user scripts**. Until that's on, the script silently never runs — no error, no pill.
+
 That link always points at the newest tagged release, and installed copies update themselves from it — so you stay on versions that passed CI rather than whatever is mid-work on `main`.
 
 Tampermonkey works too, but it's been closed-source since 2013 and collects anonymous usage statistics — turn off "Anonymous statistics" in its settings.
