@@ -4,6 +4,43 @@ Notable changes per release. The section matching a tag becomes that release's
 notes on GitHub, so keep entries written for someone deciding whether to update
 — not for someone reading a commit log.
 
+## 1.3.0
+
+**The header could give a false all-clear**
+
+When every check failed, the panel still read `4 cases · nothing new · checked
+just now`. The timestamp was stamped when a check was *attempted*, not when it
+succeeded, and "nothing new" was reported for cases we had simply learned
+nothing about. Someone glancing at that line and closing the panel would
+believe their cases had been checked and hadn't moved.
+
+It now distinguishes the two: `4 cases · couldn't check 4 · last successful
+check 2 days ago`. "Nothing new" is only ever said about a check that returned
+something.
+
+**Appointment dates could be a day early**
+
+Appointment times arrive as a bare UTC instant with no office timezone.
+Converting them to the viewer's clock moved any appointment stamped before
+about 07:00 UTC back a full calendar day — shown in bold, while only the *time*
+carried a caveat. The date and time are now read from what USCIS recorded and
+printed verbatim, converting nothing, labelled "as recorded by USCIS · time
+zone not stated". The previous wording claimed both "as recorded" and "shown in
+this computer's time zone" in the same sentence; only one could be true.
+
+**The stage map could place you past a stage that hasn't happened**
+
+A future appointment now caps the map. Previously the "you are here" marker
+could sit beyond Biometrics on a case whose biometrics appointment was still
+ahead — visible on the same card.
+
+**Cases are ordered by what needs reading**
+
+They were drawn in whatever order receipt numbers appear on the account page,
+which put a finished case first and pushed still-pending ones below it. Order
+is now: something is required of you, then something changed, then open cases,
+then closed ones.
+
 ## 1.2.1
 
 **Filing dates were a day early west of Greenwich**

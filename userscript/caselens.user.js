@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CaseLens — USCIS Case Tracker
 // @namespace    https://github.com/itsericqiu/uscis-caselens
-// @version      1.2.1
+// @version      1.3.0
 // @description  See all your USCIS cases in one place. Everything stays in your browser.
 // @match        https://my.uscis.gov/*
 // @run-at       document-idle
@@ -589,7 +589,7 @@ var USCIS_CODE_SOURCE = 'NIEM scr:BenefitDocumentStatusCategoryCodeSimpleType';
   // SECTION 1: Constants
   // ==========================================================================
 
-  var VERSION = '1.2.1';
+  var VERSION = '1.3.0';
 
   var STORAGE_KEYS = {
     cases: 'uscisTracker.cases.v1',      // [{ number, label, addedAt }]
@@ -1041,7 +1041,10 @@ var USCIS_CODE_SOURCE = 'NIEM scr:BenefitDocumentStatusCategoryCodeSimpleType';
   // processing-times URL.
   function fetchAllForCase(number) {
     var result = {
+      // When the attempt started. NOT evidence that anything was learned —
+      // succeededAt is set below only if at least one endpoint answered.
       fetchedAt: new Date().toISOString(),
+      succeededAt: null,
       formTypeUsed: DEFAULT_FORM_TYPE,
       caseStatus: null,
       location: null,
@@ -1095,6 +1098,7 @@ var USCIS_CODE_SOURCE = 'NIEM scr:BenefitDocumentStatusCategoryCodeSimpleType';
           }
         }
         state.sessionExpired = anyAuthError;
+        if (resultHasAnyData(result)) result.succeededAt = new Date().toISOString();
 
         return result;
       });
@@ -3659,6 +3663,31 @@ var USCIS_CODE_SOURCE = 'NIEM scr:BenefitDocumentStatusCategoryCodeSimpleType';
 
   // "5:58 PM" in the viewer's own zone. Only ever called for values that
   // actually carried a time — never for day-precision entries.
+  // Appointment values arrive as a bare UTC instant with no office timezone.
+  // Converting them to the viewer's clock moves an early-morning appointment a
+  // whole calendar day, and no caveat makes a wrong date safe — this is the
+  // one value where being off by one could cause someone to miss biometrics.
+  // So we read the UTC calendar fields verbatim and print exactly what USCIS
+  // recorded, converting nothing.
+  function utcAppointmentParts(value) {
+    if (!value) return null;
+    var m = String(value).match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+    if (!m) return null;
+    var hours = parseInt(m[4], 10);
+    var suffix = hours >= 12 ? 'PM' : 'AM';
+    var display = hours % 12;
+    if (display === 0) display = 12;
+    var months = ['January','February','March','April','May','June','July',
+      'August','September','October','November','December'];
+    var weekdays = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    var asUtc = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+    return {
+      weekday: weekdays[asUtc.getUTCDay()],
+      date: months[+m[2] - 1] + ' ' + (+m[3]) + ', ' + m[1],
+      time: display + ':' + m[5] + ' ' + suffix
+    };
+  }
+
   function formatTimeOfDay(ms) {
     if (ms === null || ms === undefined) return '';
     var d = new Date(ms);
@@ -3865,15 +3894,39 @@ var USCIS_CODE_SOURCE = 'NIEM scr:BenefitDocumentStatusCategoryCodeSimpleType';
     return false;
   }
 
+  // Newest check that actually returned something. A failed attempt is not a
+  // check: reporting one as "checked just now" tells someone their cases were
+  // looked at when nothing was learned.
   function newestFetchedAt() {
     var newest = null;
     for (var i = 0; i < state.cases.length; i++) {
       var result = state.cases[i].result;
-      if (!result || !result.fetchedAt) continue;
-      var ms = parseUscisDate(result.fetchedAt);
+      if (!result || !result.succeededAt) continue;
+      var ms = parseUscisDate(result.succeededAt);
       if (ms !== null && (newest === null || ms > newest)) newest = ms;
     }
+    if (newest !== null) return newest;
+
+    // Nothing succeeded this session; fall back to the stored snapshots, which
+    // are only ever written from a successful read.
+    var snapshots = load(STORAGE_KEYS.snapshots, {});
+    for (var key in snapshots) {
+      if (!snapshots.hasOwnProperty(key) || !snapshots[key]) continue;
+      var snapMs = parseUscisDate(snapshots[key].at);
+      if (snapMs !== null && (newest === null || snapMs > newest)) newest = snapMs;
+    }
     return newest;
+  }
+
+  // Cases whose most recent attempt failed outright.
+  function failedCaseCount() {
+    var failed = 0;
+    for (var i = 0; i < state.cases.length; i++) {
+      var entry = state.cases[i];
+      if (entry.loading || !entry.result) continue;
+      if (!entry.result.succeededAt) failed++;
+    }
+    return failed;
   }
 
   // One line answering "anything new anywhere?" before the user reads a card.
@@ -3881,16 +3934,28 @@ var USCIS_CODE_SOURCE = 'NIEM scr:BenefitDocumentStatusCategoryCodeSimpleType';
     if (!state.cases.length) return 'No cases tracked yet';
     var parts = [plural(state.cases.length, 'case')];
     var changed = changedCaseCount();
+    var failed = failedCaseCount();
+    var newest = newestFetchedAt();
+
+    // "nothing new" is a claim about the cases. It may only be made when we
+    // actually heard back. When checks failed we learned nothing, which is a
+    // different statement and has to read differently.
     if (changed > 0) {
       parts.push(changed + ' with something new');
-    } else {
+    } else if (failed > 0) {
+      parts.push("couldn't check " + failed);
+    } else if (newest !== null) {
       parts.push('nothing new');
     }
+
     if (anyCaseLoading()) {
       parts.push('checking now');
-    } else {
-      var newest = newestFetchedAt();
-      if (newest !== null) parts.push('checked ' + relativeDate(new Date(newest).toISOString()));
+    } else if (failed > 0) {
+      parts.push(newest !== null
+        ? 'last successful check ' + relativeDate(new Date(newest).toISOString())
+        : 'not checked yet');
+    } else if (newest !== null) {
+      parts.push('checked ' + relativeDate(new Date(newest).toISOString()));
     }
     return parts.join(' · ');
   }
@@ -4413,6 +4478,10 @@ var USCIS_CODE_SOURCE = 'NIEM scr:BenefitDocumentStatusCategoryCodeSimpleType';
           code: null,
           label: ev.text || 'Notice on file',
           generatedAt: ev.at,
+          // Kept verbatim: the appointment is rendered from these UTC fields
+          // directly rather than from a converted instant, so the calendar day
+          // USCIS recorded cannot shift with the viewer's timezone.
+          rawAppointmentAt: ev.appointmentAt || null,
           letterId: raw ? pick(raw, FIELDS.noticeItem.letterId) : null
         });
       }
@@ -5227,6 +5296,31 @@ var USCIS_CODE_SOURCE = 'NIEM scr:BenefitDocumentStatusCategoryCodeSimpleType';
   // case returns to FTA0). Regressions belong in the timeline, with the event
   // that caused them. `evidenced` is not sticky in the same way — it is simply
   // the set of stages some observed code mapped to.
+  // The sequence index of the earliest stage that a still-future appointment
+  // says has not happened. Returns -1 when nothing is pending.
+  function earliestPendingAppointmentStage(seq, view) {
+    if (!view.upcoming || !view.upcoming.length) return -1;
+
+    var lowest = -1;
+    for (var u = 0; u < view.upcoming.length; u++) {
+      var item = view.upcoming[u];
+      if (item.kind !== 'appointment') continue;
+
+      // Match the appointment to a stage by name. Biometrics is the case that
+      // matters in practice; the label is USCIS's own notice wording.
+      var label = String(item.label || '').toLowerCase();
+      var wanted = null;
+      if (label.indexOf('biometric') !== -1 || label.indexOf('fingerprint') !== -1) wanted = 'Bio';
+      else if (label.indexOf('interview') !== -1) wanted = 'Intvw';
+      if (!wanted) continue;
+
+      for (var i = 0; i < seq.length; i++) {
+        if (seq[i].name === wanted && (lowest === -1 || i < lowest)) lowest = i;
+      }
+    }
+    return lowest;
+  }
+
   function stageInfo(entry, view) {
     var formType = view.detail && view.detail.formType ? String(view.detail.formType).toUpperCase()
       : (view.notice && view.notice.formNumber ? String(view.notice.formNumber).toUpperCase() : null);
@@ -5272,8 +5366,17 @@ var USCIS_CODE_SOURCE = 'NIEM scr:BenefitDocumentStatusCategoryCodeSimpleType';
     if (best < 0) {
       return { mode: 'indeterminate', seq: seq, formType: formType, unmapped: unmapped };
     }
+    // A scheduled appointment that hasn't happened yet is structured evidence
+    // that its stage is still ahead. Without this the marker could sit past
+    // Biometrics on a card that says, 400px above, that biometrics is in ten
+    // days — and someone could read their appointment as already handled.
+    // Structured data outranks anything inferred from codes.
+    var pendingStage = earliestPendingAppointmentStage(seq, view);
+    if (pendingStage > 0 && best >= pendingStage) best = pendingStage - 1;
+
     // Monotonic and sticky: a stage index never decreases within a session.
     if (typeof entry.uiMaxStage === 'number' && entry.uiMaxStage > best) best = entry.uiMaxStage;
+    if (pendingStage > 0 && best >= pendingStage) best = pendingStage - 1;
     entry.uiMaxStage = best;
 
     // The structured boolean outranks anything we inferred from codes. It
@@ -5742,6 +5845,7 @@ var USCIS_CODE_SOURCE = 'NIEM scr:BenefitDocumentStatusCategoryCodeSimpleType';
     var now = new Date().getTime();
     for (var u = 0; u < view.upcoming.length; u++) {
       var appt = view.upcoming[u];
+      var apptParts = utcAppointmentParts(appt.rawAppointmentAt || appt.appointmentAt);
       var iconWrap = el('span');
       var calIcon = buildIcon('calendar');
       if (calIcon) iconWrap.appendChild(calIcon);
@@ -5752,7 +5856,9 @@ var USCIS_CODE_SOURCE = 'NIEM scr:BenefitDocumentStatusCategoryCodeSimpleType';
         iconWrap,
         el('div', {}, [
           el('div', { 'class': 'uscistr-upcoming-title', text:
-            appt.label + ' · ' + formatWeekday(appt.displayAt) + ', ' + formatDateFull(appt.displayAt) }),
+            appt.label + ' · ' + (apptParts
+              ? apptParts.weekday + ', ' + apptParts.date
+              : formatWeekday(appt.displayAt) + ', ' + formatDateFull(appt.displayAt)) }),
           // USCIS sends this as a UTC instant with no office timezone, so the
           // time we can render is whatever this computer's clock makes of it —
           // a laptop still set to another zone shows a different hour, and near
@@ -5761,9 +5867,10 @@ var USCIS_CODE_SOURCE = 'NIEM scr:BenefitDocumentStatusCategoryCodeSimpleType';
           // a costly thing to get wrong, so the label says what it actually is
           // and points at the notice.
           el('div', { 'class': 'uscistr-upcoming-meta', text:
-            formatTimeOfDay(appt.displayAt) + ' as recorded, shown in this computer’s time zone' +
+            (apptParts ? apptParts.time : formatTimeOfDay(appt.displayAt)) +
+            ' as recorded by USCIS · time zone not stated' +
             (appt.letterId ? ' · notice ' + appt.letterId : '') +
-            ' · check the time on your mailed notice' })
+            ' · check your mailed notice' })
         ]),
         el('span', { 'class': 'uscistr-upcoming-meta', text:
           'in ' + plural(daysBetween(now, appt.displayAt), 'day') })
@@ -6425,6 +6532,37 @@ var USCIS_CODE_SOURCE = 'NIEM scr:BenefitDocumentStatusCategoryCodeSimpleType';
     return card;
   }
 
+  // Cards are otherwise drawn in the order receipt numbers happen to appear on
+  // the account page, which put a finished case first and pushed every case
+  // whose clock is still running below it. Order by what the reader needs:
+  // something is required of you, then something changed, then still-open
+  // cases, then concluded ones.
+  function caseSortRank(entry) {
+    var view = entry.result ? buildCaseView(entry) : null;
+    var detail = view ? view.detail : null;
+
+    var hasObligation = !!(view && (view.upcoming.length ||
+      (detail && detail.actionRequired === true) || view.evidenceCount > 0));
+    if (hasObligation) return 0;
+    if (entry.changedSince) return 1;
+    if (detail && detail.closed === true) return 3;
+    return 2;
+  }
+
+  function casesInReadingOrder() {
+    var decorated = [];
+    for (var i = 0; i < state.cases.length; i++) {
+      decorated.push({ entry: state.cases[i], rank: caseSortRank(state.cases[i]), pos: i });
+    }
+    decorated.sort(function (a, b) {
+      if (a.rank !== b.rank) return a.rank - b.rank;
+      return a.pos - b.pos;   // stable: order never shuffles between renders
+    });
+    var out = [];
+    for (var j = 0; j < decorated.length; j++) out.push(decorated[j].entry);
+    return out;
+  }
+
   // ---- panel assembly, refresh, render ---------------------------------
 
   function buildPanel() {
@@ -6445,7 +6583,8 @@ var USCIS_CODE_SOURCE = 'NIEM scr:BenefitDocumentStatusCategoryCodeSimpleType';
       body.appendChild(buildEmptyState());
     } else {
       var list = el('div', { 'class': 'uscistr-case-list' });
-      for (var i = 0; i < state.cases.length; i++) list.appendChild(buildCaseCard(state.cases[i]));
+      var ordered = casesInReadingOrder();
+      for (var i = 0; i < ordered.length; i++) list.appendChild(buildCaseCard(ordered[i]));
       body.appendChild(list);
     }
     body.appendChild(buildStandingDisclaimer());
