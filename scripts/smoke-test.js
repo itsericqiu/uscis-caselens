@@ -201,6 +201,29 @@ function checkNormal(CDP) {
       } else {
         fail('panel should render case cards when opened', 'zero .uscistr-card elements after opening');
       }
+      // The status USCIS published has to actually reach the row. Asserting
+      // only that cards render let a wrong endpoint mapping ship: every card
+      // drew fine and every row read "No status published yet", because the
+      // status endpoint was being served the case-detail payload. A panel that
+      // renders perfectly and says nothing true is the failure that matters
+      // most here, and it is invisible to an element count.
+      return client.eval(
+        "(function(){" +
+        "var rows=[].slice.call(document.querySelectorAll('.uscistr-collapsed-status'));" +
+        "return rows.map(function(r){return r.textContent;});" +
+        "})()");
+    })
+    .then(function (statuses) {
+      statuses = statuses || [];
+      var withStatus = statuses.filter(function (s) {
+        return s && s.indexOf('No status published') === -1 && s.indexOf("Couldn't read") === -1;
+      });
+      if (statuses.length && withStatus.length === statuses.length) {
+        pass('every collapsed row carries USCIS\'s own status (' + withStatus.length + ' rows)');
+      } else {
+        fail('collapsed rows should show the status USCIS published',
+          'got ' + JSON.stringify(statuses));
+      }
       return client.eval('window.__caselensErrors || []');
     })
     .then(function (errors) {

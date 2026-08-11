@@ -4,6 +4,50 @@ Notable changes per release. The section matching a tag becomes that release's
 notes on GitHub, so keep entries written for someone deciding whether to update
 — not for someone reading a commit log.
 
+## 1.8.0
+
+**Hiding receipt numbers now hides a lot more**
+
+The raw-data view masked exactly two field names, matched by a pattern that
+stopped at the first escaped quote inside a value — so a name containing an
+apostrophe-escaped quote had everything after it left in the clear, along with
+the keys that followed. The list is now explicit and much wider: names,
+addresses, email, phone, and document and letter ids. It is written as a list
+rather than buried in a regular expression, so an auditor can read what
+redaction actually covers.
+
+**Internal: the same thing is now called the same thing everywhere**
+
+No behaviour change, but the parts of this codebase most likely to be edited
+next were the ones most likely to mislead:
+
+- The two main endpoint constants were named for each other's endpoints:
+  `caseStatus` pointed at case detail and `receiptNotice` pointed at the status
+  endpoint, while the UI printed the correct paths beside the wrong names.
+  They are now `caseDetail` and `caseStatus`.
+- One date value had two names across two layers, and one timestamp had three.
+- Three date formatters became one implementation with three shapes. The
+  year-stripping one had been string-replacing the year out of another
+  formatter's output, which would have silently stopped working the moment that
+  format changed.
+- Eight copies of `x && !x.__error && !x.__empty` became `payloadUsable(x)`.
+- Two clipboard buttons with a flash timer, guard, promise pair and try/catch
+  each became one.
+- Three receipt-number patterns became one shape plus one deliberate,
+  documented narrowing for automatic discovery.
+- The card's state machine returned six values, of which four were computed
+  every render and compared nowhere.
+- Five declared response fields nothing read, seven styled classes nothing
+  emits, and a comment pointing at a function that was never written, all gone.
+
+**Build**
+
+The smoke test now asserts that USCIS's own status text reaches the row. It had
+been checking that cards render, which is why this pass briefly shipped a
+harness that served the case-detail payload to the status endpoint: every card
+drew perfectly and every row read "No status published yet". Verified the new
+check fails on that exact bug before restoring the fix.
+
 ## 1.7.1
 
 **Two remaining ways the panel could go quiet on its own**

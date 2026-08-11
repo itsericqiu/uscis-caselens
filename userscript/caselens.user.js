@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CaseLens — USCIS Case Tracker
 // @namespace    https://github.com/itsericqiu/uscis-caselens
-// @version      1.7.1
+// @version      1.8.0
 // @description  See all your USCIS cases in one place. Everything stays in your browser.
 // @match        https://my.uscis.gov/*
 // @run-at       document-idle
@@ -760,7 +760,6 @@ var CASELENS_STYLE = [
   "}",
   ".uscistr-root .uscistr-ico * { fill: none; stroke: currentColor; }",
   ".uscistr-root :focus { outline: none; }",
-  ".uscistr-root .uscistr-focusable:focus-visible,",
   ".uscistr-root .uscistr-btn:focus-visible,",
   ".uscistr-root .uscistr-icon-btn:focus-visible,",
   ".uscistr-root .uscistr-input:focus-visible,",
@@ -1070,7 +1069,6 @@ var CASELENS_STYLE = [
   "  background-repeat: no-repeat;",
   "  cursor: pointer;",
   "}",
-  ".uscistr-root .uscistr-field { display: flex; flex-direction: column; gap: var(--ust-s2); min-width: 0; }",
   ".uscistr-root .uscistr-field-error { font-size: var(--ust-fs-micro); line-height: 1.4; color: var(--ust-danger-text); }",
   ".uscistr-root .uscistr-add-form {",
   "  display: grid;",
@@ -1158,22 +1156,6 @@ var CASELENS_STYLE = [
   "  letter-spacing: 0.04em;",
   "  line-height: 1;",
   "  flex: none;",
-  "}",
-  ".uscistr-root .uscistr-badge {",
-  "  display: inline-flex;",
-  "  align-items: center;",
-  "  justify-content: center;",
-  "  min-width: 16px;",
-  "  height: 16px;",
-  "  padding: 0 var(--ust-s2);",
-  "  border-radius: var(--ust-r-full);",
-  "  background: var(--ust-accent-solid);",
-  "  color: var(--ust-accent-on);",
-  "  font-family: var(--ust-mono);",
-  "  font-size: 9.5px;",
-  "  font-weight: 700;",
-  "  font-variant-numeric: tabular-nums;",
-  "  line-height: 1;",
   "}",
   ".uscistr-root .uscistr-banner {",
   "  display: grid;",
@@ -1719,7 +1701,6 @@ var CASELENS_STYLE = [
   ".uscistr-root .uscistr-muted { color: var(--ust-text-3); }",
   ".uscistr-root .uscistr-small { font-size: var(--ust-fs-meta); line-height: var(--ust-lh-meta); }",
   ".uscistr-root .uscistr-truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }",
-  ".uscistr-root .uscistr-error { color: var(--ust-danger-text); font-size: var(--ust-fs-meta); line-height: 1.45; }",
   ".uscistr-root .uscistr-link { color: var(--ust-accent); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; border-radius: var(--ust-r-xs); }",
   ".uscistr-root .uscistr-skeleton {",
   "  border-radius: var(--ust-r-xs);",
@@ -1729,8 +1710,6 @@ var CASELENS_STYLE = [
   "  color: transparent;",
   "}",
   ".uscistr-root .uscistr-hidden-file { display: none; }",
-  ".uscistr-root .uscistr-btn-small { height: 24px; padding: 0 var(--ust-s4); font-size: 11.5px; border-radius: var(--ust-r-sm); }",
-  ".uscistr-root .uscistr-btn-small svg { width: 12px; height: 12px; }",
   ".uscistr-root .uscistr-card-number {",
   "  font-family: var(--ust-mono);",
   "  font-size: var(--ust-fs-mono);",
@@ -1738,32 +1717,6 @@ var CASELENS_STYLE = [
   "  font-variant-numeric: tabular-nums;",
   "  color: var(--ust-text-2);",
   "}",
-  ".uscistr-root .uscistr-tag {",
-  "  display: inline-flex;",
-  "  align-items: center;",
-  "  height: 16px;",
-  "  padding: 0 var(--ust-s2);",
-  "  border: 1px solid var(--ust-border-1);",
-  "  border-radius: var(--ust-r-xs);",
-  "  background: var(--ust-bg-inset);",
-  "  color: var(--ust-text-3);",
-  "  font-family: var(--ust-mono);",
-  "  font-size: 9.5px;",
-  "  font-weight: 600;",
-  "  letter-spacing: 0.04em;",
-  "  line-height: 1;",
-  "  flex: none;",
-  "}",
-  ".uscistr-root .uscistr-checkbox-row {",
-  "  display: grid;",
-  "  grid-template-columns: minmax(0, 1fr) auto;",
-  "  align-items: center;",
-  "  gap: var(--ust-s5);",
-  "  padding: var(--ust-s4);",
-  "  border-radius: var(--ust-r-md);",
-  "  font-size: 12.5px;",
-  "}",
-  ".uscistr-root .uscistr-checkbox-row:hover { background: var(--ust-bg-hover); }",
   ".uscistr-root .uscistr-version { font-size: 10.5px; color: var(--ust-text-3); font-variant-numeric: tabular-nums; }",
   "@keyframes ust-panel-in {",
   "  from { opacity: 0; transform: translateY(8px) scale(0.985); }",
@@ -2012,7 +1965,7 @@ var CASELENS_STYLE = [
   // SECTION 1: Constants
   // ==========================================================================
 
-  var VERSION = '1.7.1';
+  var VERSION = '1.8.0';
 
   var STORAGE_KEYS = {
     cases: 'uscisTracker.cases.v1',      // [{ number, label, addedAt }]
@@ -2033,11 +1986,20 @@ var CASELENS_STYLE = [
   // matches the rule the add-case error message states. It used to accept only
   // IOE, so someone holding a paper-filed EAC receipt was told the correct rule
   // and then shown an error for obeying it.
+  // One shape, stated once: a receipt number is three letters and ten digits.
+  // There used to be three of these, and two disagreed — the add-case form
+  // accepted only IOE while import accepted any prefix, so someone holding a
+  // paper-filed EAC receipt was shown the correct rule and then an error for
+  // following it.
   var CASE_NUMBER_RE = /^[A-Z]{3}[0-9]{10}$/i;
   // Cases these endpoints can actually reach. Other prefixes are real receipt
   // numbers filed on paper, which this account API does not serve.
   var ONLINE_PREFIX_RE = /^IOE/i;
-  var RECEIPT_NUMBER_RE = /\b(IOE[0-9]{10})\b/g; // for scraping the account page
+  // Scraping the account page. Deliberately narrower than CASE_NUMBER_RE:
+  // discovery adds cases without being asked, so it only claims the prefix
+  // these endpoints can actually serve. A looser pattern here would auto-add
+  // paper-filed cases that can only ever fail to load.
+  var RECEIPT_NUMBER_RE = /\b(IOE[0-9]{10})\b/g;
   var DEFAULT_FORM_TYPE = 'I-765';
   var HISTORY_CAP = 200;
   // Ceiling on cases added automatically from the page. Manual adds are not
@@ -2058,9 +2020,9 @@ var CASELENS_STYLE = [
 
   var ENDPOINTS = {
     caseList: function () { return BASE + '/account/case-service/api/cases'; },
-    caseStatus: function (n) { return BASE + '/account/case-service/api/cases/' + seg(n); },
+    caseDetail: function (n) { return BASE + '/account/case-service/api/cases/' + seg(n); },
     location: function (n) { return BASE + '/secure-messaging/api/case-service/receipt_info/' + seg(n); },
-    receiptNotice: function (n) { return BASE + '/account/case-service/api/case_status/' + seg(n); },
+    caseStatus: function (n) { return BASE + '/account/case-service/api/case_status/' + seg(n); },
     processingTimes: function (n, form) { return BASE + '/account/case-service/api/cases/' + seg(form) + '/processing_times/' + seg(n); },
     documents: function (n) { return BASE + '/account/case-service/api/cases/' + seg(n) + '/documents'; }
   };
@@ -2076,7 +2038,7 @@ var CASELENS_STYLE = [
   // --------------------------------------------------------------------------
   var FIELDS = {
     // GET /api/cases/{num} — case detail. Arrays: events, notices, documents.
-    caseStatus: {
+    caseDetail: {
       receiptNumber: ['receiptNumber', 'caseNumber'],
       formType: ['formType', 'formNumber', 'form', 'caseType'],
       formName: ['formName', 'formTitle'],
@@ -2087,15 +2049,13 @@ var CASELENS_STYLE = [
       closed: ['closed'],
       actionRequired: ['actionRequired'],
       premium: ['isPremiumProcessed'],
-      applicantName: ['applicantName'],
       representativeName: ['representativeName'],
       events: ['events'],
       notices: ['notices'],
-      concurrentCases: ['concurrentCases'],
       evidenceRequests: ['evidenceRequests']
     },
     // GET /api/case_status/{num} — richest endpoint: status text, office, history.
-    receiptNotice: {
+    caseStatus: {
       receiptNumber: ['receiptNumber', 'caseNumber'],
       status: ['statusTitle', 'status', 'statusText', 'currentStatus'],
       statusDetail: ['statusText', 'description', 'statusDescription'],
@@ -2108,22 +2068,20 @@ var CASELENS_STYLE = [
       office: ['jurisdictionDescription', 'jurisdiction'],
       officeCode: ['jurisdiction'],
       history: ['historicalCaseStatuses'],
-      premiumRefunded: ['isPremiumRefunded']
     },
-    // Entries inside receiptNotice.history[]
+    // Entries inside caseStatus.history[]
     historyItem: {
       date: ['date'],
       actionCode: ['actionCode'],
       text: ['statusTitle', 'description', 'text'],
       textSpanish: ['statusTitleSpanish']
     },
-    // Entries inside caseStatus.events[]
+    // Entries inside caseDetail.events[]
     eventItem: {
       code: ['eventCode'],
-      date: ['eventTimestamp', 'eventDateTime', 'createdAtTimestamp', 'createdAt'],
-      recordedAt: ['createdAtTimestamp', 'createdAt']
+      date: ['eventTimestamp', 'eventDateTime', 'createdAtTimestamp', 'createdAt']
     },
-    // Entries inside caseStatus.notices[]
+    // Entries inside caseDetail.notices[]
     noticeItem: {
       type: ['actionType'],
       generatedAt: ['generationDate'],
@@ -2134,7 +2092,6 @@ var CASELENS_STYLE = [
     documentItem: {
       name: ['fileName', 'name', 'title', 'documentName'],
       date: ['createDate', 'date', 'postedDate', 'createdDate'],
-      id: ['contentId'],
       type: ['type'],
       source: ['sourceType'],
       url: ['url', 'downloadUrl', 'href']
@@ -2327,7 +2284,19 @@ var CASELENS_STYLE = [
 
   function getSnapshot(number) {
     var snapshots = load(STORAGE_KEYS.snapshots, {});
-    return snapshots[number] || null;
+    return migrateSnapshot(snapshots[number] || null);
+  }
+
+  // Snapshots written before the status date was renamed still carry it as
+  // `lastUpdated`, which was ambiguous with the record's own updated-at stamp.
+  // Read the old key when the new one is absent: dropping it would blank the
+  // status date on every existing install and make the next diff report a
+  // change that never happened.
+  function migrateSnapshot(snap) {
+    if (snap && snap.statusAt === undefined && snap.lastUpdated !== undefined) {
+      snap.statusAt = snap.lastUpdated;
+    }
+    return snap;
   }
 
   function setSnapshot(number, snap) {
@@ -2367,11 +2336,11 @@ var CASELENS_STYLE = [
   //   GET ENDPOINTS.caseList(); authenticated iff res.ok AND content-type json
   //   AND res.url doesn't look like a sign-in redirect. Stores discovered case
   //   list when the response contains one.
-  // guessFormType(caseStatusData) -> string (candidate keys, DEFAULT_FORM_TYPE fallback)
+  // guessFormType(caseDetailData) -> string (candidate keys, DEFAULT_FORM_TYPE fallback)
   // fetchAllForCase(number) -> Promise<result>
-  //   caseStatus first, then history/location/receiptNotice/processingTimes/documents
+  //   caseDetail first, then location/caseStatus/processingTimes/documents
   //   SEQUENTIALLY with STAGGER_MS between calls. Result:
-  //   { fetchedAt, formTypeUsed, caseStatus, location, receiptNotice, processingTimes, documents }
+  //   { fetchedAt, formTypeUsed, caseDetail, location, caseStatus, processingTimes, documents }
   //   Sets state.sessionExpired if any __auth.
 
   // GET a URL with the browser's existing session cookies and parse the JSON
@@ -2488,9 +2457,9 @@ var CASELENS_STYLE = [
 
   // Best-effort guess at which form type to use for the processing-times
   // lookup, since that endpoint needs a form number in its URL.
-  function guessFormType(caseStatusData) {
-    if (!caseStatusData || caseStatusData.__error) return DEFAULT_FORM_TYPE;
-    var value = pick(caseStatusData, FIELDS.caseStatus.formType);
+  function guessFormType(caseDetailData) {
+    if (!caseDetailData || caseDetailData.__error) return DEFAULT_FORM_TYPE;
+    var value = pick(caseDetailData, FIELDS.caseDetail.formType);
     if (typeof value === 'string' && value.trim()) {
       return value.trim();
     }
@@ -2526,7 +2495,7 @@ var CASELENS_STYLE = [
 
   // Fetch every endpoint for one case, strictly one at a time (never in
   // parallel) with a short pause between requests so we don't hammer an
-  // undocumented API. caseStatus goes first because its form type feeds the
+  // undocumented API. caseDetail goes first because its form type feeds the
   // processing-times URL.
   function fetchAllForCase(number) {
     var result = {
@@ -2535,17 +2504,17 @@ var CASELENS_STYLE = [
       fetchedAt: new Date().toISOString(),
       succeededAt: null,
       formTypeUsed: DEFAULT_FORM_TYPE,
-      caseStatus: null,
+      caseDetail: null,
       location: null,
-      receiptNotice: null,
+      caseStatus: null,
       processingTimes: null,
       documents: null
     };
 
-    return fetchJSON(ENDPOINTS.caseStatus(number))
-      .then(function (caseStatus) {
-        result.caseStatus = caseStatus;
-        result.formTypeUsed = guessFormType(caseStatus);
+    return fetchJSON(ENDPOINTS.caseDetail(number))
+      .then(function (caseDetail) {
+        result.caseDetail = caseDetail;
+        result.formTypeUsed = guessFormType(caseDetail);
         return sleep(STAGGER_MS);
       })
       .then(function () {
@@ -2556,10 +2525,10 @@ var CASELENS_STYLE = [
         return sleep(STAGGER_MS);
       })
       .then(function () {
-        return fetchJSON(ENDPOINTS.receiptNotice(number));
+        return fetchJSON(ENDPOINTS.caseStatus(number));
       })
-      .then(function (receiptNotice) {
-        result.receiptNotice = receiptNotice;
+      .then(function (caseStatus) {
+        result.caseStatus = caseStatus;
         return sleep(STAGGER_MS);
       })
       .then(function () {
@@ -2576,8 +2545,8 @@ var CASELENS_STYLE = [
         result.documents = documents;
 
         var parts = [
-          result.caseStatus, result.location,
-          result.receiptNotice, result.processingTimes, result.documents
+          result.caseDetail, result.location,
+          result.caseStatus, result.processingTimes, result.documents
         ];
         var anyAuthError = false;
         for (var i = 0; i < parts.length; i++) {
@@ -2629,7 +2598,7 @@ var CASELENS_STYLE = [
         }
       }
 
-      var label = pick(item, FIELDS.caseStatus.formType);
+      var label = pick(item, FIELDS.caseDetail.formType);
       add(number, typeof label === 'string' ? label.trim() : '');
     }
 
@@ -2640,7 +2609,9 @@ var CASELENS_STYLE = [
   // SECTION 4: Normalize + diff  (implemented by agent A)
   // ==========================================================================
   // pick(obj, keys) -> first non-empty candidate value or null
-  // normalize(result) -> snapshot { at, status, lastUpdated, office, docNames (sorted), formType }
+  // normalize(result) -> snapshot { at, status, statusAt, backendAt, office, docNames (sorted),
+  //                              formType, formName, submissionDate, actionCode,
+  //                              closed, actionRequired, evidenceCount, appointments }
   // diffSnapshots(prev, next) -> [{ at, kind, from, to }]  (empty if prev falsy)
   // applyFetchResult(entry, result): normalize, diff vs stored snapshot, append
   //   history, set entry.changedSince on changes, store new snapshot, maybeNotify.
@@ -2650,7 +2621,7 @@ var CASELENS_STYLE = [
   // Backup files are user-supplied and may be corrupt or hostile, so anything
   // that isn't three letters plus ten digits is rejected outright.
   function isValidReceiptNumber(value) {
-    return typeof value === 'string' && /^[A-Z]{3}[0-9]{10}$/i.test(value);
+    return typeof value === 'string' && CASE_NUMBER_RE.test(value);
   }
 
   // Look through `keys` in order and return the first value on `obj` that
@@ -2682,7 +2653,7 @@ var CASELENS_STYLE = [
       at: (result && result.fetchedAt) || null,
       status: null,        // official status title, e.g. "Case Was Received"
       actionCode: null,    // e.g. "FTA0"
-      lastUpdated: null,   // date attached to the public status
+      statusAt: null,   // date attached to the public status
       backendAt: null,     // when USCIS last touched the record (may be newer)
       office: null,
       docNames: [],
@@ -2712,50 +2683,50 @@ var CASELENS_STYLE = [
     // String({}) is "[object Object]", which the differ would compare against
     // the previous status, call a change, and push to the OS notification
     // centre — a fabricated status change from a schema wobble.
-    var observedForm = pick(result.caseStatus, FIELDS.caseStatus.formType);
+    var observedForm = pick(result.caseDetail, FIELDS.caseDetail.formType);
     if (observedForm === null) {
-      observedForm = pick(result.receiptNotice, FIELDS.receiptNotice.formType);
+      observedForm = pick(result.caseStatus, FIELDS.caseStatus.formType);
     }
     snap.formType = flattenValue(observedForm);
-    snap.formName = flattenValue(pick(result.caseStatus, FIELDS.caseStatus.formName));
-    snap.submissionDate = flattenValue(pick(result.caseStatus, FIELDS.caseStatus.submissionDate));
+    snap.formName = flattenValue(pick(result.caseDetail, FIELDS.caseDetail.formName));
+    snap.submissionDate = flattenValue(pick(result.caseDetail, FIELDS.caseDetail.submissionDate));
 
     // Status and office come from the case_status endpoint, which carries the
     // official wording, the action code, and the jurisdiction.
-    var notice = result.receiptNotice;
-    if (notice && !notice.__error && !notice.__empty) {
-      var statusValue = flattenValue(pick(notice, FIELDS.receiptNotice.status));
+    var notice = result.caseStatus;
+    if (payloadUsable(notice)) {
+      var statusValue = flattenValue(pick(notice, FIELDS.caseStatus.status));
       snap.status = statusValue !== null ? stripHtml(statusValue) : null;
-      snap.actionCode = flattenValue(pick(notice, FIELDS.receiptNotice.actionCode));
+      snap.actionCode = flattenValue(pick(notice, FIELDS.caseStatus.actionCode));
 
-      snap.lastUpdated = pick(notice, FIELDS.receiptNotice.actionCodeDate);
-      snap.office = flattenValue(pick(notice, FIELDS.receiptNotice.office));
+      snap.statusAt = pick(notice, FIELDS.caseStatus.actionCodeDate);
+      snap.office = flattenValue(pick(notice, FIELDS.caseStatus.office));
     }
 
     // The case-detail endpoint carries the record's own updated-at stamp, which
     // moves when USCIS works a case even if the public status is unchanged.
-    var caseStatus = result.caseStatus;
-    if (caseStatus && !caseStatus.__error && !caseStatus.__empty) {
-      snap.backendAt = pick(caseStatus, FIELDS.caseStatus.updatedAt);
-      if (snap.lastUpdated === null) {
-        snap.lastUpdated = snap.backendAt;
+    var caseDetail = result.caseDetail;
+    if (payloadUsable(caseDetail)) {
+      snap.backendAt = pick(caseDetail, FIELDS.caseDetail.updatedAt);
+      if (snap.statusAt === null) {
+        snap.statusAt = snap.backendAt;
       }
 
       // Only ever a real boolean from USCIS. A missing field stays null so a
       // cached card can distinguish "USCIS said this case is open" from
       // "we never learned either way".
-      snap.closed = strictBool(pick(caseStatus, FIELDS.caseStatus.closed));
-      snap.actionRequired = strictBool(pick(caseStatus, FIELDS.caseStatus.actionRequired));
+      snap.closed = strictBool(pick(caseDetail, FIELDS.caseDetail.closed));
+      snap.actionRequired = strictBool(pick(caseDetail, FIELDS.caseDetail.actionRequired));
 
-      var evidence = pick(caseStatus, FIELDS.caseStatus.evidenceRequests);
+      var evidence = pick(caseDetail, FIELDS.caseDetail.evidenceRequests);
       snap.evidenceCount = Array.isArray(evidence) ? evidence.length : 0;
-      snap.appointments = futureAppointments(caseStatus);
+      snap.appointments = futureAppointments(caseDetail);
     }
 
     // Fall back to the secondary location endpoint only if jurisdiction was absent.
     if (snap.office === null) {
       var location = result.location;
-      if (location && !location.__error && !location.__empty) {
+      if (payloadUsable(location)) {
         snap.office = flattenValue(pick(location, FIELDS.location.office));
       }
     }
@@ -2784,9 +2755,9 @@ var CASELENS_STYLE = [
   // Appointments that had not happened yet when this snapshot was taken.
   // Recorded so a collapsed row can still show a booked biometrics date after
   // a failed refresh; the row dates anything it draws from cache.
-  function futureAppointments(caseStatus) {
+  function futureAppointments(caseDetail) {
     var out = [];
-    var notices = pick(caseStatus, FIELDS.caseStatus.notices);
+    var notices = pick(caseDetail, FIELDS.caseDetail.notices);
     if (!Array.isArray(notices)) return out;
     var now = new Date().getTime();
     for (var i = 0; i < notices.length; i++) {
@@ -2918,7 +2889,7 @@ var CASELENS_STYLE = [
     // Every endpoint answered, and every one of them was empty. That tells us
     // nothing new about the case, and overwriting a snapshot that has real
     // content with this one would throw away the only copy the card can fall
-    // back on — see caseRenderState()'s 'stale'.
+    // back on — see caseContentSource()'s 'stale'.
     if (!snapshotHasContent(snap) && snapshotHasContent(prevSnap)) return;
 
     var changes = diffSnapshots(prevSnap, snap);
@@ -2949,7 +2920,7 @@ var CASELENS_STYLE = [
   // record of the case, so it never counts as an earlier copy to fall back on.
   function snapshotHasContent(snap) {
     if (!snap) return false;
-    if (snap.status || snap.lastUpdated || snap.backendAt || snap.office) return true;
+    if (snap.status || snap.statusAt || snap.backendAt || snap.office) return true;
     return !!(snap.docNames && snap.docNames.length);
   }
 
@@ -2959,7 +2930,7 @@ var CASELENS_STYLE = [
   function resultHasAnyData(result) {
     if (!result) return false;
     var parts = [
-      result.caseStatus, result.receiptNotice, result.location,
+      result.caseDetail, result.caseStatus, result.location,
       result.processingTimes, result.documents
     ];
     for (var i = 0; i < parts.length; i++) {
@@ -3052,13 +3023,13 @@ var CASELENS_STYLE = [
   // third party's guess. Stored locally like everything else.
   function learnCodeText(result) {
     if (!result) return;
-    var notice = result.receiptNotice;
+    var notice = result.caseStatus;
     if (!notice || notice.__error || notice.__empty) return;
 
-    var formType = pick(notice, FIELDS.receiptNotice.formType);
-    if (formType === null) formType = pick(result.caseStatus, FIELDS.caseStatus.formType);
-    var from = pick(notice, FIELDS.receiptNotice.receiptNumber);
-    if (from === null) from = pick(result.caseStatus, FIELDS.caseStatus.receiptNumber);
+    var formType = pick(notice, FIELDS.caseStatus.formType);
+    if (formType === null) formType = pick(result.caseDetail, FIELDS.caseDetail.formType);
+    var from = pick(notice, FIELDS.caseStatus.receiptNumber);
+    if (from === null) from = pick(result.caseDetail, FIELDS.caseDetail.receiptNumber);
 
     var dict = loadLearned();
     var changed = false;
@@ -3074,9 +3045,9 @@ var CASELENS_STYLE = [
       changed = true;
     }
 
-    record(pick(notice, FIELDS.receiptNotice.actionCode), pick(notice, FIELDS.receiptNotice.status));
+    record(pick(notice, FIELDS.caseStatus.actionCode), pick(notice, FIELDS.caseStatus.status));
 
-    var history = pick(notice, FIELDS.receiptNotice.history);
+    var history = pick(notice, FIELDS.caseStatus.history);
     if (Array.isArray(history)) {
       for (var i = 0; i < history.length; i++) {
         record(
@@ -3157,7 +3128,7 @@ var CASELENS_STYLE = [
   // redactNumber(n) -> 'IOE09•••••678' style mask
   // summaryText(entry) -> plain-text case summary for clipboard (honors prefs.redact)
   // extractUscisEvents(result) -> [{ source, at, code, text }] merged event list
-  // summarize* helpers (caseStatus/location/receiptNotice/processingTimes/documents)
+  // summarize* helpers (caseDetail/location/caseStatus/processingTimes/documents)
   //   via pick() candidate keys — see plan; always null-safe.
 
   // --------------------------------------------------------------------------
@@ -3286,17 +3257,38 @@ var CASELENS_STYLE = [
     return n.slice(0, 5) + '•••••' + n.slice(-3);
   }
 
+  // Every JSON field that names or locates a person. Declared as a list, not
+  // buried in a regex literal, so adding one is a one-line change and so an
+  // audit can read what redaction actually covers.
+  //
+  // These are keys USCIS has been observed returning; the list is deliberately
+  // wider than that, because a field we have not seen yet is exactly the one
+  // that will appear in someone's screenshot.
+  var REDACT_JSON_FIELDS = [
+    'applicantName', 'representativeName', 'beneficiaryName', 'petitionerName',
+    'firstName', 'lastName', 'middleName', 'fullName', 'name',
+    'address', 'addressLine1', 'addressLine2', 'street', 'city', 'postalCode', 'zipCode',
+    'email', 'emailAddress', 'phone', 'phoneNumber',
+    'letterId', 'contentId'
+  ];
+
   // "Hide receipt numbers" is used before sharing a screenshot, so it has to
-  // cover the raw JSON too — that payload carries the applicant's and
-  // representative's names as well as the receipt number, and masking the
-  // card heading while leaving them visible one click away defeats the point.
+  // cover the raw JSON too — that payload carries names, addresses and
+  // document ids as well as the receipt number, and masking the card heading
+  // while leaving them visible one click away defeats the point.
   function redactRawJson(text) {
     if (!state.prefs || !state.prefs.redact) return text;
     if (typeof text !== 'string') return text;
 
+    // The value pattern must consume escaped quotes. `[^"]*` stopped at the
+    // first \" inside a value, leaving the rest of that string — and the keys
+    // after it — unmasked.
+    var valueRe = new RegExp(
+      '("(?:' + REDACT_JSON_FIELDS.join('|') + ')"\\s*:\\s*)"(?:[^"\\\\]|\\\\.)*"', 'gi');
+
     return text
       .replace(/[A-Z]{3}[0-9]{10}/g, function (n) { return redactNumber(n); })
-      .replace(/("(?:applicantName|representativeName)"\s*:\s*)"[^"]*"/g, '$1"[hidden]"');
+      .replace(valueRe, '$1"[hidden]"');
   }
 
   // Case number as it should be shown in the UI, honoring the user's redact
@@ -3326,8 +3318,8 @@ var CASELENS_STYLE = [
     lines.push(displayNumber(entry.number));
 
     var result = entry.result;
-    var detail = result ? summarizeCaseStatus(result.caseStatus) : null;
-    var notice = result ? summarizeReceiptNotice(result.receiptNotice) : null;
+    var detail = result ? summarizeCaseDetail(result.caseDetail) : null;
+    var notice = result ? summarizeCaseStatus(result.caseStatus) : null;
     var processing = result ? summarizeProcessingTimes(result.processingTimes) : null;
 
     if (detail && (detail.formType || detail.formName)) {
@@ -3344,8 +3336,8 @@ var CASELENS_STYLE = [
       lines.push('Filed: ' + formatDate(detail.submissionDate) +
         (filedDays !== null ? ' (' + filedDays + ' days ago)' : ''));
     }
-    if (detail && detail.backendUpdatedAt) {
-      lines.push('Record last updated: ' + formatDate(detail.backendUpdatedAt));
+    if (detail && detail.backendAt) {
+      lines.push('Record last updated: ' + formatDate(detail.backendAt));
     }
     if (notice && notice.office) {
       lines.push('Office: ' + notice.office);
@@ -3359,13 +3351,30 @@ var CASELENS_STYLE = [
     return lines.join('\n');
   }
 
+  // Every absolute date this panel prints comes from here. There are three
+  // shapes because they read differently in three places, but only one
+  // implementation and one month table each — formatDayLabel used to build the
+  // short date and then string-replace the year back out of it, which would
+  // have silently stopped stripping the moment the short format changed.
+  //
+  //   'short' — "Jul 9, 2026"       inline, next to a value
+  //   'full'  — "July 9, 2026"      pasted into email; 07/09 is ambiguous
+  //   'day'   — "Jul 9" this year, "Jul 9, 2026" otherwise; timeline meta
+  function formatDateAs(value, shape) {
+    var ms = typeof value === 'number' ? value : parseUscisDate(value);
+    if (ms === null || ms === undefined) return '';
+    var d = new Date(ms);
+    if (isNaN(d.getTime())) return '';
+
+    var month = shape === 'full' ? MONTHS_FULL[d.getMonth()] : MONTHS_SHORT[d.getMonth()];
+    var head = month + ' ' + d.getDate();
+    if (shape === 'day' && d.getFullYear() === new Date().getFullYear()) return head;
+    return head + ', ' + d.getFullYear();
+  }
+
   // Short absolute date, e.g. "Jul 9, 2026". Returns '' when unparseable.
   function formatDate(value) {
-    var ms = parseUscisDate(value);
-    if (ms === null) return '';
-    var d = new Date(ms);
-    var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return months[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+    return formatDateAs(value, 'short');
   }
 
   // USCIS's history entries use "MM-DD-YYYY HH:mm:ss", which no browser parses
@@ -3423,14 +3432,14 @@ var CASELENS_STYLE = [
     // Both are the scope describeCode() resolves a code within, and both must
     // be what USCIS reported: result.formTypeUsed may be DEFAULT_FORM_TYPE,
     // which exists to build a URL and is not a fact about this case.
-    var formType = pick(result.caseStatus, FIELDS.caseStatus.formType);
-    if (formType === null) formType = pick(result.receiptNotice, FIELDS.receiptNotice.formType);
-    var caseNumber = pick(result.caseStatus, FIELDS.caseStatus.receiptNumber);
-    if (caseNumber === null) caseNumber = pick(result.receiptNotice, FIELDS.receiptNotice.receiptNumber);
+    var formType = pick(result.caseDetail, FIELDS.caseDetail.formType);
+    if (formType === null) formType = pick(result.caseStatus, FIELDS.caseStatus.formType);
+    var caseNumber = pick(result.caseDetail, FIELDS.caseDetail.receiptNumber);
+    if (caseNumber === null) caseNumber = pick(result.caseStatus, FIELDS.caseStatus.receiptNumber);
 
-    var notice = result.receiptNotice;
-    if (notice && !notice.__error && !notice.__empty) {
-      var history = pick(notice, FIELDS.receiptNotice.history);
+    var notice = result.caseStatus;
+    if (payloadUsable(notice)) {
+      var history = pick(notice, FIELDS.caseStatus.history);
       if (Array.isArray(history)) {
         for (var i = 0; i < history.length; i++) {
           var h = history[i];
@@ -3447,9 +3456,9 @@ var CASELENS_STYLE = [
       }
     }
 
-    var caseStatus = result.caseStatus;
-    if (caseStatus && !caseStatus.__error && !caseStatus.__empty) {
-      var raw = pick(caseStatus, FIELDS.caseStatus.events);
+    var caseDetail = result.caseDetail;
+    if (payloadUsable(caseDetail)) {
+      var raw = pick(caseDetail, FIELDS.caseDetail.events);
       if (Array.isArray(raw)) {
         for (var j = 0; j < raw.length; j++) {
           var e = raw[j];
@@ -3466,7 +3475,7 @@ var CASELENS_STYLE = [
         }
       }
 
-      var notices = pick(caseStatus, FIELDS.caseStatus.notices);
+      var notices = pick(caseDetail, FIELDS.caseDetail.notices);
       if (Array.isArray(notices)) {
         for (var k = 0; k < notices.length; k++) {
           var n = notices[k];
@@ -3487,45 +3496,45 @@ var CASELENS_STYLE = [
   }
 
   // The case-detail endpoint: what was filed, and when USCIS last touched it.
-  function summarizeCaseStatus(data) {
+  function summarizeCaseDetail(data) {
     if (!data || data.__error || data.__empty) return null;
     return {
-      receiptNumber: pick(data, FIELDS.caseStatus.receiptNumber),
+      receiptNumber: pick(data, FIELDS.caseDetail.receiptNumber),
       // flattenValue, not the raw value. An object here reaches stageInfo as
       // "[OBJECT OBJECT]", misses the lookup, and renders no stage rail at all
       // — indistinguishable from the legitimate unknown-form path, and silent.
-      formType: flattenValue(pick(data, FIELDS.caseStatus.formType)),
-      formName: flattenValue(pick(data, FIELDS.caseStatus.formName)),
-      submissionDate: pick(data, FIELDS.caseStatus.submissionDate),
-      backendUpdatedAt: pick(data, FIELDS.caseStatus.updatedAt),
-      closed: pick(data, FIELDS.caseStatus.closed) === true,
-      actionRequired: pick(data, FIELDS.caseStatus.actionRequired) === true,
-      premium: pick(data, FIELDS.caseStatus.premium) === true,
-      representativeName: pick(data, FIELDS.caseStatus.representativeName)
+      formType: flattenValue(pick(data, FIELDS.caseDetail.formType)),
+      formName: flattenValue(pick(data, FIELDS.caseDetail.formName)),
+      submissionDate: pick(data, FIELDS.caseDetail.submissionDate),
+      backendAt: pick(data, FIELDS.caseDetail.updatedAt),
+      closed: pick(data, FIELDS.caseDetail.closed) === true,
+      actionRequired: pick(data, FIELDS.caseDetail.actionRequired) === true,
+      premium: pick(data, FIELDS.caseDetail.premium) === true,
+      representativeName: pick(data, FIELDS.caseDetail.representativeName)
     };
   }
 
   // The case_status endpoint: official status wording, action code, office, and
   // the dated status history. This is the richest source we have.
-  function summarizeReceiptNotice(data) {
+  function summarizeCaseStatus(data) {
     if (!data || data.__error || data.__empty) return null;
 
-    var statusValue = pick(data, FIELDS.receiptNotice.status);
-    var detailValue = pick(data, FIELDS.receiptNotice.statusDetail);
-    var statusEs = pick(data, FIELDS.receiptNotice.statusSpanish);
-    var detailEs = pick(data, FIELDS.receiptNotice.statusDetailSpanish);
-    var history = pick(data, FIELDS.receiptNotice.history);
+    var statusValue = pick(data, FIELDS.caseStatus.status);
+    var detailValue = pick(data, FIELDS.caseStatus.statusDetail);
+    var statusEs = pick(data, FIELDS.caseStatus.statusSpanish);
+    var detailEs = pick(data, FIELDS.caseStatus.statusDetailSpanish);
+    var history = pick(data, FIELDS.caseStatus.history);
 
     return {
-      receiptNumber: pick(data, FIELDS.receiptNotice.receiptNumber),
-      formNumber: pick(data, FIELDS.receiptNotice.formType),
+      receiptNumber: pick(data, FIELDS.caseStatus.receiptNumber),
+      formNumber: pick(data, FIELDS.caseStatus.formType),
       status: statusValue !== null ? stripHtml(String(statusValue)) : null,
       statusDetail: detailValue !== null ? stripHtml(String(detailValue)) : null,
       statusSpanish: statusEs !== null ? stripHtml(String(statusEs)) : null,
       statusDetailSpanish: detailEs !== null ? stripHtml(String(detailEs)) : null,
-      actionCode: pick(data, FIELDS.receiptNotice.actionCode),
-      actionCodeDate: pick(data, FIELDS.receiptNotice.actionCodeDate),
-      office: flattenValue(pick(data, FIELDS.receiptNotice.office)),
+      actionCode: pick(data, FIELDS.caseStatus.actionCode),
+      actionCodeDate: pick(data, FIELDS.caseStatus.actionCodeDate),
+      office: flattenValue(pick(data, FIELDS.caseStatus.office)),
       historyCount: Array.isArray(history) ? history.length : 0
     };
   }
@@ -3658,6 +3667,8 @@ var CASELENS_STYLE = [
 
   var MONTHS_FULL = ['January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'];
+  var MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   var WEEKDAYS_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
   // ---- DOM helpers ----------------------------------------------------------
@@ -3856,22 +3867,12 @@ var CASELENS_STYLE = [
   // ambiguous to a large share of this audience, and these strings get pasted
   // into emails to attorneys.
   function formatDateFull(value) {
-    var ms = parseUscisDate(value);
-    if (ms === null) return '';
-    var d = new Date(ms);
-    return MONTHS_FULL[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+    return formatDateAs(value, 'full');
   }
 
   // "Jul 18" for the current year, "Jul 18, 2026" otherwise. Timeline meta only.
   function formatDayLabel(ms) {
-    if (ms === null || ms === undefined) return '';
-    var d = new Date(ms);
-    if (isNaN(d.getTime())) return '';
-    var base = formatDate(ms);
-    if (d.getFullYear() === new Date().getFullYear()) {
-      return base.replace(', ' + d.getFullYear(), '');
-    }
-    return base;
+    return formatDateAs(ms, 'day');
   }
 
   // "5:58 PM" in the viewer's own zone. Only ever called for values that
@@ -3961,6 +3962,19 @@ var CASELENS_STYLE = [
     return { text: 'HTTP 200', variant: 'neutral' };
   }
 
+  // The three questions worth asking about a response, in one vocabulary.
+  // These used to be spelled out inline at eight call sites as
+  // `x && !x.__error && !x.__empty`, which is the kind of condition that gets
+  // one clause dropped in a refactor and then silently reads an error object
+  // as if it were data.
+  //
+  //   payloadUsable  — answered, and carries something to read
+  //   payloadFailed  — the request itself failed
+  //   (neither)      — answered honestly with nothing (__empty)
+  function payloadUsable(payload) {
+    return !!(payload && !payload.__error && !payload.__empty);
+  }
+
   function payloadFailed(payload) {
     return !!(payload && payload.__error);
   }
@@ -3968,7 +3982,7 @@ var CASELENS_STYLE = [
   // The two endpoints a card is made of. Everything else is supplementary;
   // losing both of these is losing the case for this check.
   function coreSourcesFailed(result) {
-    return payloadFailed(result.caseStatus) && payloadFailed(result.receiptNotice);
+    return payloadFailed(result.caseDetail) && payloadFailed(result.caseStatus);
   }
 
   // ---- panel positioning / dragging ----------------------------------------
@@ -4833,15 +4847,15 @@ var CASELENS_STYLE = [
     var i;
     if (!result) return items;
 
-    var detail = summarizeCaseStatus(result.caseStatus);
-    var notice = summarizeReceiptNotice(result.receiptNotice);
+    var detail = summarizeCaseDetail(result.caseDetail);
+    var notice = summarizeCaseStatus(result.caseStatus);
 
     // Read the raw notices alongside so an appointment row can name the letter
     // id USCIS put on the notice. extractUscisEvents() pushes notice rows in
     // array order, so index alignment holds.
     var rawNotices = [];
-    if (result.caseStatus && !result.caseStatus.__error && !result.caseStatus.__empty) {
-      var maybeNotices = pick(result.caseStatus, FIELDS.caseStatus.notices);
+    if (payloadUsable(result.caseDetail)) {
+      var maybeNotices = pick(result.caseDetail, FIELDS.caseDetail.notices);
       if (Array.isArray(maybeNotices)) rawNotices = maybeNotices;
     }
     var noticeIndex = 0;
@@ -4989,8 +5003,8 @@ var CASELENS_STYLE = [
     // Backend activity synthesized from this fetch: the record moved while the
     // public status did not. Gated at 3 days — below that it is plausibly the
     // same action written twice, and a shrug rendered as a signal is noise.
-    if (detail && detail.backendUpdatedAt && notice && notice.actionCodeDate) {
-      var backendMs = parseUscisDate(detail.backendUpdatedAt);
+    if (detail && detail.backendAt && notice && notice.actionCodeDate) {
+      var backendMs = parseUscisDate(detail.backendAt);
       var statusMs = parseUscisDate(notice.actionCodeDate);
       if (backendMs !== null && statusMs !== null && backendMs - statusMs > BACKEND_MIN_LAG_MS) {
         var duplicated = false;
@@ -5199,11 +5213,19 @@ var CASELENS_STYLE = [
   // knows nothing about what USCIS has published. And a card is never emptied
   // while a snapshot exists — a 2am session timeout must not be
   // indistinguishable from "my cases are gone".
-  function caseRenderState(entry, view) {
-    if (!entry.result) return entry.loading ? 'loading' : 'unchecked';
-    if (view.hasData) return 'fresh';
-    if (snapshotHasContent(view.lastKnown)) return 'stale';
-    return coreSourcesFailed(entry.result) ? 'blank' : 'empty';
+  // Where this card's content is coming from — the only question any caller
+  // actually asks. It used to return six values, of which four ('loading',
+  // 'fresh', 'blank', 'empty') were computed on every render and never
+  // compared anywhere: a state machine that looked like it governed the card
+  // and governed nothing, which is worse than no state machine at all.
+  //
+  //   'unchecked' — not fetched yet this session; a stored snapshot may stand in
+  //   'stale'     — this fetch told us nothing usable; fall back to the snapshot
+  //   null        — this fetch's own data, the ordinary path
+  function caseContentSource(entry, view) {
+    if (!entry.result) return 'unchecked';
+    if (view.hasData) return null;
+    return snapshotHasContent(view.lastKnown) ? 'stale' : null;
   }
 
   // Everything the card needs, computed once per render.
@@ -5216,20 +5238,20 @@ var CASELENS_STYLE = [
       // fromCache: this card is drawn from a stored snapshot because the
       // latest fetch failed. cachedAt is when that snapshot was taken.
       fromCache: false, cachedAt: null,
-      lastKnown: getSnapshot(entry.number), state: null
+      lastKnown: getSnapshot(entry.number), source: null
     };
     if (!result) {
-      view.state = caseRenderState(entry, view);
+      view.source = caseContentSource(entry, view);
       // Not fetched yet this session, but a previous session left a snapshot —
       // show it rather than an empty shell while the refresh runs.
-      if (view.state === 'unchecked' && snapshotHasContent(view.lastKnown)) {
+      if (view.source === 'unchecked' && snapshotHasContent(view.lastKnown)) {
         applyCachedSnapshot(view);
       }
       return view;
     }
 
-    view.detail = summarizeCaseStatus(result.caseStatus);
-    view.notice = summarizeReceiptNotice(result.receiptNotice);
+    view.detail = summarizeCaseDetail(result.caseDetail);
+    view.notice = summarizeCaseStatus(result.caseStatus);
     view.docs = summarizeDocuments(result.documents);
     view.processing = summarizeProcessingTimes(result.processingTimes);
     view.hasData = !!(view.detail || view.notice || view.docs);
@@ -5239,12 +5261,12 @@ var CASELENS_STYLE = [
       var location = summarizeLocation(result.location);
       if (location && location.office) view.office = location.office;
     }
-    if (result.receiptNotice && !result.receiptNotice.__error && !result.receiptNotice.__empty) {
-      var code = pick(result.receiptNotice, FIELDS.receiptNotice.officeCode);
+    if (payloadUsable(result.caseStatus)) {
+      var code = pick(result.caseStatus, FIELDS.caseStatus.officeCode);
       view.officeCode = code === null ? null : String(code);
     }
-    if (result.caseStatus && !result.caseStatus.__error && !result.caseStatus.__empty) {
-      var requests = pick(result.caseStatus, FIELDS.caseStatus.evidenceRequests);
+    if (payloadUsable(result.caseDetail)) {
+      var requests = pick(result.caseDetail, FIELDS.caseDetail.evidenceRequests);
       if (Array.isArray(requests)) view.evidenceCount = requests.length;
     }
 
@@ -5270,8 +5292,8 @@ var CASELENS_STYLE = [
       }
     }
     view.items = collapseBackendRuns(history);
-    view.state = caseRenderState(entry, view);
-    if (view.state === 'stale') applyCachedSnapshot(view);
+    view.source = caseContentSource(entry, view);
+    if (view.source === 'stale') applyCachedSnapshot(view);
     return view;
   }
 
@@ -5294,7 +5316,7 @@ var CASELENS_STYLE = [
         formType: snap.formType || null,
         formName: snap.formName || null,
         submissionDate: snap.submissionDate || null,
-        backendUpdatedAt: snap.backendAt || null,
+        backendAt: snap.backendAt || null,
         // Whatever USCIS actually said on the last successful read, or null if
         // they never said. This used to be hardcoded null on the grounds that a
         // cached card should claim nothing — but that silently deleted a
@@ -5334,7 +5356,7 @@ var CASELENS_STYLE = [
         statusSpanish: null,
         statusDetailSpanish: null,
         actionCode: snap.actionCode || null,
-        actionCodeDate: snap.lastUpdated || null,
+        actionCodeDate: snap.statusAt || null,
         office: snap.office || null,
         historyCount: 0
       };
@@ -5571,7 +5593,7 @@ var CASELENS_STYLE = [
   // pasted into a forum post or an email. Clipboard only — this tool never
   // sends a case number anywhere.
   function codeDetailsText(entry, item) {
-    var detail = entry.result ? summarizeCaseStatus(entry.result.caseStatus) : null;
+    var detail = entry.result ? summarizeCaseDetail(entry.result.caseDetail) : null;
     var lines = [];
     lines.push('USCIS event code: ' + item.code);
     if (detail && detail.formType) lines.push('Form: ' + detail.formType);
@@ -5585,32 +5607,14 @@ var CASELENS_STYLE = [
   }
 
   function codeCopyButton(entry, item) {
-    var label = 'Copy code details';
-    var btn = el('button', {
+    return copyButton({
+      label: 'Copy code details',
       'class': 'uscistr-btn uscistr-btn-sm uscistr-btn-ghost uscistr-code-copy',
-      type: 'button',
-      text: label,
       title: 'Copies this code and its date to the clipboard. Nothing is sent anywhere.',
-      onclick: function () {
-        function flash(text) {
-          btn.textContent = text;
-          setTimeout(function () { btn.textContent = label; }, 1500);
-        }
-        try {
-          if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(codeDetailsText(entry, item)).then(
-              function () { flash('Copied'); },
-              function () { flash('Copy failed'); }
-            );
-          } else {
-            flash('Copy failed');
-          }
-        } catch (e) {
-          flash('Copy failed');
-        }
-      }
+      // Read at click time, not build time: the card may have been re-rendered
+      // from newer data since this button was created.
+      getText: function () { return codeDetailsText(entry, item); }
     });
-    return btn;
   }
 
   function gapRow(days) {
@@ -5629,7 +5633,7 @@ var CASELENS_STYLE = [
 
     // "We could not read it" and "USCIS has published nothing" are different
     // claims about the record, and they never get the same sentence.
-    var sourcesUnread = payloadFailed(entry.result.caseStatus) || payloadFailed(entry.result.receiptNotice);
+    var sourcesUnread = payloadFailed(entry.result.caseDetail) || payloadFailed(entry.result.caseStatus);
 
     if (!items.length) {
       wrap.appendChild(el('div', { 'class': 'uscistr-note', text: sourcesUnread
@@ -5691,7 +5695,7 @@ var CASELENS_STYLE = [
     // Naming the gap, rather than just the failure, lets a reader calibrate
     // how much of the list to trust.
     if (sourcesUnread) {
-      var missing = payloadFailed(entry.result.caseStatus)
+      var missing = payloadFailed(entry.result.caseDetail)
         ? 'Coded events and notices could not be loaded on this check'
         : 'The status history could not be loaded on this check';
       wrap.appendChild(el('div', { 'class': 'uscistr-note', text: missing +
@@ -6097,7 +6101,7 @@ var CASELENS_STYLE = [
       // "We could not read it" and "USCIS publishes none" are different
       // claims, and collapsing them would be its own small dishonesty. The
       // reasoning behind an absent estimate is identical on every card, so it
-      // is stated once for the whole panel (see buildEstimateHelp) instead of
+      // is the same on every card, so it is stated plainly here instead of
       // hanging a "Why is there no estimate?" button off each one.
       wrap.appendChild(el('div', { 'class': 'uscistr-progress-label', text:
         payloadFailed(entry.result.processingTimes)
@@ -6408,9 +6412,9 @@ var CASELENS_STYLE = [
       else if (statusDays === 1) ageText = 'Set yesterday, ' + formatDateFull(statusMs);
       else ageText = 'Set ' + formatDateFull(statusMs) + ' · ' + plural(statusDays, 'day') + ' ago';
       ageRow.appendChild(el('span', { 'class': 'uscistr-muted uscistr-small', text: ageText }));
-    } else if (view.detail && view.detail.backendUpdatedAt) {
+    } else if (view.detail && view.detail.backendAt) {
       ageRow.appendChild(el('span', { 'class': 'uscistr-muted uscistr-small', text:
-        'Record dated ' + formatDateFull(view.detail.backendUpdatedAt) }));
+        'Record dated ' + formatDateFull(view.detail.backendAt) }));
     }
     if (view.detail && view.detail.closed) {
       ageRow.appendChild(chip('This case is closed', 'neutral'));
@@ -6422,8 +6426,8 @@ var CASELENS_STYLE = [
         view.evidenceCount === 0 && view.upcoming.length === 0;
       // Whether the record moved after the status did. The backend note below
       // says so explicitly, so this line must not flatly claim "no change".
-      var backendMs = (view.detail && view.detail.backendUpdatedAt)
-        ? parseUscisDate(view.detail.backendUpdatedAt) : null;
+      var backendMs = (view.detail && view.detail.backendAt)
+        ? parseUscisDate(view.detail.backendAt) : null;
       var backendMoved = backendMs !== null && statusMs !== null && backendMs > statusMs;
       var line = noChangeLine(statusDays, statusMs, nothingPending, backendMoved);
       if (line) block.appendChild(el('div', { 'class': 'uscistr-muted uscistr-small', text: line }));
@@ -6469,8 +6473,8 @@ var CASELENS_STYLE = [
   function buildBackendNote(entry, view) {
     var detail = view.detail;
     var notice = view.notice;
-    if (!detail || !detail.backendUpdatedAt || !notice || !notice.actionCodeDate) return null;
-    var backendMs = parseUscisDate(detail.backendUpdatedAt);
+    if (!detail || !detail.backendAt || !notice || !notice.actionCodeDate) return null;
+    var backendMs = parseUscisDate(detail.backendAt);
     var statusMs = parseUscisDate(notice.actionCodeDate);
     if (backendMs === null || statusMs === null) return null;
     if (backendMs - statusMs <= BACKEND_MIN_LAG_MS) return null;
@@ -6500,6 +6504,12 @@ var CASELENS_STYLE = [
 
   // Raised only from codes, and it says which code and where the reading came
   // from. Never states what the user must do or by when.
+  // NOTE: this marks `item.attention` on the timeline items it matches, so it
+  // MUST run before buildTimeline() or the attention styling silently does not
+  // appear. buildCaseCard() relies on that ordering. Flagging on the items is
+  // deliberate — the banner and the timeline row have to agree about which
+  // event they are talking about, and re-deriving the match in two places is
+  // how they would come to disagree.
   function buildAttentionBanner(view) {
     var found = null;
     var source = null;
@@ -6740,25 +6750,31 @@ var CASELENS_STYLE = [
     return { el: wrap, fresh: fresh };
   }
 
-  function buildCopyButton(entry) {
-    var label = 'Copy summary';
+  // Every copy button in the panel. Both of them used to carry their own
+  // flash timer, clipboard guard, promise pair and try/catch — four chances
+  // each for the two to drift apart on a browser that fails one of them.
+  //
+  // The clipboard is the only place this tool writes case data outside its own
+  // storage, and it is always a deliberate click, never automatic.
+  function copyButton(opts) {
     var btn = el('button', {
-      'class': 'uscistr-btn uscistr-btn-sm uscistr-btn-outline', type: 'button', text: label,
+      'class': opts['class'] || 'uscistr-btn uscistr-btn-sm uscistr-btn-outline',
+      type: 'button',
+      text: opts.label,
+      title: opts.title || null,
       onclick: function () {
         function flash(text) {
           btn.textContent = text;
-          setTimeout(function () { btn.textContent = label; }, 1500);
+          setTimeout(function () { btn.textContent = opts.label; }, 1500);
         }
         try {
-          if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(summaryText(entry)).then(
-              function () { flash('Copied'); },
-              function () { flash('Copy failed'); }
-            );
-          } else {
-            flash('Copy failed');
-          }
+          if (!navigator.clipboard || !navigator.clipboard.writeText) return flash('Copy failed');
+          navigator.clipboard.writeText(opts.getText()).then(
+            function () { flash('Copied'); },
+            function () { flash('Copy failed'); }
+          );
         } catch (e) {
+          // Blocked by permissions policy, or a non-secure context.
           flash('Copy failed');
         }
       }
@@ -6766,9 +6782,16 @@ var CASELENS_STYLE = [
     return btn;
   }
 
+  function buildCopyButton(entry) {
+    return copyButton({
+      label: 'Copy summary',
+      getText: function () { return summaryText(entry); }
+    });
+  }
+
   var RAW_JSON_SECTIONS = [
-    { key: 'caseStatus', label: '/api/cases/{n}' },
-    { key: 'receiptNotice', label: '/api/case_status/{n}' },
+    { key: 'caseDetail', label: '/api/cases/{n}' },
+    { key: 'caseStatus', label: '/api/case_status/{n}' },
     { key: 'documents', label: '/api/cases/{n}/documents' },
     { key: 'processingTimes', label: '/processing_times/{n}' },
     { key: 'location', label: '/receipt_info/{n}' }
@@ -6875,7 +6898,7 @@ var CASELENS_STYLE = [
   // case unless explicitly disclaimed. That disclaimer is not optional.
   function buildCaseErrorNote(entry) {
     var result = entry.result;
-    var parts = [result.caseStatus, result.receiptNotice, result.documents, result.processingTimes, result.location];
+    var parts = [result.caseDetail, result.caseStatus, result.documents, result.processingTimes, result.location];
     var failures = 0;
     var auth = false;
     var network = false;
@@ -6890,7 +6913,7 @@ var CASELENS_STYLE = [
     }
     // A single quiet failure (usually processing times) is reported by its
     // endpoint chip, not by a banner over the whole card.
-    var coreFailed = payloadFailed(result.caseStatus) && payloadFailed(result.receiptNotice);
+    var coreFailed = payloadFailed(result.caseDetail) && payloadFailed(result.caseStatus);
     if (!coreFailed) return null;
 
     // The panel already carries this message once, above the list. Repeating
@@ -7289,7 +7312,7 @@ var CASELENS_STYLE = [
   function caseActivityMs(entry) {
     var snap = getSnapshot(entry.number);
     if (!snap) return 0;
-    var status = snap.lastUpdated ? parseUscisDate(snap.lastUpdated) : null;
+    var status = snap.statusAt ? parseUscisDate(snap.statusAt) : null;
     var backend = snap.backendAt ? parseUscisDate(snap.backendAt) : null;
     return Math.max(status || 0, backend || 0);
   }
