@@ -384,6 +384,15 @@ Cover four things, in this order:
 4. **What happens to the data**, plus the Chrome/Firefox disclosure difference
    above, and `node scripts/build.js --check` for byte-identity.
 
+### Expected `web-ext lint` output
+
+`npx web-ext lint --source-dir=extensions/firefox` reports **0 errors, 2
+warnings**, both the same cause: `strict_min_version` is 109, which predates
+`data_collection_permissions` (Firefox 140 desktop, 142 Android). Leave it.
+The key is ignored on older versions and the extension needs nothing to run
+there, so raising the floor would drop working installs to silence a notice.
+AMO does not reject on warnings.
+
 ## AMO source-code submission
 
 `scripts/build.js` generates one file from several, which is literally what

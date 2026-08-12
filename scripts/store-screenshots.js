@@ -61,6 +61,12 @@ function scrollTo(px) {
 var OPEN_SETTINGS =
   "(function(){var g=document.querySelector('[data-uscistr-settings-toggle]'); if(g)g.click();})()";
 
+// The popover is taller than the panel and scrolls. "Erase everything" sits at
+// the bottom, which is the one control this shot exists to show, so scroll it
+// fully into frame rather than shipping it clipped.
+var SETTINGS_TO_ERASE =
+  "(function(){var p=document.querySelector('.uscistr-popover'); if(p)p.scrollTop=p.scrollHeight;})()";
+
 // Order is the argument, not a gallery. Shot 1 carries most of the install
 // decision and store carousels rarely get scrolled past shot 3, so the two
 // things my.uscis.gov does not show sit at 2 and 3. The set ends on the privacy
@@ -92,7 +98,7 @@ var SHOTS = [
   {
     name: '05-privacy',
     caption: 'Stored in this browser, and erasable from Settings',
-    steps: [DISMISS_INTRO, OPEN_SETTINGS]
+    steps: [DISMISS_INTRO, OPEN_SETTINGS, SETTINGS_TO_ERASE]
   }
 ];
 
