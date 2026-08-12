@@ -117,6 +117,18 @@ function main() {
       return; // unreadable (deleted/renamed mid-scan, submodule, etc.) — skip
     }
 
+    // Scan the whole file with newlines and simple JS concatenation collapsed,
+    // as well as line by line. A receipt number written as "IOE09" + "1234..."
+    // passed a line-scoped scan — and splitting a literal is what someone does
+    // when they are trying to get one past this.
+    var joined = content.replace(/["']\s*\+\s*["']/g, '').replace(/\n/g, '');
+    var joinedMatches = joined.match(RECEIPT_RE) || [];
+    joinedMatches.forEach(function (num) {
+      if (!ALLOWED[num.toUpperCase()]) {
+        offenders.push(rel + ': ' + num + ' (found across a line or string break)');
+      }
+    });
+
     var lines = content.split('\n');
     lines.forEach(function (line, idx) {
       var matches = line.match(RECEIPT_RE);

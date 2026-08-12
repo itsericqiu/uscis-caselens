@@ -34,7 +34,7 @@
   // SECTION 1: Constants
   // ==========================================================================
 
-  var VERSION = '1.14.1';
+  var VERSION = '1.14.2';
 
   var STORAGE_KEYS = {
     cases: 'uscisTracker.cases.v1',      // [{ number, label, addedAt }]
@@ -2486,6 +2486,8 @@
 
   function iconButton(iconName, label, onClick, extraClass) {
     var btn = el('button', {
+      // Stable across a rebuild even though some of these swap their icon.
+      'data-focus-key': 'icon:' + label,
       'class': 'uscistr-icon-btn' + (extraClass ? ' ' + extraClass : ''),
       type: 'button',
       title: label,
@@ -2805,6 +2807,7 @@
       type: 'text',
       placeholder: 'IOE receipt number',
       'aria-label': 'Receipt number',
+      'data-focus-key': 'addNumber',
       value: uiState.addNumberValue,
       // Clearing the field clears the complaint about it. Without this the
       // error block pinned itself to the top of the panel until a successful
@@ -2816,7 +2819,7 @@
     });
     var labelInput = el('input', {
       'class': 'uscistr-input', type: 'text', placeholder: 'Nickname (optional)',
-      'aria-label': 'Nickname for this case',
+      'aria-label': 'Nickname for this case', 'data-focus-key': 'addLabel',
       value: uiState.addLabelValue,
       oninput: function (e) { uiState.addLabelValue = e.target.value; }
     });
@@ -4680,6 +4683,7 @@
       var railBtn = el('button', {
         'class': 'uscistr-more', type: 'button',
         'aria-expanded': railOpen ? 'true' : 'false',
+        'data-focus-key': 'railNote:' + entry.number,
         text: railOpen ? 'Hide' : 'How we read this map',
         onclick: function () { caseUi(entry).showRailNote = !caseUi(entry).showRailNote; render(); }
       });
@@ -5089,6 +5093,7 @@
       var moreBtn = el('button', {
         'class': 'uscistr-more', type: 'button',
         'aria-expanded': open ? 'true' : 'false',
+        'data-focus-key': 'statusText:' + entry.number,
         text: open ? 'Show less' : 'Show full text',
         onclick: function () { caseUi(entry).showStatusText = !caseUi(entry).showStatusText; render(); }
       });
@@ -5136,6 +5141,7 @@
     var backendMore = el('button', {
       'class': 'uscistr-more', type: 'button',
       'aria-expanded': open ? 'true' : 'false',
+      'data-focus-key': 'backendNote:' + entry.number,
       text: open ? 'Show less' : 'Explain',
       onclick: function () { caseUi(entry).showBackendNote = !caseUi(entry).showBackendNote; render(); }
     });
@@ -5378,6 +5384,7 @@
     var toggle = el('button', {
       'class': 'uscistr-raw-toggle', type: 'button',
       'aria-expanded': docsOpen ? 'true' : 'false',
+      'data-focus-key': 'docs:' + entry.number,
       onclick: function () { caseUi(entry).showDocuments = !docsOpen; render(); }
     });
     if (docsOpen) list.el.removeAttribute('hidden');
@@ -5511,6 +5518,7 @@
     var toggle = el('button', {
       'class': 'uscistr-raw-toggle', type: 'button',
       'aria-expanded': rawOpen ? 'true' : 'false',
+      'data-focus-key': 'raw:' + entry.number,
       onclick: function () { caseUi(entry).showRawJson = !rawOpen; render(); }
     });
     if (rawOpen) body.el.removeAttribute('hidden');
@@ -5725,7 +5733,8 @@
   // One row: has it changed, what is it, what does it say, how old is that.
   // Never less — this row alone has to answer "anything new?".
   function buildCollapsedCard(entry, view, onToggle) {
-    var row = el('button', { 'class': 'uscistr-collapsed', type: 'button', onclick: onToggle });
+    var row = el('button', { 'class': 'uscistr-collapsed', type: 'button', onclick: onToggle,
+      'data-focus-key': 'case:' + String(entry.number).toUpperCase() });
 
     var formType = (view.detail && view.detail.formType) ||
       (view.notice && view.notice.formNumber) || null;
@@ -6182,7 +6191,10 @@
       for (var i = 0; i < ordered.length; i++) list.appendChild(buildCaseCard(ordered[i], ordered));
       body.appendChild(list);
     }
-    body.appendChild(buildStandingDisclaimer());
+    // Not while the first-run note is up: it already says "unofficial — not
+    // USCIS" in its second line, and the footer says it a third time. Three
+    // statements of the same thing in one view reads as anxiety, not candour.
+    if (!intro) body.appendChild(buildStandingDisclaimer());
     return body;
   }
 
@@ -6212,7 +6224,7 @@
     } else {
       detail.appendChild(buildEmptyState());
     }
-    detail.appendChild(buildStandingDisclaimer());
+    if (!splitIntro) detail.appendChild(buildStandingDisclaimer());
 
     return el('div', { 'class': 'uscistr-body uscistr-body-split' }, [railCol, detail]);
   }
@@ -6317,7 +6329,7 @@
     // Wide mode has two independent scrollers, so capture both by selector
     // rather than assuming one body element.
     var scrolls = captureScrolls();
-    var focusKey = focusIdentityOf(document.activeElement);
+    var focusKey = focusKeyFor(document.activeElement);
 
     renderInto();
 
@@ -6345,32 +6357,29 @@
     }
   }
 
-  // Identify the focused control well enough to find its replacement after the
-  // rebuild. Buttons are identified by their accessible label, inputs by name.
-  function focusIdentityOf(node) {
+  // Find the focused control again after render() rebuilds the panel.
+  //
+  // This used to match buttons by their visible label — which fails on exactly
+  // the controls people use most, because every disclosure changes its own
+  // label when clicked: "Explain" becomes "Show less", "Show all (12)" becomes
+  // "Show fewer". After the rebuild no button carried the old label, the loop
+  // fell through, and focus landed on <body> — ejecting a keyboard user from
+  // the panel every time they expanded anything. Inputs were worse: the key was
+  // the class name, which both add-case fields share, so the caret could be
+  // restored into the wrong box mid-typing.
+  //
+  // focusKey() stamps a stable identity that does not move when the label does.
+  function focusKeyFor(node) {
     if (!node || !ROOT || !ROOT.contains(node)) return null;
-    var tag = (node.tagName || '').toLowerCase();
-    if (tag === 'input' || tag === 'select' || tag === 'textarea') {
-      return { sel: tag + '.' + (node.className || '').split(' ')[0], caret: node.selectionStart };
-    }
-    var label = node.getAttribute('title') || node.textContent || '';
-    return label ? { tag: tag, label: label.trim().slice(0, 60) } : null;
+    return node.getAttribute('data-focus-key');
   }
 
   function restoreFocus(key) {
-    var candidates = ROOT.querySelectorAll(key.sel || key.tag || 'button');
-    for (var i = 0; i < candidates.length; i++) {
-      var node = candidates[i];
-      var label = (node.getAttribute('title') || node.textContent || '').trim().slice(0, 60);
-      if (key.label && label !== key.label) continue;
-      try {
-        node.focus();
-        if (typeof key.caret === 'number' && node.setSelectionRange) {
-          node.setSelectionRange(key.caret, key.caret);
-        }
-      } catch (e) { /* element may not be focusable after the rebuild */ }
-      return;
-    }
+    var node = ROOT.querySelector('[data-focus-key="' + key + '"]');
+    if (!node) return;
+    try {
+      node.focus();
+    } catch (e) { /* element may not be focusable after the rebuild */ }
   }
 
   function renderInto() {

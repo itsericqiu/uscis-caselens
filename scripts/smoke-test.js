@@ -241,6 +241,70 @@ function checkNormal(CDP) {
     });
 }
 
+
+// A check that failed must never render as a healthy panel.
+//
+// Driven the way it actually happens: load a working session, then break the
+// endpoints and refresh. Loading straight into a broken scenario is a different
+// state — the auth probe fails too, so the panel correctly renders nothing at
+// all, and asserting against that would have tested the wrong thing.
+//
+// `emptyEnvelope` is the case worth pinning: every endpoint answers 200 with no
+// content, which once produced "4 cases · nothing new · checked just now" over
+// a card saying USCIS had returned nothing.
+function checkFailureVisible(CDP, scenario) {
+  var client;
+  return CDP.connect(CDP_PORT)
+    .then(function (c) { client = c; return client.send('Page.enable'); })
+    .then(function () {
+      return client.send('Page.navigate', { url: BASE + '?scenario=normal' });
+    })
+    .then(function () { return waitForTrackerElements(client, NORMAL_TIMEOUT_MS); })
+    .then(function () {
+      return client.eval("(function(){var p=document.querySelector('.uscistr-pill'); if (p) p.click(); return true;})()");
+    })
+    .then(function () { return sleep(NORMAL_TIMEOUT_MS); })
+    .then(function () {
+      // Break the endpoints, then ask the panel to check again.
+      return client.eval(
+        "(function(){" +
+        "var b=document.querySelector('#harness-scenarios button[data-scenario=\"" + scenario + "\"]');" +
+        "if(b) b.click();" +
+        "var r=document.querySelector('.uscistr-header button[aria-label=\"Refresh all cases\"]');" +
+        "if(r) r.click();" +
+        "return !!(b && r);})()");
+    })
+    .then(function () { return sleep(NORMAL_TIMEOUT_MS); })
+    .then(function () {
+      return client.eval(
+        "(function(){" +
+        "var root=document.querySelector('.uscistr-root');" +
+        "var text=root?root.innerText:'';" +
+        "return {" +
+        "  banners: document.querySelectorAll('.uscistr-banner').length," +
+        "  claimsNothingNew: text.indexOf('nothing new') !== -1," +
+        "  claimsCheckedJustNow: /checked just now/.test(text)" +
+        "};})()");
+    })
+    .then(function (r) {
+      if (r.banners > 0) {
+        pass(scenario + ' shows a failure banner (' + r.banners + ')');
+      } else {
+        fail(scenario + ' must show a failure banner', 'none rendered');
+      }
+      if (!r.claimsNothingNew) {
+        pass(scenario + ' does not claim "nothing new"');
+      } else {
+        fail(scenario + ' must not claim "nothing new" after a failed check', 'it does');
+      }
+      return client.close();
+    })
+    .catch(function (err) {
+      fail(scenario + ' check threw', err && err.message ? err.message : String(err));
+      if (client) return client.close().catch(function () {});
+    });
+}
+
 function main() {
   var chromePath = findChrome();
   if (!chromePath) {
@@ -282,7 +346,10 @@ function main() {
     })
     .then(function () {
       var CDP = require(path.join(__dirname, 'cdp-lite.js'));
-      return checkLoggedOut(CDP).then(function () { return checkNormal(CDP); });
+      return checkLoggedOut(CDP)
+        .then(function () { return checkNormal(CDP); })
+        .then(function () { return checkFailureVisible(CDP, 'expired'); })
+        .then(function () { return checkFailureVisible(CDP, 'emptyEnvelope'); });
     })
     .then(function () {
       cleanup();

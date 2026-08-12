@@ -4,6 +4,19 @@ Notable changes per release. The section matching a tag becomes that release's
 notes on GitHub, so keep entries written for someone deciding whether to update
 — not for someone reading a commit log.
 
+## 1.14.2
+
+- Keyboard focus stays on a button after clicking it. Every expandable control
+  changes its own label when opened ("Explain" becomes "Show less"), and focus
+  was being matched by label — so it was lost on the controls people use most.
+- On first run the panel no longer states it is unofficial three times in one
+  view.
+- The receipt-number check in CI catches numbers split across a line or string
+  break.
+- The smoke test drives a failing check the way it actually happens — a working
+  session that then breaks — and asserts the panel shows a failure rather than
+  reporting "nothing new".
+
 ## 1.14.1
 
 - An appointment sent as a date with no time no longer prints "12:00 AM" as if
