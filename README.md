@@ -4,17 +4,11 @@ A panel that appears on [my.uscis.gov](https://my.uscis.gov) showing every case 
 
 **Unofficial and independent.** CaseLens is not affiliated with, endorsed by, or connected to USCIS or the Department of Homeland Security. It shows you the data your own USCIS account already holds; it is not legal advice, and your mailed notices and my.uscis.gov remain the authority on your case.
 
-<!--
-  The screenshots here were taken at v1.5.0 and show a layout that no longer
-  exists — one long expanded card, an always-open add-case form, abbreviated
-  stage names. Showing someone a picture of software they will not meet is
-  worse than showing them none, so the image is out until the set is
-  regenerated against the current build:
-      node scripts/screenshots.js        (README set)
-      node scripts/store-screenshots.js  (1280x800 store set)
-  Include one shot of the wide reading layout — it is the thing most worth
-  showing and no current image has it.
--->
+<p align="center">
+  <img src="docs/screenshots/panel-light.png" alt="The CaseLens panel: four cases as one-line rows, each showing the form, a plain-language name, USCIS's own status and how old it is. The first row carries an amber line reading 'Appointment Scheduled · Aug 21 · in 10 days'. The header reads '4 cases · 1 needing you · checked just now'." width="420">
+</p>
+
+<sub>Sample cases, not real data. <a href="docs/screenshots/panel-dark.png">Dark mode</a> · <a href="docs/screenshots/panel-first-run.png">first run</a>.</sub>
 
 ## Is it safe?
 

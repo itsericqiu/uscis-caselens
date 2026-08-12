@@ -48,6 +48,29 @@ function main() {
     }
   }
 
+  // Hardcoded font sizes bypass the type scale. That is how the scale stopped
+  // controlling anything: seven tokens existed, but 19 rules set a literal px
+  // value instead, so most of the panel's text ended up in a 1px band and
+  // nothing looked more important than anything else. Sizes belong in the
+  // tokens at the top of the file, where the steps can be seen together.
+  var literals = [];
+  for (var k = 0; k < lines.length; k++) {
+    var rule = cssOf(lines[k]);
+    if (rule === null) continue;
+    if (/font-size:\s*[0-9]/.test(rule) && rule.indexOf('--ust-fs-') === -1) {
+      literals.push({ line: k + 1, text: rule.trim().slice(0, 70) });
+    }
+  }
+  if (literals.length) {
+    console.error('css-check: FAILED — ' + literals.length +
+      ' rule(s) set a font size directly instead of using a --ust-fs-* token:');
+    literals.slice(0, 12).forEach(function (o) {
+      console.error('  ' + path.basename(FILE) + ':' + o.line + '  ' + o.text);
+    });
+    console.error('\nAdd a token at the top of the file if a new step is genuinely needed.');
+    process.exit(1);
+  }
+
   if (orphans.length) {
     console.error('css-check: FAILED — ' + orphans.length +
       ' declaration(s) outside any rule. Each one also breaks the rule that follows it:');

@@ -4,6 +4,19 @@ Notable changes per release. The section matching a tag becomes that release's
 notes on GitHub, so keep entries written for someone deciding whether to update
 — not for someone reading a commit log.
 
+## 1.14.0
+
+- Timeline: a merged row no longer sorts onto a different day from the one it
+  displays, and "you first saw this on …" attaches to the nearest matching
+  event rather than the oldest one with the same wording.
+- Change counts are correct once your history reaches its cap.
+- "24 hours ago" no longer appears for anything under a day.
+- Type sizes: seven scale steps, two of them identical and two half a pixel
+  apart, became five distinct ones, and 19 rules that set sizes directly now
+  use them. `css-check` fails the build on a hardcoded font size.
+- Screenshots regenerated; they were five releases out of date. Added a
+  first-run shot, and the others no longer show the first-run note.
+
 ## 1.13.0
 
 - Header counts ("1 needing you", "2 with something new") now stand out instead

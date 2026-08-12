@@ -32,10 +32,14 @@ if (!CHROME) {
 if (!fs.existsSync(OUT)) fs.mkdirSync(OUT, { recursive: true });
 
 // Each shot: the scenario to load, and how to prepare the page before capture.
+// `intro: true` leaves the first-run note in place. Everywhere else it is
+// dismissed, because it is ~40% of the panel and a hero image showing the
+// explanation rather than the product is not showing the product.
 var SHOTS = [
   { name: 'panel-light', scenario: 'normal', dark: false, expand: true },
   { name: 'panel-dark', scenario: 'normal', dark: true, expand: true },
   { name: 'panel-changed', scenario: 'changed', dark: false, expand: true, refresh: true },
+  { name: 'panel-first-run', scenario: 'normal', dark: false, expand: true, intro: true },
   { name: 'launcher-pill', scenario: 'normal', dark: false, expand: false }
 ];
 
@@ -134,12 +138,18 @@ function prepScript(shot) {
     "var prefs={};try{prefs=JSON.parse(localStorage.getItem('uscisTracker.prefs.v1'))||{}}catch(e){}" +
     "prefs.dark=" + (shot.dark ? 'true' : 'false') + ";" +
     "prefs.collapsed=" + (shot.expand ? 'false' : 'true') + ";" +
+    "prefs.seenIntro=" + (shot.intro ? 'false' : 'true') + ";" +
     "localStorage.setItem('uscisTracker.prefs.v1',JSON.stringify(prefs));" +
     "var root=document.querySelector('[class*=uscistr-root]');" +
     "if(root){root.classList." + (shot.dark ? 'add' : 'remove') + "('uscistr-dark');}" +
     "var pill=document.querySelector('[class*=uscistr-pill]');" +
     "var panel=document.querySelector('[class*=uscistr-panel]');" +
     (shot.expand ? "if(pill&&!panel){pill.click();}" : "if(panel){var m=document.querySelector('[title*=inimi],[aria-label*=inimi],[class*=minimi]'); if(m)m.click();}") +
+    // The panel holds its own copy of prefs from init, so writing storage is
+    // not enough — dismiss the note through the button a real user would use.
+    (shot.intro ? "" :
+      "var intro=document.querySelector('[class*=uscistr-intro]');" +
+      "if(intro){var b=intro.querySelector('button'); if(b)b.click();}") +
     "Array.prototype.forEach.call(document.body.children,function(n){" +
     "  var c=String(n.className||'');" +
     "  if(c.indexOf('uscistr')===-1) n.style.display='none';" +

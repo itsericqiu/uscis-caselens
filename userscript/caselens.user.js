@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CaseLens — USCIS Case Tracker
 // @namespace    https://github.com/itsericqiu/uscis-caselens
-// @version      1.13.0
+// @version      1.14.0
 // @description  See all your USCIS cases in one place. Everything stays in your browser.
 // @match        https://my.uscis.gov/*
 // @run-at       document-idle
@@ -574,13 +574,23 @@ var CASELENS_STYLE = [
   // notices, letters and case files are set in serif, product chrome is not.
   // All faces below ship with the OS; nothing is fetched.
   "  --ust-serif: \"Iowan Old Style\", \"Palatino Linotype\", Palatino, \"Book Antiqua\", Georgia, \"Times New Roman\", serif;",
-  "  --ust-fs-title: 13px;      --ust-lh-title: 1.25;",
+  // Five steps, each visibly different from its neighbours. There were seven,
+  // two of them the same size (label and micro were both 10.5px) and two more
+  // half a pixel apart (title 13px, heading 13.5px) — so 82% of the panel's
+  // text landed in a 1px band and nothing looked more important than anything
+  // else. Removing the duplicates and widening the bottom step is what makes
+  // the hierarchy legible; no rule below had to change.
+  "  --ust-fs-brand: 15px;      --ust-lh-brand: 1.2;",
+  "  --ust-fs-lede: 17px;       --ust-lh-lede: 1.3;",
   "  --ust-fs-heading: 13.5px;  --ust-lh-heading: 1.35;",
   "  --ust-fs-body: 12.5px;     --ust-lh-body: 1.55;",
   "  --ust-fs-meta: 11.5px;     --ust-lh-meta: 1.45;",
-  "  --ust-fs-label: 10.5px;    --ust-lh-label: 1.2;",
   "  --ust-fs-mono: 12px;       --ust-lh-mono: 1.4;",
-  "  --ust-fs-micro: 10.5px;    --ust-lh-micro: 1.35;",
+  "  --ust-fs-micro: 10px;      --ust-lh-micro: 1.4;",
+  // Below the scale on purpose, and used only by the stage rail, which fits
+  // five or six labels across a 400px panel. Named rather than left as a magic
+  // number so it is obvious this is one exception, not a sixth step.
+  "  --ust-fs-rail: 9.5px;      --ust-lh-rail: 1.2;",
   "  --ust-s1: 2px;  --ust-s2: 4px;  --ust-s3: 6px;  --ust-s4: 8px;  --ust-s5: 10px;",
   "  --ust-s6: 12px; --ust-s7: 16px; --ust-s8: 20px; --ust-s9: 24px; --ust-s10: 32px;",
   "  --ust-r-xs: 4px; --ust-r-sm: 6px; --ust-r-md: 8px;",
@@ -806,7 +816,7 @@ var CASELENS_STYLE = [
   "  background: var(--ust-bg-panel);",
   "  color: var(--ust-text-1);",
   "  font-family: var(--ust-font);",
-  "  font-size: var(--ust-fs-title);",
+  "  font-size: var(--ust-fs-heading);",
   "  font-weight: 560;",
   "  line-height: 1;",
   "  letter-spacing: -0.005em;",
@@ -836,7 +846,7 @@ var CASELENS_STYLE = [
   "  background: var(--ust-bg-inset);",
   "  color: var(--ust-text-2);",
   "  font-family: var(--ust-mono);",
-  "  font-size: 10.5px;",
+  "  font-size: var(--ust-fs-micro);",
   "  font-weight: 600;",
   "  font-variant-numeric: tabular-nums;",
   "  line-height: 1;",
@@ -970,7 +980,7 @@ var CASELENS_STYLE = [
   "}",
   ".uscistr-root .uscistr-header:active { cursor: grabbing; }",
   ".uscistr-root .uscistr-brand { display: flex; align-items: center; gap: var(--ust-s3); min-width: 0; }",
-  ".uscistr-root .uscistr-brand-name { font-family: var(--ust-serif); font-size: 15px; letter-spacing: 0.005em; }",
+  ".uscistr-root .uscistr-brand-name { font-family: var(--ust-serif); font-size: var(--ust-fs-brand); letter-spacing: 0.005em; }",
   ".uscistr-root .uscistr-mark {",
   "  width: 22px; height: 22px; flex: none;",
   "  border-radius: var(--ust-r-sm);",
@@ -978,8 +988,8 @@ var CASELENS_STYLE = [
   "}",
   ".uscistr-root .uscistr-titles { display: flex; flex-direction: column; gap: 1px; min-width: 0; }",
   ".uscistr-root .uscistr-title {",
-  "  font-size: var(--ust-fs-title);",
-  "  line-height: var(--ust-lh-title);",
+  "  font-size: var(--ust-fs-heading);",
+  "  line-height: var(--ust-lh-heading);",
   "  font-weight: 600;",
   "  letter-spacing: -0.008em;",
   "  color: var(--ust-text-1);",
@@ -988,7 +998,7 @@ var CASELENS_STYLE = [
   "  text-overflow: ellipsis;",
   "}",
   ".uscistr-root .uscistr-subtitle {",
-  "  font-size: 10.5px;",
+  "  font-size: var(--ust-fs-micro);",
   "  line-height: 1.2;",
   "  color: var(--ust-text-3);",
   "  font-variant-numeric: tabular-nums;",
@@ -1032,7 +1042,7 @@ var CASELENS_STYLE = [
   "  -webkit-backdrop-filter: blur(14px) saturate(180%);",
   "  backdrop-filter: blur(14px) saturate(180%);",
   "  box-shadow: inset 0 1px 0 var(--ust-border-1);",
-  "  font-size: 10.5px;",
+  "  font-size: var(--ust-fs-micro);",
   "  line-height: 1.2;",
   "  color: var(--ust-text-3);",
   "  font-variant-numeric: tabular-nums;",
@@ -1053,7 +1063,7 @@ var CASELENS_STYLE = [
   "  background: transparent;",
   "  color: var(--ust-text-2);",
   "  font-family: var(--ust-font);",
-  "  font-size: 12px;",
+  "  font-size: var(--ust-fs-mono);",
   "  font-weight: 560;",
   "  line-height: 1;",
   "  letter-spacing: -0.003em;",
@@ -1074,7 +1084,7 @@ var CASELENS_STYLE = [
   "  transform: none;",
   "  pointer-events: none;",
   "}",
-  ".uscistr-root .uscistr-btn-sm { height: 24px; padding: 0 var(--ust-s4); font-size: 11.5px; border-radius: var(--ust-r-sm); }",
+  ".uscistr-root .uscistr-btn-sm { height: 24px; padding: 0 var(--ust-s4); font-size: var(--ust-fs-meta); border-radius: var(--ust-r-sm); }",
   ".uscistr-root .uscistr-btn-sm svg { width: 12px; height: 12px; }",
   ".uscistr-root .uscistr-btn-primary {",
   "  background: var(--ust-accent-solid);",
@@ -1134,7 +1144,7 @@ var CASELENS_STYLE = [
   "  background: var(--ust-bg-panel);",
   "  color: var(--ust-text-1);",
   "  font-family: var(--ust-font);",
-  "  font-size: 12.5px;",
+  "  font-size: var(--ust-fs-body);",
   "  line-height: 28px;",
   "  transition: border-color var(--ust-d1) var(--ust-ease), box-shadow var(--ust-d1) var(--ust-ease), background-color var(--ust-d1) var(--ust-ease);",
   "}",
@@ -1145,7 +1155,7 @@ var CASELENS_STYLE = [
   ".uscistr-root .uscistr-select:focus-visible { border-color: var(--ust-accent); outline-offset: 1px; }",
   ".uscistr-root .uscistr-input:disabled { background: var(--ust-bg-inset); color: var(--ust-text-3); cursor: not-allowed; }",
   ".uscistr-root .uscistr-input.uscistr-is-invalid { border-color: var(--ust-danger); }",
-  ".uscistr-root .uscistr-input.uscistr-mono { font-family: var(--ust-mono); font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; }",
+  ".uscistr-root .uscistr-input.uscistr-mono { font-family: var(--ust-mono); font-size: var(--ust-fs-mono); letter-spacing: 0.04em; text-transform: uppercase; }",
   ".uscistr-root .uscistr-select {",
   "  padding-right: 26px;",
   "  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);",
@@ -1218,7 +1228,7 @@ var CASELENS_STYLE = [
   ".uscistr-root .uscistr-chip-quiet   { background: transparent; border-color: var(--ust-border-2); color: var(--ust-text-3); }",
   ".uscistr-root .uscistr-chip-form {",
   "  font-family: var(--ust-mono);",
-  "  font-size: 11px;",
+  "  font-size: var(--ust-fs-meta);",
   "  font-weight: 600;",
   "  letter-spacing: 0.02em;",
   "  font-variant-numeric: tabular-nums;",
@@ -1236,7 +1246,7 @@ var CASELENS_STYLE = [
   "  background: var(--ust-bg-inset);",
   "  color: var(--ust-text-3);",
   "  font-family: var(--ust-mono);",
-  "  font-size: 9.5px;",
+  "  font-size: var(--ust-fs-rail);",
   "  font-weight: 600;",
   "  letter-spacing: 0.04em;",
   "  line-height: 1;",
@@ -1256,7 +1266,7 @@ var CASELENS_STYLE = [
   "}",
   ".uscistr-root .uscistr-banner svg { width: 15px; height: 15px; margin-top: 1px; flex: none; }",
   ".uscistr-root .uscistr-banner-body { display: flex; flex-direction: column; gap: var(--ust-s2); min-width: 0; }",
-  ".uscistr-root .uscistr-banner-title { font-size: 12px; font-weight: 600; line-height: 1.35; }",
+  ".uscistr-root .uscistr-banner-title { font-size: var(--ust-fs-mono); font-weight: 600; line-height: 1.35; }",
   ".uscistr-root .uscistr-banner-text { font-size: var(--ust-fs-meta); line-height: 1.45; color: var(--ust-warn-text); opacity: 0.92; }",
   ".uscistr-root .uscistr-banner-actions { display: flex; align-items: center; gap: var(--ust-s2); }",
   ".uscistr-root .uscistr-banner-danger { border-color: var(--ust-danger-border); background: var(--ust-danger-soft); color: var(--ust-danger-text); }",
@@ -1410,7 +1420,7 @@ var CASELENS_STYLE = [
   // this person's case is the reason the panel exists; setting it in the
   // same sans as the chrome buried it under a static form title.
   "  font-family: var(--ust-serif);",
-  "  font-size: 17px;",
+  "  font-size: var(--ust-fs-lede);",
   "  line-height: 1.3;",
   "  font-weight: 600;",
   "  letter-spacing: -0.004em;",
@@ -1511,8 +1521,8 @@ var CASELENS_STYLE = [
   "  display: flex;",
   "  align-items: center;",
   "  gap: var(--ust-s3);",
-  "  font-size: var(--ust-fs-label);",
-  "  line-height: var(--ust-lh-label);",
+  "  font-size: var(--ust-fs-micro);",
+  "  line-height: var(--ust-lh-micro);",
   "  font-weight: 600;",
   "  text-transform: uppercase;",
   "  letter-spacing: 0.075em;",
@@ -1568,7 +1578,7 @@ var CASELENS_STYLE = [
   "}",
   ".uscistr-root .uscistr-timeline-date {",
   "  font-family: var(--ust-mono);",
-  "  font-size: 10.5px;",
+  "  font-size: var(--ust-fs-micro);",
   "  line-height: 1.5;",
   "  font-variant-numeric: tabular-nums;",
   "  letter-spacing: 0.01em;",
@@ -1602,7 +1612,7 @@ var CASELENS_STYLE = [
   ".uscistr-root .uscistr-doc-name { flex: 0 1 auto; color: var(--ust-text-3); }",
   ".uscistr-root .uscistr-doc-name {",
   "  font-family: var(--ust-mono);",
-  "  font-size: 11px;",
+  "  font-size: var(--ust-fs-meta);",
   "  line-height: 1.4;",
   "  color: var(--ust-text-1);",
   "  white-space: nowrap;",
@@ -1678,7 +1688,7 @@ var CASELENS_STYLE = [
   "  background: transparent;",
   "  color: var(--ust-text-3);",
   "  font-family: var(--ust-mono);",
-  "  font-size: 10.5px;",
+  "  font-size: var(--ust-fs-micro);",
   "  letter-spacing: 0.01em;",
   "  cursor: pointer;",
   "  transition: background-color var(--ust-d1) var(--ust-ease), color var(--ust-d1) var(--ust-ease);",
@@ -1701,7 +1711,7 @@ var CASELENS_STYLE = [
   "  background: var(--ust-bg-inset);",
   "  color: var(--ust-text-2);",
   "  font-family: var(--ust-mono);",
-  "  font-size: 10.5px;",
+  "  font-size: var(--ust-fs-micro);",
   "  line-height: 1.55;",
   "  white-space: pre;",
   "  overflow: auto;",
@@ -1744,7 +1754,7 @@ var CASELENS_STYLE = [
   "  margin-bottom: var(--ust-s1);",
   "}",
   ".uscistr-root .uscistr-empty-icon svg { width: 18px; height: 18px; }",
-  ".uscistr-root .uscistr-empty-title { font-size: 13px; line-height: 1.35; font-weight: 600; color: var(--ust-text-1); }",
+  ".uscistr-root .uscistr-empty-title { font-size: var(--ust-fs-heading); line-height: 1.35; font-weight: 600; color: var(--ust-text-1); }",
   ".uscistr-root .uscistr-empty-text { font-size: var(--ust-fs-body); line-height: 1.55; color: var(--ust-text-3); max-width: 30ch; }",
   ".uscistr-root .uscistr-empty .uscistr-btn { margin-top: var(--ust-s2); }",
   ".uscistr-root .uscistr-popover {",
@@ -1771,7 +1781,7 @@ var CASELENS_STYLE = [
   "}",
   ".uscistr-root .uscistr-popover-head {",
   "  padding: var(--ust-s2) var(--ust-s4) var(--ust-s4);",
-  "  font-size: var(--ust-fs-label);",
+  "  font-size: var(--ust-fs-micro);",
   "  font-weight: 600;",
   "  text-transform: uppercase;",
   "  letter-spacing: 0.075em;",
@@ -1787,10 +1797,10 @@ var CASELENS_STYLE = [
   "  transition: background-color var(--ust-d1) var(--ust-ease);",
   "}",
   ".uscistr-root .uscistr-popover-row:hover { background: var(--ust-bg-hover); }",
-  ".uscistr-root .uscistr-popover-label { font-size: 12.5px; line-height: 1.3; font-weight: 500; color: var(--ust-text-1); }",
+  ".uscistr-root .uscistr-popover-label { font-size: var(--ust-fs-body); line-height: 1.3; font-weight: 500; color: var(--ust-text-1); }",
   ".uscistr-root .uscistr-popover-desc { font-size: var(--ust-fs-micro); line-height: 1.4; color: var(--ust-text-3); margin-top: 2px; }",
   ".uscistr-root .uscistr-popover-sep { height: 1px; margin: var(--ust-s2) var(--ust-s4); background: var(--ust-border-1); }",
-  ".uscistr-root .uscistr-popover .uscistr-select { width: 104px; height: 26px; line-height: 24px; font-size: 11.5px; }",
+  ".uscistr-root .uscistr-popover .uscistr-select { width: 104px; height: 26px; line-height: 24px; font-size: var(--ust-fs-meta); }",
   ".uscistr-root .uscistr-mono { font-family: var(--ust-mono); font-variant-numeric: tabular-nums; }",
   ".uscistr-root .uscistr-muted { color: var(--ust-text-3); }",
   ".uscistr-root .uscistr-small { font-size: var(--ust-fs-meta); line-height: var(--ust-lh-meta); }",
@@ -1811,7 +1821,7 @@ var CASELENS_STYLE = [
   "  font-variant-numeric: tabular-nums;",
   "  color: var(--ust-text-2);",
   "}",
-  ".uscistr-root .uscistr-version { font-size: 10.5px; color: var(--ust-text-3); font-variant-numeric: tabular-nums; }",
+  ".uscistr-root .uscistr-version { font-size: var(--ust-fs-micro); color: var(--ust-text-3); font-variant-numeric: tabular-nums; }",
   "@keyframes ust-panel-in {",
   "  from { opacity: 0; transform: translateY(8px) scale(0.985); }",
   "  to   { opacity: 1; transform: none; }",
@@ -1899,7 +1909,7 @@ var CASELENS_STYLE = [
   ".uscistr-root .uscistr-unofficial-label { text-decoration: underline dotted; text-underline-offset: 3px; }",
   ".uscistr-root .uscistr-timeline-sub {",
   "  font-family: var(--ust-mono);",
-  "  font-size: 10.5px;",
+  "  font-size: var(--ust-fs-micro);",
   "  line-height: 1.4;",
   "  color: var(--ust-text-3);",
   "  overflow: hidden;",
@@ -1966,7 +1976,7 @@ var CASELENS_STYLE = [
   // guessed by someone who has not seen them before — on a rail that is
   // already labelled as this tool's own reading of the codes.
   ".uscistr-root .uscistr-stage-label {",
-  "  font-size: 9.5px;",
+  "  font-size: var(--ust-fs-rail);",
   "  line-height: 1.2;",
   "  text-align: center;",
   "  color: var(--ust-text-3);",
@@ -1977,7 +1987,7 @@ var CASELENS_STYLE = [
   "}",
   ".uscistr-root .uscistr-stage-seg.uscistr-is-done .uscistr-stage-label { color: var(--ust-text-2); }",
   ".uscistr-root .uscistr-stage-seg.uscistr-is-current .uscistr-stage-label { color: var(--ust-text-1); font-weight: 600; }",
-  ".uscistr-root .uscistr-stage-here { font-size: 9px; line-height: 1.2; color: var(--ust-accent); white-space: nowrap; }",
+  ".uscistr-root .uscistr-stage-here { font-size: var(--ust-fs-rail); line-height: 1.2; color: var(--ust-accent); white-space: nowrap; }",
   ".uscistr-root .uscistr-quiet { display: flex; flex-direction: column; gap: var(--ust-s2); }",
   ".uscistr-root .uscistr-quiet-head {",
   "  display: flex;",
@@ -2063,7 +2073,7 @@ var CASELENS_STYLE = [
   // SECTION 1: Constants
   // ==========================================================================
 
-  var VERSION = '1.13.0';
+  var VERSION = '1.14.0';
 
   var STORAGE_KEYS = {
     cases: 'uscisTracker.cases.v1',      // [{ number, label, addedAt }]
@@ -3124,6 +3134,21 @@ var CASELENS_STYLE = [
     return value === 0;   // evidenceCount
   }
 
+  // How many entries at the head of `history` are newer than the one that was
+  // previously newest. History is stored newest-first and capped, so at the cap
+  // it stops growing and a length comparison always says zero.
+  function countNewHistory(history, previousNewestAt, previousLength) {
+    if (!history.length) return 0;
+    if (previousNewestAt === null) return Math.min(history.length, history.length - previousLength) > 0
+      ? history.length - previousLength : history.length;
+    for (var i = 0; i < history.length; i++) {
+      if (history[i].at === previousNewestAt) return i;
+    }
+    // The previous newest is gone — trimmed off the end, or the whole record
+    // was replaced. Everything on screen is new to this reader.
+    return history.length;
+  }
+
   // A stored snapshot is only worth showing the user when it carries something
   // USCIS actually told us. An entry that exists but holds nothing is not a
   // record of the case, so it never counts as an earlier copy to fall back on.
@@ -3438,8 +3463,10 @@ var CASELENS_STYLE = [
     var absMinutes = absSeconds / 60;
     if (absMinutes < 60) return phrase(Math.round(absMinutes), 'minute');
 
+    // Floor, not round: rounding reported "24 hours ago" for anything from
+    // 23h30m onward, a unit that never exists in the next branch either.
     var absHours = absMinutes / 60;
-    if (absHours < 24) return phrase(Math.round(absHours), 'hour');
+    if (absHours < 24) return phrase(Math.max(1, Math.floor(absHours)), 'hour');
 
     var absDays = Math.abs(daysBetween(ms, now));
     if (absDays <= 60) return phrase(absDays, 'day');
@@ -5566,7 +5593,12 @@ var CASELENS_STYLE = [
 
   // Passes 1-4 of §3: official x coded on equal codes, local rows absorbed by
   // the official row that says the same thing, and API-duplicated events.
-  function dedupeTimelineItems(items, docNames) {
+  // Decorates the items it is given (removed, corroborated, loggedAt,
+  // firstSeenLocally, and sortAt) and returns the survivors. Named for that:
+  // it reads like a filter and is not one, and now that buildCaseView is
+  // memoized these mutations persist for the whole render rather than being
+  // rebuilt each call.
+  function decorateAndDedupeTimeline(items, docNames) {
     var i, j;
 
     // Pass 1 — an official day-precision row and a coded row carrying the same
@@ -5589,7 +5621,13 @@ var CASELENS_STYLE = [
       if (best) {
         official.corroborated = true;
         official.loggedAt = best.displayAt;
-        official.sortAt = best.sortAt;
+        // Adopt the precise time only when it falls inside the day being
+        // displayed. USCIS logs the coded event as a real instant and the
+        // official row as a bare date, and those can straddle midnight in the
+        // reader's zone: an event shown as "Jul 10" would then sort at Jul 9
+        // 18:00 and appear BELOW a genuine Jul 9 row in a newest-first list —
+        // two rows visibly out of date order.
+        if (sameLocalDay(best.sortAt, official.sortAt)) official.sortAt = best.sortAt;
         best.removed = true;
       }
     }
@@ -5601,14 +5639,23 @@ var CASELENS_STYLE = [
     for (i = 0; i < items.length; i++) {
       var local = items[i];
       if (local.provenance !== 'local' || local.kind !== 'status' || local.removed) continue;
+      // The NEAREST preceding official row, not the first one in array order.
+      // USCIS's history arrives oldest-first, and a status title recurs on a
+      // real case — "USCIS Is Currently Processing Your Case" comes back after
+      // an evidence response. Taking the first match therefore attached "You
+      // first saw this on August 3, 2026" to an event dated February 2025, and
+      // the row that actually earned the marker lost it.
+      var bestMatch = null;
       for (j = 0; j < items.length; j++) {
         var match = items[j];
         if (match.provenance !== 'official' || match.removed) continue;
         if (normalizeText(match.label) !== normalizeText(local.to)) continue;
         if (match.sortAt === null || local.sortAt === null || match.sortAt > local.sortAt) continue;
-        match.firstSeenLocally = local.displayAt;
+        if (bestMatch === null || match.sortAt > bestMatch.sortAt) bestMatch = match;
+      }
+      if (bestMatch) {
+        bestMatch.firstSeenLocally = local.displayAt;
         local.removed = true;
-        break;
       }
     }
 
@@ -5822,7 +5869,7 @@ var CASELENS_STYLE = [
       }
     }
 
-    var items = dedupeTimelineItems(collectTimelineItems(entry), docNames);
+    var items = decorateAndDedupeTimeline(collectTimelineItems(entry), docNames);
     items = sortTimelineItems(items);
 
     // A scheduled appointment is the only forward-looking thing we can
@@ -8214,18 +8261,25 @@ var CASELENS_STYLE = [
     // Captured before the fetch so the card can say what changed and when we
     // last looked. applyFetchResult() overwrites both.
     var previousSnapshot = getSnapshot(number);
-    var previousHistoryLength = getHistory(number).length;
+    var previousHistory = getHistory(number);
+    var previousHistoryLength = previousHistory.length;
+    var previousNewestAt = previousHistory.length ? previousHistory[0].at : null;
 
     entry.loading = true;
     render();
     return fetchAllForCase(number).then(function (result) {
       entry.loading = false;
       applyFetchResult(entry, result);
+      // Count by comparing against the newest entry we had, not by length.
+      // At HISTORY_CAP the array stops growing, so length arithmetic reported
+      // zero new changes forever and the card fell back to a vague "something
+      // changed" while the marker was still lit.
       var history = getHistory(number);
-      var added = history.length - previousHistoryLength;
+      var added = countNewHistory(history, previousNewestAt, previousHistoryLength);
       if (added > 0) {
         entry.newChanges = history.slice(0, added);
         entry.lastLookedAt = previousSnapshot ? previousSnapshot.at : null;
+        persistCases();
       }
       render();
     });

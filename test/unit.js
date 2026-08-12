@@ -170,6 +170,66 @@ function run() {
   // --- redaction -----------------------------------------------------------
   // This is a privacy control implemented as a regex over escaped JSON. It gets
   // the strictest tests in the file.
+  // --- timeline dedupe -----------------------------------------------------
+  describe('decorateAndDedupeTimeline — a merged row never sorts off its own day');
+  (function () {
+    // Official row is a bare date (local end-of-day); the coded row is a real
+    // instant that lands on the PREVIOUS local day. Adopting its sort key put
+    // the row below a genuine earlier row while still displaying the later date.
+    var dayEnd = new Date(2026, 6, 10, 23, 59, 59).getTime();
+    var prevDayEvening = new Date(2026, 6, 9, 18, 0, 0).getTime();
+    var items = [
+      { id: 'o', provenance: 'official', code: 'FTA0', label: 'Processing',
+        sortAt: dayEnd, displayAt: dayEnd },
+      { id: 'c', provenance: 'coded', code: 'FTA0', label: 'Processing',
+        sortAt: prevDayEvening, displayAt: prevDayEvening }
+    ];
+    var out = A.decorateAndDedupeTimeline(items, {});
+    var official = null;
+    for (var i = 0; i < out.length; i++) if (out[i].id === 'o') official = out[i];
+    ok(official !== null, 'the official row survives', JSON.stringify(out));
+    eq(official.corroborated, true, 'it is marked corroborated');
+    ok(A.sameLocalDay(official.sortAt, official.displayAt),
+      'its sort key stays on the day it displays',
+      'sortAt=' + official.sortAt + ' displayAt=' + official.displayAt);
+  })();
+
+  describe('decorateAndDedupeTimeline — "first seen" attaches to the nearest match');
+  (function () {
+    // The same status title twice, as happens after an evidence response.
+    // History arrives oldest-first, so taking the first match marked the 2025
+    // row instead of the recent one.
+    var old = new Date(2025, 1, 3).getTime();
+    var recent = new Date(2026, 6, 1).getTime();
+    var seen = new Date(2026, 6, 20).getTime();
+    var items = [
+      { id: 'old', provenance: 'official', label: 'USCIS Is Processing Your Case',
+        sortAt: old, displayAt: old },
+      { id: 'recent', provenance: 'official', label: 'USCIS Is Processing Your Case',
+        sortAt: recent, displayAt: recent },
+      { id: 'local', provenance: 'local', kind: 'status', to: 'USCIS Is Processing Your Case',
+        sortAt: seen, displayAt: seen }
+    ];
+    A.decorateAndDedupeTimeline(items, {});
+    eq(items[0].firstSeenLocally, undefined, 'the older row is not marked');
+    eq(items[1].firstSeenLocally, seen, 'the nearest preceding row is marked');
+  })();
+
+  describe('countNewHistory — works at the history cap');
+  (function () {
+    var h = [{ at: 'c' }, { at: 'b' }, { at: 'a' }];
+    eq(A.countNewHistory(h, 'b', 3), 1, 'one new entry, array length unchanged');
+    eq(A.countNewHistory(h, 'c', 3), 0, 'nothing new');
+    eq(A.countNewHistory(h, 'gone', 3), 3, 'previous newest trimmed away');
+  })();
+
+  describe('relativeDate — no phantom "24 hours"');
+  (function () {
+    var now = new Date().getTime();
+    var t = new Date(now - (23.7 * 60 * 60 * 1000)).toISOString();
+    eq(A.relativeDate(t), '23 hours ago', '23h42m reads as 23 hours');
+  })();
+
   describe('redactRawJson');
   (function () {
     var R = internals.load({ redact: true });

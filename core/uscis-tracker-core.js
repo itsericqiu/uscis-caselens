@@ -34,7 +34,7 @@
   // SECTION 1: Constants
   // ==========================================================================
 
-  var VERSION = '1.13.0';
+  var VERSION = '1.14.0';
 
   var STORAGE_KEYS = {
     cases: 'uscisTracker.cases.v1',      // [{ number, label, addedAt }]
@@ -1095,6 +1095,21 @@
     return value === 0;   // evidenceCount
   }
 
+  // How many entries at the head of `history` are newer than the one that was
+  // previously newest. History is stored newest-first and capped, so at the cap
+  // it stops growing and a length comparison always says zero.
+  function countNewHistory(history, previousNewestAt, previousLength) {
+    if (!history.length) return 0;
+    if (previousNewestAt === null) return Math.min(history.length, history.length - previousLength) > 0
+      ? history.length - previousLength : history.length;
+    for (var i = 0; i < history.length; i++) {
+      if (history[i].at === previousNewestAt) return i;
+    }
+    // The previous newest is gone — trimmed off the end, or the whole record
+    // was replaced. Everything on screen is new to this reader.
+    return history.length;
+  }
+
   // A stored snapshot is only worth showing the user when it carries something
   // USCIS actually told us. An entry that exists but holds nothing is not a
   // record of the case, so it never counts as an earlier copy to fall back on.
@@ -1409,8 +1424,10 @@
     var absMinutes = absSeconds / 60;
     if (absMinutes < 60) return phrase(Math.round(absMinutes), 'minute');
 
+    // Floor, not round: rounding reported "24 hours ago" for anything from
+    // 23h30m onward, a unit that never exists in the next branch either.
     var absHours = absMinutes / 60;
-    if (absHours < 24) return phrase(Math.round(absHours), 'hour');
+    if (absHours < 24) return phrase(Math.max(1, Math.floor(absHours)), 'hour');
 
     var absDays = Math.abs(daysBetween(ms, now));
     if (absDays <= 60) return phrase(absDays, 'day');
@@ -3537,7 +3554,12 @@
 
   // Passes 1-4 of §3: official x coded on equal codes, local rows absorbed by
   // the official row that says the same thing, and API-duplicated events.
-  function dedupeTimelineItems(items, docNames) {
+  // Decorates the items it is given (removed, corroborated, loggedAt,
+  // firstSeenLocally, and sortAt) and returns the survivors. Named for that:
+  // it reads like a filter and is not one, and now that buildCaseView is
+  // memoized these mutations persist for the whole render rather than being
+  // rebuilt each call.
+  function decorateAndDedupeTimeline(items, docNames) {
     var i, j;
 
     // Pass 1 — an official day-precision row and a coded row carrying the same
@@ -3560,7 +3582,13 @@
       if (best) {
         official.corroborated = true;
         official.loggedAt = best.displayAt;
-        official.sortAt = best.sortAt;
+        // Adopt the precise time only when it falls inside the day being
+        // displayed. USCIS logs the coded event as a real instant and the
+        // official row as a bare date, and those can straddle midnight in the
+        // reader's zone: an event shown as "Jul 10" would then sort at Jul 9
+        // 18:00 and appear BELOW a genuine Jul 9 row in a newest-first list —
+        // two rows visibly out of date order.
+        if (sameLocalDay(best.sortAt, official.sortAt)) official.sortAt = best.sortAt;
         best.removed = true;
       }
     }
@@ -3572,14 +3600,23 @@
     for (i = 0; i < items.length; i++) {
       var local = items[i];
       if (local.provenance !== 'local' || local.kind !== 'status' || local.removed) continue;
+      // The NEAREST preceding official row, not the first one in array order.
+      // USCIS's history arrives oldest-first, and a status title recurs on a
+      // real case — "USCIS Is Currently Processing Your Case" comes back after
+      // an evidence response. Taking the first match therefore attached "You
+      // first saw this on August 3, 2026" to an event dated February 2025, and
+      // the row that actually earned the marker lost it.
+      var bestMatch = null;
       for (j = 0; j < items.length; j++) {
         var match = items[j];
         if (match.provenance !== 'official' || match.removed) continue;
         if (normalizeText(match.label) !== normalizeText(local.to)) continue;
         if (match.sortAt === null || local.sortAt === null || match.sortAt > local.sortAt) continue;
-        match.firstSeenLocally = local.displayAt;
+        if (bestMatch === null || match.sortAt > bestMatch.sortAt) bestMatch = match;
+      }
+      if (bestMatch) {
+        bestMatch.firstSeenLocally = local.displayAt;
         local.removed = true;
-        break;
       }
     }
 
@@ -3793,7 +3830,7 @@
       }
     }
 
-    var items = dedupeTimelineItems(collectTimelineItems(entry), docNames);
+    var items = decorateAndDedupeTimeline(collectTimelineItems(entry), docNames);
     items = sortTimelineItems(items);
 
     // A scheduled appointment is the only forward-looking thing we can
@@ -6185,18 +6222,25 @@
     // Captured before the fetch so the card can say what changed and when we
     // last looked. applyFetchResult() overwrites both.
     var previousSnapshot = getSnapshot(number);
-    var previousHistoryLength = getHistory(number).length;
+    var previousHistory = getHistory(number);
+    var previousHistoryLength = previousHistory.length;
+    var previousNewestAt = previousHistory.length ? previousHistory[0].at : null;
 
     entry.loading = true;
     render();
     return fetchAllForCase(number).then(function (result) {
       entry.loading = false;
       applyFetchResult(entry, result);
+      // Count by comparing against the newest entry we had, not by length.
+      // At HISTORY_CAP the array stops growing, so length arithmetic reported
+      // zero new changes forever and the card fell back to a vague "something
+      // changed" while the marker was still lit.
       var history = getHistory(number);
-      var added = history.length - previousHistoryLength;
+      var added = countNewHistory(history, previousNewestAt, previousHistoryLength);
       if (added > 0) {
         entry.newChanges = history.slice(0, added);
         entry.lastLookedAt = previousSnapshot ? previousSnapshot.at : null;
+        persistCases();
       }
       render();
     });
