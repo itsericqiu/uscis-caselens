@@ -208,6 +208,12 @@ organisation — and one word in the title is the cheapest way to settle it.
 Chrome renders no markup. Plain text, and keep "USCIS" to about five
 occurrences: unnatural repetition of a keyword is a listed suspension ground.
 
+**Do not paste this block as it appears here.** It is hard-wrapped at ~76
+characters so it reads in a text editor; pasted verbatim, every one of those
+wraps becomes a literal line break mid-sentence in the published listing. Rejoin
+each paragraph and each bullet into a single line first — newlines belong only
+between paragraphs and between bullets.
+
 > CaseLens adds a panel to my.uscis.gov showing every case on the signed-in
 > account in one place.
 >
