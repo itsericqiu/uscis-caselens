@@ -272,22 +272,51 @@ AMO renders Markdown, so use the same copy with `###` headings, `*` bullets and
 > event timeline, office, and documents that the page's existing session
 > already has access to. Nothing else.
 
-### Permission justification (both stores)
+### Host permission justification (Chrome, max 1000 characters)
 
-With zero permissions declared, this section may render empty. Say it anyway —
-a zero-permission extension making API calls is the first thing a reviewer will
-question.
+**Chrome counts a content script's match pattern as a host permission.** Its own
+form says so: *"A host permission is any match pattern specified in the
+`permissions` and `content_scripts` fields of the extension manifest."* The
+dashboard therefore shows "Due to the Host Permission, your extension may
+require an in-depth review", even though the manifest has no `host_permissions`
+key.
 
-> No browser permissions of any kind are requested. The manifest declares no
-> "permissions", no "host_permissions", no optional permissions and no
-> background or service worker. A single content script matches
-> https://my.uscis.gov/* and reads data from that page's own logged-in session
-> using same-origin GET requests — the same requests the my.uscis.gov dashboard
-> already makes for the signed-in user. Same-origin requests from a content
-> script require no host permission. Without host permissions the extension
-> cannot read a response from any other site, does not use storage or tabs
-> permissions beyond what content scripts have by default, and cannot run or
-> read anything outside the my.uscis.gov tab it is injected into.
+An earlier draft of this section opened by denying that any permission was
+requested — inside the box asking to justify the host permission Chrome had
+already identified. Do not do that. It contradicts the field's premise and reads
+as either evasive or as not having read the form, which is the worst footing for
+a manual review. Justify the access; do not dispute that it exists.
+
+> The host permission is the single match pattern https://my.uscis.gov/* in
+> content_scripts. CaseLens renders a panel on that site's own account page, so
+> it has to run there. It matches no other pattern and has no function anywhere
+> else.
+>
+> Within that page it reads the signed-in user's own case data using same-origin
+> GET requests — the same requests the my.uscis.gov dashboard already makes for
+> that user — and lays them out in one place. Every URL it can construct comes
+> from a single ENDPOINTS map in the source, there are two fetch call sites, and
+> every request is a GET. Nothing is written, submitted or uploaded.
+>
+> The manifest declares no host_permissions key, no optional permissions, no
+> other permission of any kind, and no background or service worker. activeTab
+> with scripting was considered and rejected: it would require a background
+> worker plus the ability to inject code into arbitrary tabs on demand, which is
+> broader access than one static match pattern.
+
+968 characters. **Do not "fix" the warning by moving to `activeTab` + `scripting`.**
+That trades a static, single-host, statically-auditable match pattern for a
+background worker and on-demand injection into arbitrary tabs — more capability,
+worse auditability, and a worse answer to the only question this project exists
+to answer.
+
+### A note on the phrase "zero permissions"
+
+Accurate about the manifest, and it is what the README and SECURITY.md lead
+with. But Chrome's install prompt still warns about reading and changing data on
+my.uscis.gov, because the content script genuinely can. Prefer "no permissions
+beyond running on my.uscis.gov itself" in user-facing copy, so nobody feels
+oversold at the install prompt.
 
 ### Remote code statement (both stores ask). Answer: No.
 
