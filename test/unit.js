@@ -230,6 +230,13 @@ function run() {
     eq(A.relativeDate(t), '23 hours ago', '23h42m reads as 23 hours');
   })();
 
+  describe('hasTimeComponent — a date is not a midnight appointment');
+  eq(A.hasTimeComponent('2026-07-09T19:00:00.000Z'), true, 'real instant');
+  eq(A.hasTimeComponent('2026-07-09T00:00:00.000Z'), false, 'UTC midnight is a bare date');
+  eq(A.hasTimeComponent('2026-07-09T00:00:00+0000'), false, 'the +0000 spelling too');
+  eq(A.hasTimeComponent('2026-07-09'), false, 'bare date');
+  eq(A.hasTimeComponent(null), false, 'null');
+
   describe('redactRawJson');
   (function () {
     var R = internals.load({ redact: true });

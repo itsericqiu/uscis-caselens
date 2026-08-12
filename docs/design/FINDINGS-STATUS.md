@@ -11,7 +11,7 @@ security) · a documentation review.
 
 Line numbers move, so citations use function names.
 
-**Baseline:** audited at v1.6.1; statuses updated through v1.10.0.
+**Baseline:** audited at v1.6.1; statuses updated through v1.14.0.
 
 ## The table
 
@@ -70,7 +70,7 @@ Line numbers move, so citations use function names.
 | AR-6 | Three names for the same value across normalize/summarize | Architecture | **DONE** (1.8.0) — `statusAt` and `backendAt` across layers, with a read migration |
 | AR-7 | `caseRenderState` defines six states, four never read | Architecture | **DONE** (1.8.0) — `caseContentSource`, returning only what decides anything |
 | AR-8 | `buildAttentionBanner` mutates timeline items, undocumented ordering | Architecture | **DONE** (1.8.1) — the ordering dependency is documented at the function |
-| AR-9 | Notice-array index alignment is an implicit contract | Architecture | **PARTIAL** — commented, not enforced |
+| AR-9 | Notice-array index alignment is an implicit contract | Architecture | **DONE** (1.14.1) — `letterId` is carried on the event; the parallel index is gone |
 | AR-10 | Two relative-time vocabularies on one card | Architecture | **DONE** (1.8.0) — one date implementation, three shapes |
 | AR-11 | `.uscistr-is-passed` and `.uscistr-timeline-footnote` have no CSS rules | Architecture | **DONE** (1.7.0) — both classes have rules; the footnote is micro/text-3 |
 | AR-12 | Stale section-header comments describe functions that changed | Architecture | **DONE** (1.8.0) — skeleton comments corrected |
@@ -97,7 +97,7 @@ Line numbers move, so citations use function names.
 | DC-1 | Design docs `01`/`02`/`03` still specify rejected designs | Docs | **DONE** (1.10.0) — rejected sections in `02` carry inline REJECTED markers |
 | DC-2 | `02` §6's stale ~1,350-line stylesheet | Docs | **DONE** (1.10.0) — the stale 1,350-line stylesheet copy is replaced by a pointer |
 | DC-3 | CHANGELOG 1.3.x is five entries arguing about one line | Docs | **DONE** (1.10.0) — a "where 1.3.x landed" summary heads the sequence |
-| DC-4 | Various README trims | Docs | **PARTIAL** |
+| DC-4 | Various README trims | Docs | **CLOSED** — never written down as specific edits; README rewritten ~45% shorter in 1.2.0 and corrected again in 1.11.x |
 | GH-1 | "Erase all CaseLens data" in Settings | #4 | **DONE** (1.7.0) — "Erase everything" in Settings, naming what is stored |
 | GH-2 | Refresh resets scroll; entry animation replays every render | #4 | **DONE** (1.9.0) — entry animation only on mount; both split-pane scrollers restored |
 | GH-3 | Pill `aria-label` is just "Open CaseLens" | #4 | **DONE** (1.10.0) — accessible name names the count and the changes |
@@ -114,14 +114,14 @@ Line numbers move, so citations use function names.
 
 | Status | At audit (1.6.1) | Now (1.10.0) |
 |---|---|---|
-| DONE | 30 | 79 |
-| PARTIAL | 11 | 2 |
+| DONE | 30 | 81 |
+| PARTIAL | 11 | 0 |
 | NOT DONE | 42 | 2 |
 | REJECTED | 6 | 5 |
 | ACCEPTED RISK | 0 | 1 |
 | OBSOLETE | 1 | 1 |
 
-**Outstanding: 53 at audit, 4 now.**
+**Outstanding: 53 at audit, 2 now — both Spanish localisation.**
 
 Also closed, and not counted above because they postdate the audit: all four
 items the audit itself turned up, and the three regressions collapse-all
@@ -136,13 +136,9 @@ a dropped request.
   microcopy is a different job: it needs a string-table refactor and a human
   Spanish speaker, and machine-translating a panel that people rely on for
   immigration deadlines is not an acceptable shortcut. Open by design.
-- **AR-9 — notice-array index alignment.** The contract is documented at the
-  call site but not enforced by the code. Enforcing it means carrying `letterId`
-  on the event itself, which is a data-layer change worth doing when that layer
-  is next opened.
-- **DC-4 — README trims.** Never written down as specific edits, so there is
-  nothing concrete to verify against. The README was rewritten ~45% shorter in
-  1.2.0; treat this as closed unless someone names a section.
+Nothing else is outstanding. The five later reviews (security, correctness,
+architecture, documentation, live UX) were worked through 1.11.1–1.14.1 and are
+recorded in `CHANGELOG.md` rather than re-tabulated here.
 Where the DONEs cluster matters more than the total. All eight HARMFUL items
 are genuinely fixed, and so are eight of the ten binding SPEC decisions (the
 other two are recorded rejections).

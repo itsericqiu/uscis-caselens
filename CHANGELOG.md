@@ -4,6 +4,17 @@ Notable changes per release. The section matching a tag becomes that release's
 notes on GitHub, so keep entries written for someone deciding whether to update
 — not for someone reading a commit log.
 
+## 1.14.1
+
+- An appointment sent as a date with no time no longer prints "12:00 AM" as if
+  it were the appointment time. It says USCIS gave no time and to check your
+  notice.
+- The letter number shown with an appointment is read from that notice rather
+  than matched by position, which could have attached the wrong one.
+- A case's own USCIS wording is no longer demoted to "from another case" over a
+  difference in letter case.
+- Wording fixes in the first-run note and a screen-reader label.
+
 ## 1.14.0
 
 - Timeline: a merged row no longer sorts onto a different day from the one it

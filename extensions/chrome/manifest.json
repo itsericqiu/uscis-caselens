@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "CaseLens — USCIS Case Tracker",
-  "version": "1.14.0",
+  "version": "1.14.1",
   "description": "See all your USCIS cases in one place. Everything stays in your browser.",
   "content_scripts": [
     {

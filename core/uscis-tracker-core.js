@@ -34,7 +34,7 @@
   // SECTION 1: Constants
   // ==========================================================================
 
-  var VERSION = '1.14.0';
+  var VERSION = '1.14.1';
 
   var STORAGE_KEYS = {
     cases: 'uscisTracker.cases.v1',      // [{ number, label, addedAt }]
@@ -874,6 +874,17 @@
     return out;
   }
 
+  // Did this value actually carry a time, or only a date? A date-only value
+  // parses to local midnight, which is indistinguishable from a real midnight
+  // once it is a number — so the question has to be asked of the original
+  // string, before it is parsed.
+  function hasTimeComponent(value) {
+    if (typeof value !== 'string') return false;
+    if (!/[T ]\d{2}:\d{2}/.test(value)) return false;
+    // Midnight UTC is how USCIS spells a bare date; see parseUscisDate.
+    return !/^\d{4}-\d{2}-\d{2}(?:[T ]00:00(?::00(?:\.0+)?)?(?:Z|[+-]00:?00)?)?$/.test(value);
+  }
+
   // true and false are facts about a case; anything else is an absence.
   // Coercing a missing field to false would let a card state "not closed"
   // on the strength of USCIS not having mentioned it.
@@ -1305,7 +1316,12 @@
     var key = String(code).toUpperCase();
 
     var learned = loadLearned().byCode[learnedKey(code, formType)] || null;
-    if (learned && caseNumber && learned.from === String(caseNumber)) {
+    // Normalised on both sides. Exact string equality compared a receipt number
+    // from caseStatus against one from caseDetail, so any difference in case or
+    // padding silently demoted this case's OWN USCIS wording to the "from
+    // another case" tier. It fails safe, but it fails.
+    if (learned && caseNumber &&
+        String(learned.from).toUpperCase().trim() === String(caseNumber).toUpperCase().trim()) {
       return { text: learned.text, source: 'uscis' };
     }
     // The official federal schema (NIEM). These are USCIS's internal
@@ -1359,7 +1375,7 @@
   // summaryText(entry) -> plain-text case summary for clipboard (honors prefs.redact)
   // extractUscisEvents(result) -> [{ source, at, code, text }] merged event list
   // summarize* helpers (caseDetail/location/caseStatus/processingTimes/documents)
-  //   via pick() candidate keys — see plan; always null-safe.
+  //   via pick() candidate keys against the FIELDS map; always null-safe.
 
   // --------------------------------------------------------------------------
   // DAY ARITHMETIC — one definition of "a day", used by everything.
@@ -1740,6 +1756,7 @@
             code: null,
             text: flattenValue(pick(n, FIELDS.noticeItem.type)),
             appointmentAt: appointmentAt || null,
+            letterId: pick(n, FIELDS.noticeItem.letterId),
             official: true
           });
         }
@@ -3349,16 +3366,6 @@
     var detail = summarizeCaseDetail(result.caseDetail);
     var notice = summarizeCaseStatus(result.caseStatus);
 
-    // Read the raw notices alongside so an appointment row can name the letter
-    // id USCIS put on the notice. extractUscisEvents() pushes notice rows in
-    // array order, so index alignment holds.
-    var rawNotices = [];
-    if (payloadUsable(result.caseDetail)) {
-      var maybeNotices = pick(result.caseDetail, FIELDS.caseDetail.notices);
-      if (Array.isArray(maybeNotices)) rawNotices = maybeNotices;
-    }
-    var noticeIndex = 0;
-
     var uscisEvents = extractUscisEvents(result);
     for (i = 0; i < uscisEvents.length; i++) {
       var ev = uscisEvents[i];
@@ -3409,8 +3416,6 @@
           label: ev.text || null
         });
       } else if (ev.source === 'notice') {
-        var raw = rawNotices[noticeIndex] || null;
-        noticeIndex++;
         var apptMs = ev.appointmentAt ? parseUscisDate(ev.appointmentAt) : null;
         items.push({
           id: 'notice:' + i,
@@ -3418,11 +3423,21 @@
           kind: apptMs !== null ? 'appointment' : 'notice',
           sortAt: apptMs !== null ? apptMs : ev.at,
           displayAt: apptMs !== null ? apptMs : ev.at,
-          precision: 'second',
+          // Whether a time was actually sent, not an assumption that one was.
+          // This was hardcoded 'second', so an appointment arriving date-only
+          // would have printed "12:00 AM EDT" as a real appointment time — a
+          // fabricated number on the one value where acting on the wrong one
+          // means missing a biometrics appointment.
+          precision: hasTimeComponent(ev.appointmentAt) ? 'second' : 'day',
           code: null,
           label: ev.text || 'Notice on file',
           generatedAt: ev.at,
-          letterId: raw ? pick(raw, FIELDS.noticeItem.letterId) : null
+          // Carried on the event by extractUscisEvents rather than looked up by
+          // a parallel index into rawNotices. The index alignment held only as
+          // long as neither loop ever skipped an entry, and nothing enforced
+          // that — a wrong letterId prints "follow the notice — letter …" with
+          // the wrong number on it.
+          letterId: ev.letterId === undefined ? null : ev.letterId
         });
       }
     }
@@ -4957,7 +4972,9 @@
           // Only the second is true. On this value in particular, a comment
           // that contradicts its neighbour is how the next person reintroduces
           // the bug 1.3.0–1.3.4 already argued its way out of.
-          el('div', { 'class': 'uscistr-upcoming-meta', text:
+          appt.precision === 'day' ? el('div', { 'class': 'uscistr-upcoming-meta', text:
+            'USCIS gave a date for this but no time. Your notice has the time on it.' })
+          : el('div', { 'class': 'uscistr-upcoming-meta', text:
             formatTimeOfDay(appt.displayAt) +
             (apptZone ? ' ' + apptZone : '') +
             ' · shown in your device’s time zone, which may not be the office’s.' +
@@ -5724,7 +5741,7 @@
       ? parseUscisDate(view.detail.submissionDate) : null;
     var dayText = closed ? 'Closed'
       : (filedMs !== null ? 'Day ' + daysBetween(filedMs, new Date().getTime()) : '');
-    if (dayText) spoken.push(closed ? 'case closed' : dayText);
+    if (dayText) spoken.push(closed ? 'Case closed' : dayText);
 
     row.appendChild(el('div', { 'class': 'uscistr-collapsed-head' }, [
       entry.changedSince ? el('span', { 'class': 'uscistr-collapsed-dot' }) : null,
@@ -6133,8 +6150,8 @@
     return el('div', { 'class': 'uscistr-note uscistr-intro' }, [
       el('div', { 'class': 'uscistr-note-title', text: 'This is CaseLens, and it found your cases automatically.' }),
       el('p', { text: 'It is an unofficial, open-source panel — not USCIS. It read the receipt ' +
-        'numbers already on this page and asked the same USCIS endpoints this website uses, ' +
-        'signed in as you.' }),
+        'numbers already printed on this page, and asked USCIS for those cases the same way ' +
+        'this website does, signed in as you.' }),
       el('p', { text: 'Nothing leaves this browser. There is no account and no server: your cases, ' +
         'their history and your settings are stored on this computer only. You can erase all of ' +
         'it from Settings.' }),

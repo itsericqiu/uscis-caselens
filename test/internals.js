@@ -35,7 +35,7 @@ var EXPORTS = [
   'flattenValue', 'strictBool', 'stripHtml', 'pick', 'plural',
   'isValidReceiptNumber', 'redactRawJson', 'redactNumber', 'displayFileName',
   'stageIndexOfCode', 'describeCode', 'learnedKey', 'documentLabel',
-  'decorateAndDedupeTimeline', 'countNewHistory', 'normalizeText',
+  'decorateAndDedupeTimeline', 'countNewHistory', 'normalizeText', 'hasTimeComponent',
   'middleTruncate', 'parseEstimateMonths', 'futureAppointments'
 ];
 
