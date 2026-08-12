@@ -4,6 +4,13 @@ Notable changes per release. The section matching a tag becomes that release's
 notes on GitHub, so keep entries written for someone deciding whether to update
 — not for someone reading a commit log.
 
+## 1.15.1
+
+- No behaviour change. Three long functions split along seams that were already
+  there: the timeline's five sources, the three kinds of case card, and the four
+  independent merges an imported backup performs. Longest function 209 → 144
+  lines; median unchanged at 12.
+
 ## 1.15.0
 
 - Copy rewritten throughout to drop the first person. The panel reports facts

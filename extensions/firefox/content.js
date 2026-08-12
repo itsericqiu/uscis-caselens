@@ -2058,7 +2058,7 @@ var CASELENS_STYLE = [
   // SECTION 1: Constants
   // ==========================================================================
 
-  var VERSION = '1.15.0';
+  var VERSION = '1.15.1';
 
   var STORAGE_KEYS = {
     cases: 'uscisTracker.cases.v1',      // [{ number, label, addedAt }]
@@ -5029,38 +5029,67 @@ var CASELENS_STYLE = [
       return;
     }
 
-    var i, key;
-    var addedCases = 0;
+    // Four independent merges, one per storage key. Each validates what it
+    // reads, because a backup file is untrusted input; each is separate so
+    // that validation can be read without the other three in the way.
+    // Preferences are deliberately not imported.
+    var addedCases = mergeImportedCases(parsed.cases);
+    mergeImportedHistory(parsed.history);
+    mergeImportedSnapshots(parsed.snapshots);
+    mergeImportedDismissals(parsed.dismissed);
 
+    loadAll();
+    render();
+    reportImport(addedCases);
+    refreshAll();
+  }
+
+  // Union by receipt number; an entry already here always wins, so importing
+  // never overwrites a nickname or an added-at date.
+  function mergeImportedCases(importedCases) {
+    var added = 0;
     var byNumber = {};
-    var existingCases = load(STORAGE_KEYS.cases, []);
-    for (i = 0; i < existingCases.length; i++) byNumber[existingCases[i].number] = existingCases[i];
-    var importedCases = Array.isArray(parsed.cases) ? parsed.cases : [];
-    for (i = 0; i < importedCases.length; i++) {
-      var c = importedCases[i];
-      if (!c || !isValidReceiptNumber(c.number)) continue;
-      if (!byNumber[c.number]) {
-        byNumber[c.number] = makeCaseEntry(c);
-        addedCases++;
-      }
-    }
-    var mergedCases = [];
-    for (key in byNumber) { if (byNumber.hasOwnProperty(key)) mergedCases.push(byNumber[key]); }
-    save(STORAGE_KEYS.cases, mergedCases);
+    var existing = load(STORAGE_KEYS.cases, []);
+    var i, key;
 
-    var existingHistory = load(STORAGE_KEYS.history, {});
-    var importedHistory = (parsed.history && typeof parsed.history === 'object') ? parsed.history : {};
-    var mergedHistory = {};
-    for (key in existingHistory) {
-      if (existingHistory.hasOwnProperty(key) && Array.isArray(existingHistory[key])) {
-        mergedHistory[key] = existingHistory[key].slice();
+    for (i = 0; i < existing.length; i++) byNumber[existing[i].number] = existing[i];
+
+    var incoming = Array.isArray(importedCases) ? importedCases : [];
+    for (i = 0; i < incoming.length; i++) {
+      var c = incoming[i];
+      if (!c || !isValidReceiptNumber(c.number)) continue;
+      if (byNumber[c.number]) continue;
+      byNumber[c.number] = makeCaseEntry(c);
+      added++;
+    }
+
+    var merged = [];
+    for (key in byNumber) {
+      if (Object.prototype.hasOwnProperty.call(byNumber, key)) merged.push(byNumber[key]);
+    }
+    save(STORAGE_KEYS.cases, merged);
+    return added;
+  }
+
+  // Concatenated per case, deduped on (date, kind, new value), newest first,
+  // trimmed to the cap. Every imported row passes sanitizeHistoryEntry.
+  function mergeImportedHistory(importedHistory) {
+    var existing = load(STORAGE_KEYS.history, {});
+    var incoming = (importedHistory && typeof importedHistory === 'object') ? importedHistory : {};
+    var merged = {};
+    var key, i;
+
+    for (key in existing) {
+      if (Object.prototype.hasOwnProperty.call(existing, key) && Array.isArray(existing[key])) {
+        merged[key] = existing[key].slice();
       }
     }
-    for (key in importedHistory) {
-      if (!importedHistory.hasOwnProperty(key)) continue;
+
+    for (key in incoming) {
+      if (!Object.prototype.hasOwnProperty.call(incoming, key)) continue;
       if (!isValidReceiptNumber(key)) continue;
-      var incoming = Array.isArray(importedHistory[key]) ? importedHistory[key] : [];
-      var combined = (mergedHistory[key] || []).concat(incoming);
+
+      var combined = (merged[key] || []).concat(Array.isArray(incoming[key]) ? incoming[key] : []);
       var seen = {};
       var deduped = [];
       for (i = 0; i < combined.length; i++) {
@@ -5079,53 +5108,62 @@ var CASELENS_STYLE = [
         return tb - ta;
       });
       if (deduped.length > HISTORY_CAP) deduped = deduped.slice(0, HISTORY_CAP);
-      mergedHistory[key] = deduped;
+      merged[key] = deduped;
     }
-    save(STORAGE_KEYS.history, mergedHistory);
 
-    var existingSnapshots = load(STORAGE_KEYS.snapshots, {});
-    var importedSnapshots = (parsed.snapshots && typeof parsed.snapshots === 'object') ? parsed.snapshots : {};
-    var mergedSnapshots = {};
-    for (key in importedSnapshots) {
-      if (importedSnapshots.hasOwnProperty(key) && isValidReceiptNumber(key)) {
-        var clean = sanitizeSnapshot(importedSnapshots[key]);
-        if (clean) mergedSnapshots[key] = clean;
-      }
+    save(STORAGE_KEYS.history, merged);
+  }
+
+  // Existing snapshots win: one already here was written from a real read on
+  // this machine, an imported one is a copy of unknown age.
+  function mergeImportedSnapshots(importedSnapshots) {
+    var existing = load(STORAGE_KEYS.snapshots, {});
+    var incoming = (importedSnapshots && typeof importedSnapshots === 'object') ? importedSnapshots : {};
+    var merged = {};
+    var key;
+
+    for (key in incoming) {
+      if (!Object.prototype.hasOwnProperty.call(incoming, key)) continue;
+      if (!isValidReceiptNumber(key)) continue;
+      var clean = sanitizeSnapshot(incoming[key]);
+      if (clean) merged[key] = clean;
     }
-    for (key in existingSnapshots) { if (existingSnapshots.hasOwnProperty(key)) mergedSnapshots[key] = existingSnapshots[key]; }
-    save(STORAGE_KEYS.snapshots, mergedSnapshots);
-
-    // Removals are restored so a backup does not silently un-remove every case
-    // you removed, on the next auto-discovery pass.
-    var existingDismissed = loadDismissed();
-    var importedDismissed = (parsed.dismissed && typeof parsed.dismissed === 'object') ? parsed.dismissed : {};
-    for (key in importedDismissed) {
-      if (importedDismissed.hasOwnProperty(key) && isValidReceiptNumber(key) && !existingDismissed[key]) {
-        existingDismissed[key] = importedDismissed[key];
-      }
+    for (key in existing) {
+      if (Object.prototype.hasOwnProperty.call(existing, key)) merged[key] = existing[key];
     }
-    save(STORAGE_KEYS.dismissed, existingDismissed);
 
-    // prefs: intentionally not merged/imported.
+    save(STORAGE_KEYS.snapshots, merged);
+  }
 
-    loadAll();
-    render();
+  // Removals are restored, or a backup silently un-removes every case the
+  // reader removed on the next auto-discovery pass.
+  function mergeImportedDismissals(importedDismissed) {
+    var existing = loadDismissed();
+    var incoming = (importedDismissed && typeof importedDismissed === 'object') ? importedDismissed : {};
 
-    // Say what happened. Merge semantics here are genuinely safe — union by
-    // receipt number, anything already present wins, settings untouched — and
-    // saying so is what makes that trustworthy rather than merely true.
-    var totalCases = load(STORAGE_KEYS.cases, []).length;
+    for (var key in incoming) {
+      if (!Object.prototype.hasOwnProperty.call(incoming, key)) continue;
+      if (!isValidReceiptNumber(key) || existing[key]) continue;
+      existing[key] = incoming[key];
+    }
+
+    save(STORAGE_KEYS.dismissed, existing);
+  }
+
+  // Say what happened. The merge rules are safe — union, existing data wins,
+  // settings untouched — and saying so is what makes that trustworthy rather
+  // than merely true.
+  function reportImport(addedCases) {
+    var total = load(STORAGE_KEYS.cases, []).length;
     window.alert(
       (addedCases
         ? 'Imported ' + plural(addedCases, 'new case') + '. You are now tracking ' +
-          plural(totalCases, 'case') + '.'
+          plural(total, 'case') + '.'
         : 'Nothing new to add — every case in that file was already here. You are ' +
-          'tracking ' + plural(totalCases, 'case') + '.') +
+          'tracking ' + plural(total, 'case') + '.') +
       '\n\nHistory and saved snapshots were merged in. Where a case existed in ' +
       'both, what was already in this browser was kept. Your settings were not ' +
       'changed.');
-
-    refreshAll();
   }
 
   function importBackup(file) {
@@ -5384,17 +5422,36 @@ var CASELENS_STYLE = [
   //   { id, provenance, kind, sortAt, displayAt, precision, code, label, ... }
   // sortAt is what we order by; displayAt + precision is all the renderer is
   // allowed to print. A day-precision entry never gets a printed time.
+  // Everything that goes on the timeline, from five independent sources.
+  //
+  // Each source appends to one list and none reads another's output, except
+  // where noted: the current-status row and the synthesized backend row both
+  // check what is already there to avoid printing the same event twice.
+  //
+  // Split out of one 200-line function. The seams were already marked by
+  // comments; naming them means each source can be read, tested and changed
+  // without holding the other four in mind.
   function collectTimelineItems(entry) {
-    var items = [];
     var result = entry.result;
-    var i;
-    if (!result) return items;
+    if (!result) return [];
 
     var detail = summarizeCaseDetail(result.caseDetail);
     var notice = summarizeCaseStatus(result.caseStatus);
 
+    var items = uscisEventItems(result);
+    appendCurrentStatusItem(items, notice);
+    appendLocalChangeItems(items, getHistory(entry.number));
+    appendBackendActivityItem(items, detail, notice);
+    appendFiledAnchor(items, detail);
+    return items;
+  }
+
+  // Source 1 — what USCIS sent: its own status history, its coded events, and
+  // its notices (an appointment is a notice carrying a date).
+  function uscisEventItems(result) {
+    var items = [];
     var uscisEvents = extractUscisEvents(result);
-    for (i = 0; i < uscisEvents.length; i++) {
+    for (var i = 0; i < uscisEvents.length; i++) {
       var ev = uscisEvents[i];
       if (ev.source === 'status') {
         // historicalCaseStatuses carries a date and USCIS's own wording. It is
@@ -5420,26 +5477,7 @@ var CASELENS_STYLE = [
           displayAt: ev.at,
           precision: 'second',
           code: ev.code === null || ev.code === undefined ? null : String(ev.code),
-          // describeCode() reports where the words came from, and each tier
-          // gets its own treatment (SPEC "Event codes"):
-          //   'uscis'       -> USCIS's own wording, published for THIS case.
-          //                    No label needed.
-          //   'niem'        -> the federal schema's description of the code.
-          //                    Official, but an internal-operations phrase and
-          //                    not this case's status — labelled "system
-          //                    description".
-          //   'uscis-other' -> USCIS's wording for this code on another of the
-          //                    user's cases of the same form. Real prose about
-          //                    a different case, so it is labelled as such.
-          //   null          -> nobody publishes a meaning. Say exactly that.
-          //   'unavailable' -> the dictionary didn't load, so we don't know
-          //                    whether a meaning exists. Show the code with no
-          //                    claim either way; never assert there is none.
-          labelSource: ev.textSource === 'uscis' ? 'learned'
-            : ev.textSource === 'niem' ? 'niem'
-            : ev.textSource === 'uscis-other' ? 'other-case'
-            : ev.textSource === 'unavailable' ? 'unknown-source'
-            : 'none',
+          labelSource: codeLabelSource(ev.textSource),
           label: ev.text || null
         });
       } else if (ev.source === 'notice') {
@@ -5460,57 +5498,77 @@ var CASELENS_STYLE = [
           label: ev.text || 'Notice on file',
           generatedAt: ev.at,
           // Carried on the event by extractUscisEvents rather than looked up by
-          // a parallel index into rawNotices. The index alignment held only as
+          // a parallel index into the raw notices. That alignment held only as
           // long as neither loop ever skipped an entry, and nothing enforced
-          // that — a wrong letterId prints "follow the notice — letter …" with
-          // the wrong number on it.
+          // it — a wrong letterId prints the wrong number on a notice.
           letterId: ev.letterId === undefined ? null : ev.letterId
         });
       }
     }
+    return items;
+  }
 
-    // The current status, when the history array does not already carry it.
-    // Sparse cases have an empty history and would otherwise have no row for
-    // the status the card is headlining.
-    if (notice && notice.status && notice.actionCodeDate) {
-      var currentMs = parseUscisDate(notice.actionCodeDate);
-      if (currentMs !== null) {
-        var alreadyThere = false;
-        for (i = 0; i < items.length; i++) {
-          if (items[i].provenance === 'official' &&
-              String(items[i].code) === String(notice.actionCode) &&
-              sameLocalDay(items[i].displayAt, currentMs)) {
-            alreadyThere = true;
-            break;
-          }
-        }
-        if (!alreadyThere) {
-          items.push({
-            id: 'current',
-            provenance: 'official',
-            kind: 'status',
-            sortAt: currentMs,
-            displayAt: currentMs,
-            precision: 'second',
-            code: notice.actionCode === null || notice.actionCode === undefined ? null : String(notice.actionCode),
-            label: notice.status,
-            labelEs: notice.statusSpanish,
-            body: notice.statusDetail,
-            bodyEs: notice.statusDetailSpanish
-          });
-        }
+  // Where a coded row's words came from, which decides how the row labels
+  // itself (SPEC "Event codes"):
+  //   'learned'        USCIS's own wording, published for THIS case
+  //   'niem'           the federal schema's description — official, but an
+  //                    internal-operations phrase, not this case's status
+  //   'other-case'     USCIS's wording for this code on another of the user's
+  //                    cases on the same form
+  //   'unknown-source' the dictionary did not load, so whether a meaning exists
+  //                    is unknown; never assert there is none
+  //   'none'           nobody publishes a meaning. Say exactly that.
+  function codeLabelSource(textSource) {
+    if (textSource === 'uscis') return 'learned';
+    if (textSource === 'niem') return 'niem';
+    if (textSource === 'uscis-other') return 'other-case';
+    if (textSource === 'unavailable') return 'unknown-source';
+    return 'none';
+  }
+
+  // Source 2 — the current status, when the history array does not already
+  // carry it. Sparse cases have an empty history and would otherwise have no
+  // row for the status the card is headlining.
+  function appendCurrentStatusItem(items, notice) {
+    if (!notice || !notice.status || !notice.actionCodeDate) return;
+    var currentMs = parseUscisDate(notice.actionCodeDate);
+    if (currentMs === null) return;
+
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].provenance === 'official' &&
+          String(items[i].code) === String(notice.actionCode) &&
+          sameLocalDay(items[i].displayAt, currentMs)) {
+        return;   // already on the timeline
       }
     }
 
-    // Locally detected changes. These are the only rows whose timestamp is
-    // ours rather than USCIS's, and they say so in every rendering.
-    var history = getHistory(entry.number);
-    for (i = 0; i < history.length; i++) {
+    items.push({
+      id: 'current',
+      provenance: 'official',
+      kind: 'status',
+      sortAt: currentMs,
+      displayAt: currentMs,
+      precision: 'second',
+      code: notice.actionCode === null || notice.actionCode === undefined
+        ? null : String(notice.actionCode),
+      label: notice.status,
+      labelEs: notice.statusSpanish,
+      body: notice.statusDetail,
+      bodyEs: notice.statusDetailSpanish
+    });
+  }
+
+  // Source 3 — changes this panel detected between checks. These are the only
+  // rows whose timestamp is this tool's rather than USCIS's, and they say so in
+  // every rendering.
+  function appendLocalChangeItems(items, history) {
+    for (var i = 0; i < history.length; i++) {
       var change = history[i];
       if (!change) continue;
       var noticedAt = parseUscisDate(change.at);
+
       if (change.kind === 'backend') {
-        // The value that moved is a USCIS timestamp; prefer it over our
+        // The value that moved is a USCIS timestamp; prefer it over the
         // detection time, which only records when a browser tab was open.
         var movedTo = parseUscisDate(change.to);
         items.push({
@@ -5526,6 +5584,7 @@ var CASELENS_STYLE = [
         });
         continue;
       }
+
       items.push({
         id: 'local:' + i,
         provenance: 'local',
@@ -5540,58 +5599,56 @@ var CASELENS_STYLE = [
         noticedAt: noticedAt
       });
     }
+  }
 
-    // Backend activity synthesized from this fetch: the record moved while the
-    // public status did not. Gated at 3 days — below that it is plausibly the
-    // same action written twice, and a shrug rendered as a signal is noise.
-    if (detail && detail.backendAt && notice && notice.actionCodeDate) {
-      var backendMs = parseUscisDate(detail.backendAt);
-      var statusMs = parseUscisDate(notice.actionCodeDate);
-      if (backendMs !== null && statusMs !== null && backendMs - statusMs > BACKEND_MIN_LAG_MS) {
-        var duplicated = false;
-        for (i = 0; i < items.length; i++) {
-          if (items[i].kind === 'backend' && items[i].displayAt !== null &&
-              Math.abs(items[i].displayAt - backendMs) < 1000) {
-            duplicated = true;
-            break;
-          }
-        }
-        if (!duplicated) {
-          items.push({
-            id: 'backend:' + backendMs,
-            provenance: 'local',
-            kind: 'backend',
-            sortAt: backendMs,
-            displayAt: backendMs,
-            precision: 'second',
-            code: null,
-            label: 'USCIS touched your record',
-            lagDays: daysBetween(statusMs, backendMs),
-            statusAt: statusMs
-          });
-        }
+  // Source 4 — backend activity visible in this fetch: the record moved while
+  // the public status did not. Gated at three days; below that it is plausibly
+  // the same action written twice, and a shrug rendered as a signal is noise.
+  function appendBackendActivityItem(items, detail, notice) {
+    if (!detail || !detail.backendAt || !notice || !notice.actionCodeDate) return;
+    var backendMs = parseUscisDate(detail.backendAt);
+    var statusMs = parseUscisDate(notice.actionCodeDate);
+    if (backendMs === null || statusMs === null) return;
+    if (backendMs - statusMs <= BACKEND_MIN_LAG_MS) return;
+
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].kind === 'backend' && items[i].displayAt !== null &&
+          Math.abs(items[i].displayAt - backendMs) < 1000) {
+        return;   // already recorded from history
       }
     }
 
-    // Anchors. The filed row is day 0 and is never folded away.
-    if (detail && detail.submissionDate) {
-      var filedMs = parseUscisDate(detail.submissionDate);
-      if (filedMs !== null) {
-        items.push({
-          id: 'filed',
-          provenance: 'anchor',
-          kind: 'filed',
-          sortAt: startOfLocalDay(filedMs),
-          displayAt: filedMs,
-          precision: 'day',
-          code: null,
-          label: 'Filed',
-          formType: detail.formType ? String(detail.formType) : null
-        });
-      }
-    }
+    items.push({
+      id: 'backend:' + backendMs,
+      provenance: 'local',
+      kind: 'backend',
+      sortAt: backendMs,
+      displayAt: backendMs,
+      precision: 'second',
+      code: null,
+      label: 'USCIS touched your record',
+      lagDays: daysBetween(statusMs, backendMs),
+      statusAt: statusMs
+    });
+  }
 
-    return items;
+  // Source 5 — the filed anchor. Day 0, and never folded away.
+  function appendFiledAnchor(items, detail) {
+    if (!detail || !detail.submissionDate) return;
+    var filedMs = parseUscisDate(detail.submissionDate);
+    if (filedMs === null) return;
+
+    items.push({
+      id: 'filed',
+      provenance: 'anchor',
+      kind: 'filed',
+      sortAt: startOfLocalDay(filedMs),
+      displayAt: filedMs,
+      precision: 'day',
+      code: null,
+      label: 'Filed',
+      formType: detail.formType ? String(detail.formType) : null
+    });
   }
 
   // Passes 1-4 of §3: official x coded on equal codes, local rows absorbed by
@@ -7897,46 +7954,65 @@ var CASELENS_STYLE = [
     return PLAIN_FORM_NAMES[String(formType).toUpperCase()] || null;
   }
 
-  function buildCaseCard(entry, ordered) {
-    var classes = 'uscistr-card';
-    var card = el('div', { 'class': classes });
-
-    if (!entry.result) {
-      card.appendChild(el('div', { 'class': 'uscistr-card-header' }, [
-        el('div', { 'class': 'uscistr-card-title' }, [
-          el('div', { 'class': 'uscistr-card-eyebrow' }, [
-            el('span', { 'class': 'uscistr-card-label', text: entry.label || displayNumber(entry.number) })
-          ]),
-          el('div', { 'class': 'uscistr-card-number uscistr-mono', text: displayNumber(entry.number) })
+  // A case that has been added but not yet read. Loading and never-checked look
+  // different on purpose: one is in progress, the other is waiting on a refresh.
+  function buildUncheckedCard(entry) {
+    var card = el('div', { 'class': 'uscistr-card' });
+    card.appendChild(el('div', { 'class': 'uscistr-card-header' }, [
+      el('div', { 'class': 'uscistr-card-title' }, [
+        el('div', { 'class': 'uscistr-card-eyebrow' }, [
+          el('span', { 'class': 'uscistr-card-label',
+            text: entry.label || displayNumber(entry.number) })
         ]),
-        el('div', { 'class': 'uscistr-card-actions' })
-      ]));
-      card.appendChild(el('div', { 'class': 'uscistr-muted uscistr-small', text:
-        entry.loading ? 'Reading this case from my.uscis.gov. This takes a few seconds.' : 'Not checked yet.' }));
-      if (entry.loading) card.appendChild(buildSkeleton());
-      return card;
-    }
+        el('div', { 'class': 'uscistr-card-number uscistr-mono', text: displayNumber(entry.number) })
+      ]),
+      el('div', { 'class': 'uscistr-card-actions' })
+    ]));
+    card.appendChild(el('div', { 'class': 'uscistr-muted uscistr-small', text:
+      entry.loading ? 'Reading this case from my.uscis.gov. This takes a few seconds.' : 'Not checked yet.' }));
+    if (entry.loading) card.appendChild(buildSkeleton());
+    return card;
+  }
 
-    var view = buildCaseView(entry);
+  function buildCollapsedCardShell(entry, view) {
+    var card = el('div', {
+      'class': 'uscistr-card' + (entry.changedSince ? ' uscistr-is-changed' : '') +
+        ' uscistr-is-collapsed'
+    });
+    card.appendChild(buildCollapsedCard(entry, view, function () {
+      setExpanded(entry.number, true);
+      render();
+    }));
+    return card;
+  }
 
-    // Collapsed by default unless this is the card the reader most likely came
-    // for. A collapsed row still answers "has anything changed here?".
-    if (ordered && !isCardExpanded(entry, ordered)) {
-      card.className = classes + (entry.changedSince ? ' uscistr-is-changed' : '') + ' uscistr-is-collapsed';
-      card.appendChild(buildCollapsedCard(entry, view, function () {
-        setExpanded(entry.number, true);
-        render();
-      }));
-      return card;
-    }
-
-    var errorNote = buildCaseErrorNote(entry);
-
+  // Modifiers come from structured facts only — a boolean USCIS sent, this
+  // tool's own change marker, or a failed read. Never from status prose.
+  function expandedCardClasses(entry, view, errorNote) {
+    var classes = 'uscistr-card';
     if (entry.changedSince) classes += ' uscistr-is-changed';
     if (view.detail && view.detail.actionRequired) classes += ' uscistr-is-attention';
     if (view.detail && view.detail.closed) classes += ' uscistr-is-closed';
     if (errorNote) classes += ' uscistr-is-error';
-    card.className = classes;
+    return classes;
+  }
+
+  // Three kinds of card, chosen here and built separately: one for a case that
+  // has not been read yet, one collapsed row, and the full record. Everything
+  // after the dispatch is the full record only.
+  function buildCaseCard(entry, ordered) {
+    if (!entry.result) return buildUncheckedCard(entry);
+
+    var view = buildCaseView(entry);
+
+    // Collapsed unless the reader opened this one. A collapsed row still
+    // answers "has anything changed here?".
+    if (ordered && !isCardExpanded(entry, ordered)) {
+      return buildCollapsedCardShell(entry, view);
+    }
+
+    var errorNote = buildCaseErrorNote(entry);
+    var card = el('div', { 'class': expandedCardClasses(entry, view, errorNote) });
 
     // A · identity and change state first. A returning reader should not have
     // to compare against memory to learn whether anything moved.
