@@ -4,9 +4,9 @@ A panel on [my.uscis.gov](https://my.uscis.gov) showing every case on your accou
 
 **Unofficial and independent.** Not affiliated with, endorsed by, or connected to USCIS or the Department of Homeland Security. Not legal advice. Your mailed notices and my.uscis.gov are the authority on your case — if this panel disagrees with them, believe them.
 
-<img src="docs/store/03-record-updated.png" alt="The CaseLens panel with one case open: every case listed down the left, and on the right the status, appointment date, which office holds it, how far through the stages it is, and a note that USCIS touched the record after the current status was set." width="820">
+<img src="docs/store/01-record-updated.png" alt="The CaseLens panel with one case open: every case listed down the left, and on the right the status, appointment date, which office holds it, how far through the stages it is, and a note that USCIS touched the record after the current status was set." width="820">
 
-<sub>Sample cases, not real data. <a href="docs/store/01-overview.png">All cases at a glance</a> · <a href="docs/store/04-timeline.png">timeline</a> · <a href="docs/screenshots/panel-dark.png">dark mode</a>.</sub>
+<sub>Sample cases, not real data. <a href="docs/store/04-overview.png">All cases at a glance</a> · <a href="docs/store/03-timeline.png">timeline</a> · <a href="docs/screenshots/panel-dark.png">dark mode</a>.</sub>
 
 ## Will it work for your case?
 

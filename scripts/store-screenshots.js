@@ -67,17 +67,18 @@ var OPEN_SETTINGS =
 var SETTINGS_TO_ERASE =
   "(function(){var p=document.querySelector('.uscistr-popover'); if(p)p.scrollTop=p.scrollHeight;})()";
 
-// Order is the argument, not a gallery. Shot 1 carries most of the install
-// decision and store carousels rarely get scrolled past shot 3, so the two
-// things my.uscis.gov does not show sit at 2 and 3. The set ends on the privacy
+// Order is the argument, not a gallery. Carousel drop-off is steep — most
+// shoppers never reach slide 4 — so positions 1 to 3 go to the things the
+// account page cannot already do. The collapsed overview led this set once; it
+// shows "all your cases in one place" and nothing a reader could not get by
+// looking at the page itself, so it sits at 4 now. The set ends on the privacy
 // controls rather than on dark mode: for a tool handling immigration data,
-// showing "Erase everything" closes the argument that the description only
-// makes in words.
+// showing "Erase everything" closes an argument the description can only assert.
 var SHOTS = [
   {
-    name: '01-overview',
-    caption: 'Every case on the account, one line each',
-    steps: [DISMISS_INTRO]
+    name: '01-record-updated',
+    caption: 'Office, stage, and when the record was last touched',
+    steps: [DISMISS_INTRO, openCase(0)]
   },
   {
     name: '02-changed',
@@ -86,14 +87,14 @@ var SHOTS = [
     steps: [DISMISS_INTRO]
   },
   {
-    name: '03-record-updated',
-    caption: 'Office, stage, and when the record was last touched',
-    steps: [DISMISS_INTRO, openCase(0)]
-  },
-  {
-    name: '04-timeline',
+    name: '03-timeline',
     caption: 'One timeline per case, with each entry sourced',
     steps: [DISMISS_INTRO, openCase(0), scrollTo(760)]
+  },
+  {
+    name: '04-overview',
+    caption: 'Every case on the account, one line each',
+    steps: [DISMISS_INTRO]
   },
   {
     name: '05-privacy',
