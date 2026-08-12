@@ -142,6 +142,13 @@ node scripts/smoke-test.js     # starts its own server + headless Chrome
 Add a `## X.Y.Z` section to `CHANGELOG.md`. That section becomes the GitHub
 release body verbatim; without it the release ships a list of commit subjects.
 
+**Write it as bullets, one line or two each.** What changed, and where it
+matters, why — no headed sections, no narrative, no restating the same point
+in a second form. The reasoning belongs in the commit message and in the code
+comments; the changelog is for someone deciding whether to update. Earlier
+entries here were written as short essays and had to be cut back: the length
+made them harder to use, not more informative.
+
 **If your change alters the layout, regenerate the screenshots** — both sets,
 because nothing else enforces it and they have drifted before:
 

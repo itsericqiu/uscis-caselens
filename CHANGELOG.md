@@ -6,158 +6,69 @@ notes on GitHub, so keep entries written for someone deciding whether to update
 
 ## 1.13.0
 
-**Small things that read as bugs, and one comment that was a bug waiting to happen**
-
-- The header shows what needs you and what changed in a colour and weight you
-  can pick out. Both were the lightest grey in the panel, styled identically to
-  "nothing new" — the one distinction that line exists to draw was the one it
-  did not make.
-- The raw-data rows say what each response is ("Case detail", "Status and
-  history") instead of a URL path containing a literal `{n}`, which to anyone
-  not reading it as a template looks like a placeholder that failed to fill in.
-- Closing Settings with Escape returns focus to the Settings button instead of
-  dropping it out of the panel onto the page underneath.
-
-Internal, but the reason matters: the code that prints an appointment time
-carried three stacked comments, two asserting **different facts about the same
-field** — one that the payload has no timezone information, the other that it
-is a correctly converted UTC instant. Only the second is true, and it is
-verified against a real notice. On the one value where acting on the wrong
-number means missing a biometrics appointment, a comment that contradicts its
-neighbour is how the next person reintroduces a bug that took five releases to
-argue out. Also repaired three doc comments spliced into the wrong functions by
-an earlier bulk edit — one of them plausibly why a rename broke a safety guard
-in 1.10.0 — and deleted three stale first drafts left above their replacements,
-including one still describing the alarm list as covering denials.
+- Header counts ("1 needing you", "2 with something new") now stand out instead
+  of being the lightest grey in the panel.
+- Raw-data rows are named for what they return, not URL paths containing `{n}`.
+- Escape from Settings returns focus to the Settings button, not to the page.
+- Fixed three doc comments spliced into the wrong functions, and two comments
+  making contradictory claims about how appointment times are sent. Only one
+  was right; the wrong one is how a fixed bug gets reintroduced.
 
 ## 1.12.1
 
-**Imported backups are checked, not just accepted**
-
-A backup file's case numbers were validated and its contents were not, so a
-hostile file could add entries that appear in your timeline exactly as though
-this panel had observed them. History entries are now held to a known type, a
-real date and a length limit, and saved statuses to the shape the panel itself
-produces; anything else is dropped rather than half-trusted.
-
-**Other protections**
-
-- Signing out of my.uscis.gov without reloading the page left the panel on
-  screen with your cases still in it. It now notices and closes itself, keeping
-  your saved data for next time.
-- Removing a case now also deletes the emergency copies the panel makes when it
-  cannot read its own stored data. They were invisible, never used, and
-  outlived a deletion the confirmation promised.
+- Imported backups: contents are validated, not just the case numbers. A
+  hostile file could previously add entries that looked like the panel's own.
+- Signing out without reloading now closes the panel instead of leaving your
+  cases on screen.
+- Removing a case also deletes the panel's internal emergency copies of it.
 - "Hide receipt numbers" also blanks attorney names, A-numbers, dates and
-  countries of birth, and the remaining address fields in the raw data.
-- The check that stops real receipt numbers being published now matches
-  lowercase ones too — it was stricter about capital letters than the code it
-  guards, and it caught a slip immediately.
-
-**Build**
-
-Every GitHub Action is pinned to an exact commit rather than a moving tag,
-including the one that publishes the release your copy updates itself from.
-Store credentials are handed only to the steps that use them. `SECURITY.md`
-now states plainly what the automated checks do *not* catch, rather than
-leaving their limits implied.
+  countries of birth, and remaining address fields.
+- The receipt-number check in CI now matches lowercase too.
+- GitHub Actions pinned to exact commits; store credentials scoped to the steps
+  that use them.
+- SECURITY.md states what the automated checks do not catch.
 
 ## 1.12.0
 
-**Fewer places for the same bug to hide**
-
-No behaviour change on its own, but the parts of this codebase most likely to
-be edited next were the ones most likely to mislead:
-
-- The work of assembling a case for display ran about twice per case on every
-  redraw, while its own note claimed it ran once. Now it runs once.
-- Six pieces of the display reached around that work to re-derive facts for
-  themselves, which is how "did the documents request fail?" ended up being
-  asked three different ways in three places, one of them wrong.
-- A second date parser was quietly sorting imported history with the wrong
-  rules for USCIS's own date format. Deleted; there is one parser now.
-- A tracked case was being constructed four different ways that had already
-  drifted apart.
-
-**Fixes that fell out of reading it**
-
-- "USCIS publishes no processing-time estimate for this case" was printed when
-  USCIS *had* published one in a form this panel cannot read. Those are
-  different statements and now read differently.
-- A gap label spanning the fold in the timeline announced a quiet stretch that
-  never happened — every hidden event sat inside it.
-- Reassurance by negation, throughout: "it is not a warning" on a line nothing
-  else denies being one; four consecutive negations naming "decision" and
-  "approval" only to deny them; and "says nothing about the case itself" three
-  times on one screen in three rewordings. Each says what is true instead, once.
+- "USCIS publishes no processing-time estimate" is no longer printed when USCIS
+  published one this panel cannot read.
+- A gap label spanning the timeline fold no longer claims a quiet stretch that
+  did not happen.
+- Reworded copy that reassured by denial ("it is not a warning", "says nothing
+  about the case itself" three times on one screen).
+- Internal: assembling a case for display now runs once per redraw rather than
+  twice; six render paths no longer re-derive facts for themselves; deleted a
+  second date parser that sorted USCIS dates wrongly; one way to construct a
+  tracked case instead of four.
 
 ## 1.11.1
 
-**A check that read nothing no longer looks like a check that found nothing**
-
-If every USCIS endpoint answered but returned no content, the panel counted it
-as a successful check and said *"4 cases · nothing new · checked just now"* —
-while the card underneath said USCIS had returned no data at all. The
-reassuring line is the one people read. A check now only counts as successful
-if it actually learned something, and this state gets the same clear failure
-banner as a timeout.
-
-Related: a card footer read "Checked just now" after a failed check, because it
-printed the last *attempt*. It now shows the last successful read.
-
-**A failed endpoint could invent changes that never happened**
-
-Each check rebuilt every stored field from that response, so one endpoint
-failing blanked everything it supplies. The damage appeared on the *next*
-check: after a documents request failed once, all your documents were compared
-against an empty list and reported as new — *"6 changes since you last looked"*,
-six permanent history entries, and a desktop notification, with nothing having
-changed. The same path invented status and office changes and wiped the
-appointment a failed check is supposed to fall back on. Anything this check
-could not see is now kept rather than recorded as absent.
-
-**Three things the stage map claimed it could not know**
-
-- A closed case marked the final stage — "Card produced" — as done without
-  checking whether anything said it happened. Every denied, withdrawn or
-  abandoned case therefore read as though a card had been produced.
-- Codes with no published meaning were moving the map while the timeline told
-  you they did not: one of them marks a case **Approved**. The map still places
-  them, from our own curated list, but now says so instead of denying it.
-- The guard that stops the map running ahead of a booked appointment had been
-  silently dead since 1.10.0, when stage names were written out in full and
-  this check kept matching the old abbreviations. A card could show biometrics
-  as already passed just below a note saying the appointment is in ten days.
-
-**Other fixes**
-
-- "Hide receipt numbers" covers the change summary, the timeline and desktop
-  notifications, which printed the number in full inside document filenames.
-- A failed documents request no longer says "USCIS lists no documents on this
-  case."
-- An evidence request from years ago no longer raises a standing alert; when
-  USCIS says nothing is required, nothing is claimed.
-- The header says how many cases need something from you, not just how many
-  changed.
-- Dragging the panel no longer collapses the wide layout into an unreadable
-  column, and a background refresh during a drag can no longer strand it in the
-  corner.
-- Case rows, disclosures and the add-case link show a focus outline; they were
-  reachable by keyboard with nothing on screen to show it.
-- Settings scrolls, so "Erase everything" is no longer cut off mid-sentence.
-- Documents and raw responses stay open when a background refresh runs.
-- Impossible dates are rejected rather than rolled over into plausible wrong
-  ones, and several UTC-midnight spellings USCIS actually sends — including the
-  one used for document dates — no longer land a day early west of Greenwich.
-- A change marker survives a restart. It was written into the save format in
-  1.7.0 but never saved at the moment it was set.
-
-**Build**
-
-Adds `test/unit.js` — 62 unit tests over dates, change detection, redaction and
-receipt validation, run in CI. They found four of the bugs above. The build now
-fails, rather than silently continuing, if a manifest ever declares a
-permission, and the forbidden list covers the optional variants too.
+- A check that read nothing no longer reports "nothing new, checked just now".
+  It gets the same failure banner as a timeout.
+- A failed endpoint no longer invents changes on the next check. One failed
+  documents request used to make every document look new — with a notification
+  and permanent history entries — when nothing had changed.
+- Closed cases no longer show the final stage ("Card produced") as done without
+  evidence. Denied and withdrawn cases were reading as if a card was produced.
+- Codes with no published meaning no longer move the stage map while the
+  timeline says they don't. One of them marks a case Approved.
+- Fixed the guard that stops the stage map running ahead of a booked
+  appointment. It broke in 1.10.0 when stage names were written out in full.
+- A failed documents request no longer says "USCIS lists no documents".
+- Old evidence requests no longer raise a standing alert.
+- "Hide receipt numbers" covers the change summary, timeline and notifications.
+- Header says how many cases need something from you.
+- Dragging no longer breaks the wide layout; a background refresh during a drag
+  no longer strands the panel in the corner.
+- Case rows and disclosures show a focus outline.
+- Settings scrolls, so "Erase everything" isn't cut off.
+- Documents and raw responses stay open across a background refresh.
+- Impossible dates are rejected instead of rolled over; several UTC-midnight
+  formats USCIS sends no longer land a day early west of Greenwich.
+- Change markers survive a restart.
+- Added `test/unit.js` (62 tests, in CI). It found four of the above.
+- The build now fails, rather than continuing, if a manifest declares a
+  permission.
 
 ## 1.11.0
 
@@ -178,147 +89,58 @@ that a stranger can audit it.
 
 ## 1.10.0
 
-**It now tells you what it is, the first time you see it**
-
-Cases are found automatically, so the first thing a new user met was a box that
-had appeared on a government website already knowing their receipt numbers,
-with no explanation. There is now a short note, shown once and dismissed for
-good, saying what CaseLens is, that it is not USCIS, that it read the numbers
-already on the page, and that nothing leaves the browser.
-
-**Export and import say what they are doing**
-
-- Export asks first, and says the file will hold your full receipt numbers and
-  recorded history as plain unencrypted text — before the download, not after.
-  It stays unmasked even with "Hide receipt numbers" on, because a masked
-  backup cannot restore anything.
-- Import reports what it did: how many cases were added, and that where a case
-  existed in both, what was already here was kept. A valid JSON file that is
-  not a backup now says so instead of appearing to succeed.
-- Import also restores your removals, so a backup no longer silently
-  un-removes every case you removed.
-
-**Reachable without a mouse or a screen**
-
-- The launcher says "Open CaseLens, tracking 4 cases, 2 cases changed since you
-  last looked" instead of just "Open CaseLens" with an unexplained number.
-- Every expandable section now says what it expands, so "Explain" and "Show
-  full text" are no longer verbs with no object.
-- Stage names are written out — "Received", "Biometrics", "Interview" — rather
-  than "Recv", "Bio", "Intvw". The abbreviations saved four characters each and
-  could not be translated or read aloud.
-- The Spanish button says what it actually does: it swaps USCIS's own status
-  wording, and the rest of the panel stays in English. Calling it "Español"
-  promised a Spanish interface it does not provide.
-
-**Under the hood**
-
-- The store of status wording learned from your cases is capped. Nothing ever
-  removed an entry, and a full quota blocks the snapshot writes this tool
-  depends on.
-- Loading now validates receipt numbers the same way importing does. The
-  stricter check on import was decorative while the other path accepted
-  anything.
-- Packaging lists the five files an extension contains instead of zipping
-  whatever is in the directory, and refuses to build if anything else is
-  present.
+- A short note on first run says what CaseLens is, that it is not USCIS, where
+  your case numbers came from, and that nothing leaves the browser. Shown once.
+- Export asks first and says the file holds your full receipt numbers as plain
+  text, even with "Hide receipt numbers" on — a masked backup can't restore.
+- Import says how many cases it added, and that existing data was kept. A JSON
+  file that isn't a backup now says so instead of appearing to succeed.
+- Import restores your removals, so a backup no longer un-removes cases.
+- The launcher says "Open CaseLens, tracking 4 cases, 2 changed since you last
+  looked" instead of an unexplained number.
+- Expandable sections say what they expand.
+- Stage names written out ("Received", "Biometrics") rather than "Recv", "Bio".
+- The Spanish button says what it does: it swaps USCIS's status wording, and
+  the rest of the panel stays English.
+- The store of learned status wording is capped.
+- Loading validates receipt numbers the same way importing does.
+- Packaging lists the five files an extension ships and refuses to build if
+  anything else is present.
 
 ## 1.9.0
 
-**Opening a case no longer hides the others**
-
-The panel is 400px wide, and an open case runs to about a thousand pixels — so
-opening one buried the list of all of them, which is the thing collapsing every
-case existed to give you. Reading one case meant losing the overview.
-
-Opening a case now widens the panel to 720px and puts your cases in a column
-down the left, with the open one beside them. Both sides scroll independently,
-so reading a long record never scrolls the list away, and switching to another
-case is one click instead of a scroll back and a scroll down. Closing returns
-the panel to its normal width.
-
-Only one case is open at a time now. Several could be open before, which sounded
-like it let you compare them and did not — the second one always started a
-screen and a half below the first.
-
-On a window too narrow for two columns, the panel stays at its normal width and
-opens the case in place, in the full list. Deciding that in code rather than in
-a stylesheet is deliberate: hiding the column on a small screen would leave you
-with an open case, no list, and no way back to it.
-
-**Fixes**
-
-- The entry animation plays when the panel appears, not every time it is
-  rebuilt. A background refresh had been visibly restarting it under you.
-- Scroll position is kept for both columns, not just one.
+- Opening a case now widens the panel and keeps your other cases in a column
+  beside it, so reading one no longer hides the rest. Click its row again to go
+  back. One case is open at a time.
+- On a window too narrow for two columns, the panel stays its normal width and
+  opens the case in place.
+- The entry animation plays when the panel appears, not on every redraw.
+- Scroll position is kept for both columns.
 
 ## 1.8.1
 
-**The alarm no longer fires on a denial**
-
-A red banner reading "USCIS may need something from you" was raised by any of
-nine event codes. That list had no citation, and read against the federal
-schema this tool already ships, most of it did not support that sentence:
-
-- `EA` and `IFA` are **denial** notices. Telling someone whose case was just
-  denied that USCIS may need something from them is not a small mis-label.
-- `FKA` (deschedule), `FS` (adjudication hold) and `KH` (litigation hold) are
-  internal state that asks nothing of anyone.
-
-Now only codes whose schema wording plainly says USCIS asked this person for
-something raise it — an evidence request, an additional-evidence request, or a
-notice of intent to deny — and each carries the schema text that justifies it,
-right next to the code. A card returned as undeliverable gets its own separate
-wording, because it needs attention but nobody is waiting on a reply.
-
-The banner is amber rather than red: it names something to do, not a verdict.
-Outcomes are still carried by USCIS's own status wording, and every coded event
-remains visible in the timeline with its description and its source. The rule
-is written down in `docs/design/SPEC.md` so it does not drift back.
+- The "USCIS may need something from you" alert no longer fires on denials or
+  internal holds. Of the nine codes that raised it, two were denial notices and
+  three were internal state that asks nothing of anyone. Only codes whose
+  published description says USCIS asked for something raise it now, each with
+  that description recorded next to it.
+- The alert is amber rather than red: it names something to do, not a verdict.
+- Rule written down in `docs/design/SPEC.md`.
 
 ## 1.8.0
 
-**Hiding receipt numbers now hides a lot more**
-
-The raw-data view masked exactly two field names, matched by a pattern that
-stopped at the first escaped quote inside a value — so a name containing an
-apostrophe-escaped quote had everything after it left in the clear, along with
-the keys that followed. The list is now explicit and much wider: names,
-addresses, email, phone, and document and letter ids. It is written as a list
-rather than buried in a regular expression, so an auditor can read what
-redaction actually covers.
-
-**Internal: the same thing is now called the same thing everywhere**
-
-No behaviour change, but the parts of this codebase most likely to be edited
-next were the ones most likely to mislead:
-
-- The two main endpoint constants were named for each other's endpoints:
-  `caseStatus` pointed at case detail and `receiptNotice` pointed at the status
-  endpoint, while the UI printed the correct paths beside the wrong names.
-  They are now `caseDetail` and `caseStatus`.
-- One date value had two names across two layers, and one timestamp had three.
-- Three date formatters became one implementation with three shapes. The
-  year-stripping one had been string-replacing the year out of another
-  formatter's output, which would have silently stopped working the moment that
-  format changed.
-- Eight copies of `x && !x.__error && !x.__empty` became `payloadUsable(x)`.
-- Two clipboard buttons with a flash timer, guard, promise pair and try/catch
-  each became one.
-- Three receipt-number patterns became one shape plus one deliberate,
-  documented narrowing for automatic discovery.
-- The card's state machine returned six values, of which four were computed
-  every render and compared nowhere.
-- Five declared response fields nothing read, seven styled classes nothing
-  emits, and a comment pointing at a function that was never written, all gone.
-
-**Build**
-
-The smoke test now asserts that USCIS's own status text reaches the row. It had
-been checking that cards render, which is why this pass briefly shipped a
-harness that served the case-detail payload to the status endpoint: every card
-drew perfectly and every row read "No status published yet". Verified the new
-check fails on that exact bug before restoring the fix.
+- "Hide receipt numbers" covers many more fields in the raw data, and no longer
+  stops masking at the first escaped quote in a value.
+- Internal: the two main endpoint constants were named for each other's
+  endpoints; one date value had two names and one timestamp had three; three
+  date formatters became one; eight copies of the same payload check became
+  one; two clipboard buttons became one; three receipt-number patterns became
+  one; the card's state machine returned six values of which four were never
+  read. Deleted five unread field declarations and seven unused CSS rules.
+- The smoke test now checks that USCIS's status text reaches the row. It had
+  only checked that cards render, which is how this pass briefly shipped a test
+  harness serving the wrong payload — every card drew fine and every row read
+  "No status published yet".
 
 ## 1.7.1
 
