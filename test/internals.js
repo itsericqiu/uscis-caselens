@@ -28,14 +28,12 @@ var EXPORTS = [
   // redaction path short-circuits — which would make the redaction tests pass
   // by doing nothing.
   'loadAll',
-  'parseUscisDate', 'daysBetween', 'startOfLocalDay', 'sameLocalDay',
-  'formatDateAs', 'formatDate', 'formatDateFull', 'formatDayLabel', 'relativeDate',
-  'normalize', 'diffSnapshots', 'carryForwardUnread', 'isAbsentValue',
-  'snapshotHasContent', 'resultHasAnyData', 'payloadUsable', 'payloadFailed',
+  'parseUscisDate', 'daysBetween', 'sameLocalDay',
+  'formatDate', 'formatDateFull', 'relativeDate',
+  'normalize', 'diffSnapshots', 'carryForwardUnread', 'snapshotHasContent', 'resultHasAnyData', 'payloadUsable', 'payloadFailed',
   'flattenValue', 'strictBool', 'stripHtml', 'pick', 'plural',
-  'isValidReceiptNumber', 'redactRawJson', 'redactNumber', 'displayFileName',
-  'stageIndexOfCode', 'describeCode', 'learnedKey', 'documentLabel',
-  'decorateAndDedupeTimeline', 'countNewHistory', 'normalizeText', 'hasTimeComponent',
+  'isValidReceiptNumber', 'redactRawJson', 'displayFileName',
+  'stageIndexOfCode', 'decorateAndDedupeTimeline', 'countNewHistory', 'hasTimeComponent',
   'middleTruncate', 'parseEstimateMonths', 'futureAppointments'
 ];
 

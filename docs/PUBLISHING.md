@@ -194,7 +194,7 @@ Paste-ready text for the initial submission to either store.
 > beyond running on my.uscis.gov itself.
 >
 > The entire tool is one readable source file, published in the same repo
-> this extension is built from, so you don't have to take our word for any
+> this extension is built from, so nobody has to take a claim on trust for any
 > of that — you can read exactly what it does, or watch its network traffic
 > yourself and see that every request goes to my.uscis.gov and nowhere
 > else.

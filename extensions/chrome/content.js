@@ -2058,7 +2058,7 @@ var CASELENS_STYLE = [
   // SECTION 1: Constants
   // ==========================================================================
 
-  var VERSION = '1.14.2';
+  var VERSION = '1.15.0';
 
   var STORAGE_KEYS = {
     cases: 'uscisTracker.cases.v1',      // [{ number, label, addedAt }]
@@ -6068,10 +6068,10 @@ var CASELENS_STYLE = [
         lines.push('What is certain: USCIS logged an event coded ' + item.code + ' on ' + formatDateFull(item.displayAt) + '.');
       } else if (item.labelSource === 'unknown-source') {
         lines.push('USCIS logged an event coded ' + item.code + ' on ' + formatDateFull(item.displayAt) + '.');
-        lines.push('The published code list did not load in this copy of the panel, so we cannot look this code up. That is a fault in this tool, not a gap in your record — we would rather say nothing about the code than say it has no meaning.');
+        lines.push('The published code list did not load in this copy of the panel, so this code could not be looked up. That is a fault in this tool, not a gap in your record.');
       } else {
         lines.push('USCIS logged this code on your case, and no meaning for it is published — not in the status text USCIS wrote for this account, and not in the federal schema.');
-        lines.push('USCIS does use codes outside the published standard, so this is a gap in public documentation rather than a problem with the case. We would rather say so than guess.');
+        lines.push('USCIS does use codes outside the published standard, so this is a gap in public documentation rather than a problem with the case.');
         // Only claim it had no effect when it had no effect. Five of the codes
         // in our curated stage table — including SA, which marked a real case
         // approved — have no published meaning, so this sentence used to be
@@ -6079,7 +6079,7 @@ var CASELENS_STYLE = [
         // way to Approved. The table is a deliberate curation (see SPEC, X-1);
         // what was wrong was denying it existed.
         lines.push(movesStage
-          ? 'This panel does place this code on the stage map above, from its own curated list — that placement is our reading, not a published fact, and no source defines this code.'
+          ? 'This panel does place this code on the stage map above, from its own curated list. That placement is an interpretation, not a published fact, and no source defines this code.'
           : 'It does not move this case forward or back on the stage map above: an unrecognised code does not vote.');
       }
     } else if (item.kind === 'backend') {
@@ -6090,7 +6090,7 @@ var CASELENS_STYLE = [
         lines.push('USCIS’s internal copy of this case was modified on ' + formatDateFull(item.displayAt) +
           (item.lagDays ? ' — ' + plural(item.lagDays, 'day') + ' after the visible status was set' : '') + '.');
       }
-      lines.push('The public status did not change. This sometimes comes before visible movement, and sometimes means nothing we can see. We show it because my.uscis.gov does not.');
+      lines.push('The public status did not change. This sometimes comes before visible movement, and sometimes means nothing observable. It is shown here because my.uscis.gov does not show it.');
     } else if (item.provenance === 'notice') {
       lines.push('USCIS generated this notice on ' + formatDateFull(item.generatedAt) + '.');
       lines.push('Check the notice in your USCIS account for the address and what to bring.');
@@ -6241,7 +6241,7 @@ var CASELENS_STYLE = [
 
     if (!items.length) {
       wrap.appendChild(el('div', { 'class': 'uscistr-note', text: sourcesUnread
-        ? 'We could not read this case’s history on this check, so this list is not the whole record.'
+        ? 'This case’s history could not be read on this check, so this list is not the whole record.'
         : "USCIS hasn't published any history for this case — only its current status. This panel will record anything that changes from now on."
       }));
       return wrap;
@@ -6675,12 +6675,12 @@ var CASELENS_STYLE = [
       // force the code into a shape it does not fit.
       wrap.appendChild(el('div', { 'class': 'uscistr-progress-label', text:
         'No stage map for this case: USCIS logged ' + info.foreign.join(', ') +
-        ', which our ' + info.formType + ' stage list does not contain. Rather than force it into the wrong shape we leave the map out. Every event is still in the timeline below.' }));
+        ', which this tool’s ' + info.formType + ' stage list does not contain. Rather than force it into the wrong shape, the map is left out. Every event is still in the timeline below.' }));
     } else if (info.mode !== 'none') {
       wrap.appendChild(buildStageRail(info));
       if (info.mode === 'indeterminate') {
         wrap.appendChild(el('div', { 'class': 'uscistr-progress-label', text:
-          'We cannot place this case on a stage map — USCIS has only sent codes with no published meaning (' +
+          'This case cannot be placed on a stage map — USCIS has only sent codes with no published meaning (' +
           info.unmapped.join(', ') + '). The timeline below still shows everything USCIS logged.' }));
       } else if (info.closed) {
         wrap.appendChild(el('div', { 'class': 'uscistr-progress-label', text:
@@ -6701,14 +6701,14 @@ var CASELENS_STYLE = [
           ') are in the timeline but do not move this map.');
       }
       if (STAGE_FOOTNOTES[info.formType]) railNotes.push(STAGE_FOOTNOTES[info.formType]);
-      railNotes.push('This stage map is our own reading of the codes on this case, not a USCIS status. Segments are equal width on purpose: none of them measures time.');
+      railNotes.push('This stage map is an interpretation of the codes on this case, not a USCIS status. Segments are equal width on purpose: none of them measures time.');
 
       var railOpen = !!caseUi(entry).showRailNote;
       var railBtn = el('button', {
         'class': 'uscistr-more', type: 'button',
         'aria-expanded': railOpen ? 'true' : 'false',
         'data-focus-key': 'railNote:' + entry.number,
-        text: railOpen ? 'Hide' : 'How we read this map',
+        text: railOpen ? 'Hide' : 'How this map is read',
         onclick: function () { caseUi(entry).showRailNote = !caseUi(entry).showRailNote; render(); }
       });
       wrap.appendChild(railBtn);
@@ -6763,8 +6763,8 @@ var CASELENS_STYLE = [
       // read it" into "there is nothing" that the rest of this panel refuses.
       var absenceText;
       if (view.estimateUnread) {
-        absenceText = "We could not read USCIS's processing-time endpoint on this check, " +
-          'so we do not know whether one is published for this case.';
+        absenceText = "USCIS's processing-time endpoint could not be read on this check, " +
+          'so whether one is published for this case is unknown.';
       } else if (view.processing) {
         absenceText = 'USCIS published a processing-time estimate for this case in a form ' +
           'this panel could not read. Check my.uscis.gov for it.';
@@ -7174,7 +7174,7 @@ var CASELENS_STYLE = [
       var disclosed = el('div', { 'class': 'uscistr-disclosure' }, [
         el('p', { text: 'Every case in USCIS’s system carries a "last updated" date. For this case that date is ' +
           formatDateFull(backendMs) + ' — ' + plural(lag, 'day') + ' after the status above was written on ' + formatDateFull(statusMs) + '.' }),
-        el('p', { text: 'So something in their system wrote to this case’s record after the status was set. We can see that it happened. We cannot see what it was, and USCIS does not publish it anywhere.' }),
+        el('p', { text: 'So something in their system wrote to this case’s record after the status was set. That it happened is visible; what it was is not, and USCIS does not publish it anywhere.' }),
         // Four consecutive negations, naming "decision" and "approval" only to
         // deny them, put both words in front of someone who had not been
         // thinking either. One positive sentence carries the same fact.
@@ -7789,7 +7789,7 @@ var CASELENS_STYLE = [
     // Line 2 — USCIS's own status and when it was set, truncated to one line.
     // The full sentence is one click away; this is a scanning surface.
     var statusText = view.notice && view.notice.status ? view.notice.status
-      : (view.fromCache ? 'Showing the last copy we have'
+      : (view.fromCache ? 'Showing the last saved copy'
         : (view.hasData ? 'No status published yet' : "Couldn't read this case"));
     var statusMs = view.notice && view.notice.actionCodeDate
       ? parseUscisDate(view.notice.actionCodeDate) : null;
@@ -8008,7 +8008,7 @@ var CASELENS_STYLE = [
     if (!view.hasData) {
       // Every endpoint answered, and every one of them was empty. That is not
       // the same as "there is nothing to find", and it does not get that copy.
-      floorText = 'USCIS returned no case data at all on this check, so we cannot say what is on the record right now. That sometimes means the receipt number is filed in an older system this tool cannot read. Check my.uscis.gov directly.';
+      floorText = 'USCIS returned no case data at all on this check, so what is on the record right now is unknown. That sometimes means the receipt number is filed in an older system this tool cannot read. Check my.uscis.gov directly.';
     } else if (view.items.length <= 3 && (!view.docs || !view.docs.length)) {
       // The sparse floor: this converts "the tool found nothing" into "there
       // is nothing to find", which are very different experiences.

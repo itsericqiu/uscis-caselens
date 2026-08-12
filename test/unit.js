@@ -237,6 +237,73 @@ function run() {
   eq(A.hasTimeComponent('2026-07-09'), false, 'bare date');
   eq(A.hasTimeComponent(null), false, 'null');
 
+  // --- helpers that other behaviour is built on --------------------------
+  describe('pick — first non-empty candidate key');
+  eq(A.pick({ b: 'x' }, ['a', 'b']), 'x', 'falls through to the second key');
+  eq(A.pick({ a: '', b: 'x' }, ['a', 'b']), 'x', 'empty string is not an answer');
+  eq(A.pick(null, ['a']), null, 'null object');
+  eq(A.pick({}, ['a']), null, 'no candidate present');
+
+  describe('payloadUsable / payloadFailed');
+  eq(A.payloadUsable({ a: 1 }), true, 'data is usable');
+  eq(A.payloadUsable({ __empty: true }), false, 'empty is not usable');
+  eq(A.payloadUsable({ __error: 'x' }), false, 'error is not usable');
+  eq(A.payloadUsable(null), false, 'null is not usable');
+  eq(A.payloadFailed({ __error: 'x' }), true, 'error is a failure');
+  eq(A.payloadFailed({ __empty: true }), false, 'empty is an answer, not a failure');
+
+  describe('snapshotHasContent');
+  eq(A.snapshotHasContent(null), false, 'no snapshot');
+  eq(A.snapshotHasContent({}), false, 'empty snapshot');
+  eq(A.snapshotHasContent({ status: 'X' }), true, 'a status counts');
+  eq(A.snapshotHasContent({ docNames: ['a'] }), true, 'documents count');
+
+  describe('normalize — only records what USCIS reported');
+  (function () {
+    var snap = A.normalize({
+      fetchedAt: '2026-08-01T00:00:00.000Z',
+      caseDetail: { formType: 'I-485', closed: false, actionRequired: true, evidenceRequests: [1, 2] },
+      caseStatus: { statusTitle: 'Case Was Received', currentActionCode: 'IAF' }
+    });
+    eq(snap.formType, 'I-485', 'form type recorded');
+    eq(snap.status, 'Case Was Received', 'status recorded');
+    eq(snap.actionRequired, true, 'structured boolean recorded');
+    eq(snap.evidenceCount, 2, 'evidence count recorded');
+    eq(snap.closed, false, 'false is a fact, not an absence');
+  })();
+
+  (function () {
+    // A failed detail endpoint must not be recorded as "not closed".
+    var snap = A.normalize({ fetchedAt: 'x', caseDetail: { __error: 'boom' }, caseStatus: { __empty: true } });
+    eq(snap.closed, null, 'unknown stays null');
+    eq(snap.actionRequired, null, 'unknown stays null');
+    eq(snap.formType, null, 'nothing invented');
+  })();
+
+  describe('parseEstimateMonths');
+  eq(A.parseEstimateMonths({ estimatedTimeframe: '11 months' }), 11, 'free text months');
+  eq(A.parseEstimateMonths({ range: { value: 8, unit: 'months' } }), 8, 'structured range');
+  eq(A.parseEstimateMonths({ estimatedTimeframe: '8 to 10 weeks' }), null, 'weeks are not readable');
+  eq(A.parseEstimateMonths({ __empty: true }), null, 'empty payload');
+
+  describe('middleTruncate');
+  eq(A.middleTruncate('short', 20), 'short', 'below the limit is untouched');
+  ok(A.middleTruncate('abcdefghijklmnopqrstuvwxyz', 10).length <= 11,
+    'long strings are shortened', A.middleTruncate('abcdefghijklmnopqrstuvwxyz', 10));
+
+  describe('futureAppointments — only what has not happened yet');
+  (function () {
+    var future = new Date(new Date().getTime() + 9 * 864e5).toISOString();
+    var past = new Date(new Date().getTime() - 9 * 864e5).toISOString();
+    var out = A.futureAppointments({ notices: [
+      { appointmentDateTime: future, actionType: 'Biometrics' },
+      { appointmentDateTime: past, actionType: 'Old' },
+      { actionType: 'Not an appointment' }
+    ] });
+    eq(out.length, 1, 'past and non-appointments are dropped');
+    eq(out[0].label, 'Biometrics', 'label carried');
+  })();
+
   describe('redactRawJson');
   (function () {
     var R = internals.load({ redact: true });

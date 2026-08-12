@@ -4,6 +4,15 @@ Notable changes per release. The section matching a tag becomes that release's
 notes on GitHub, so keep entries written for someone deciding whether to update
 — not for someone reading a commit log.
 
+## 1.15.0
+
+- Copy rewritten throughout to drop the first person. The panel reports facts
+  about a case; "we could not read this" invented a narrator, "this could not be
+  read" is the same fact without one.
+- README cut by a quarter: the can/can't lists became prose, and padding removed.
+- `copy-check` fails the build on first-person user-facing text.
+- 106 unit tests, up from 76, covering the helpers the rest is built on.
+
 ## 1.14.2
 
 - Keyboard focus stays on a button after clicking it. Every expandable control

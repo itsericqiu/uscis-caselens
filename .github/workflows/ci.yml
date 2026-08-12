@@ -52,6 +52,9 @@ jobs:
       - name: CSS gate — no orphaned declarations in the stylesheet
         run: node scripts/css-check.js
 
+      - name: Copy gate — user-facing text stays out of the first person
+        run: node scripts/copy-check.js
+
       - name: Privacy gate — only my.uscis.gov may appear as a live URL
         run: node scripts/privacy-gate.js
 

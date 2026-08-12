@@ -7,8 +7,7 @@ stay in the country. A confident sentence that turns out to be wrong does real
 damage, and it doesn't announce itself as a bug.
 
 The user-facing promises live in [README.md](README.md); the security posture is
-in [SECURITY.md](SECURITY.md); the full design reasoning, including options we
-rejected and why, is in [docs/design/SPEC.md](docs/design/SPEC.md). This file is
+in [SECURITY.md](SECURITY.md); the full design reasoning, including rejected options and why, is in [docs/design/SPEC.md](docs/design/SPEC.md). This file is
 the short version for anyone touching the code.
 
 ## The rule behind the rules
@@ -23,11 +22,11 @@ better by being less certain than the data supports, the panel loses.
 - **No predicted decision dates, ever** — not softened, not labelled
   "estimated", not in a tooltip.
 - **No invented or borrowed statistics.** No "cases like yours take N months".
-  We have no such dataset, and acquiring one would mean transmitting case data
-  to a third party.
+  No such dataset exists here, and acquiring one would mean transmitting case
+  data to a third party.
 - **A percentage only when USCIS itself publishes an estimate** for that case.
   That endpoint usually returns 204 with no body; that is normal. Otherwise show
-  elapsed time, which we actually know.
+  elapsed time, which is known.
 - **Never characterize a case as good or bad.** Do not derive
   approved/denied/positive/negative styling by pattern-matching status text or
   event codes. Emphasis may come only from structured boolean fields USCIS
@@ -35,10 +34,10 @@ better by being less certain than the data supports, the panel loses.
   text — it is never coloured green or red.
 - **Never infer a code's meaning from its shape**, prefix, digits, or
   resemblance to a known code. `SA` and `SAB` may be unrelated.
-- **Distinguish "we don't know" from "there is nothing."** An absent processing
+- **Distinguish "unknown" from "there is nothing."** An absent processing
   estimate means USCIS publishes none. An empty documents array does not mean
   the applicant has no documents. Never collapse the two.
-- **Never drop data from the timeline.** An event we can't label still renders,
+- **Never drop data from the timeline.** An event that cannot be labelled still renders,
   with its raw code. Omitting it is a lie about the record.
 - **Store only what was observed.** Fallback values exist to build a request;
   they must never be written into a snapshot as though USCIS reported them.
@@ -135,7 +134,8 @@ node test/unit.js              # pure functions: dates, diffing, redaction
 node scripts/privacy-gate.js   # no origin other than my.uscis.gov, in all 3 shipped files
 node scripts/pii-gate.js       # no real receipt numbers, any prefix — run after `git add`
 node scripts/undefined-check.js # every called function is defined
-node scripts/css-check.js      # no orphaned CSS declarations
+node scripts/css-check.js      # no orphaned CSS declarations, no hardcoded font sizes
+node scripts/copy-check.js     # no first-person user-facing copy
 node scripts/smoke-test.js     # starts its own server + headless Chrome
 ```
 
@@ -202,7 +202,7 @@ the rules above apply unchanged, plus:
 - Give the agent this file and `docs/design/SPEC.md`. Both exist largely because
   a plausible-looking suggestion needed to be refused with a reason.
 - Review honesty rules by hand. In practice the failure mode isn't broken code —
-  it's a well-built feature quietly displaying something we cannot actually
+  it's a well-built feature quietly displaying something the data cannot actually
   know, such as a progress percentage derived from a source that doesn't exist.
 - Verify claims about the API against `docs/API-SCHEMA.md`, which was captured
   from a live account. Community documentation about these endpoints is
