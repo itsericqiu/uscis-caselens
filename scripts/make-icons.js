@@ -164,6 +164,25 @@ for (const size of sizes) {
   }
 }
 
+// Listing icons. Both stores upload these separately from the package: the
+// manifest icons are what the browser shows in the toolbar and on the
+// extensions page, while the store listing has its own image field. Chrome
+// wants 128, AMO wants 32 and 64. Generated from the same mark so the listing
+// and the installed extension cannot drift apart.
+const listingDir = path.join(rootDir, 'docs', 'store');
+if (!fs.existsSync(listingDir)) fs.mkdirSync(listingDir, { recursive: true });
+
+for (const size of [32, 64, 128]) {
+  const filePath = path.join(listingDir, `listing-icon-${size}.png`);
+  try {
+    fs.writeFileSync(filePath, createPNG(size, size));
+    console.log(`${filePath}`);
+  } catch (err) {
+    console.error(`Error writing ${filePath}: ${err.message}`);
+    hadError = true;
+  }
+}
+
 if (hadError) {
   process.exit(1);
 }
