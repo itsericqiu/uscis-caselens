@@ -32,6 +32,7 @@ The official site does not show which office holds a case, or when USCIS last to
 - **Talks only to my.uscis.gov**, the site you are already signed into. No outside code, fonts or images.
 - **Reads only.** It cannot file, answer, withdraw, upload or change anything, and can reach nothing your own account cannot.
 - **Cases and history stay in your browser** (`localStorage`). No account, no server, no analytics, no tracking.
+- **No permissions beyond running on my.uscis.gov.** Installing the extension will warn that it can read and change data on that one site, which is accurate — a panel drawn on the page can do both. It asks for nothing on any other site, and there is no background process.
 - **Small enough that people do read it.** Three files, and the extension published to a store is byte-for-byte the code in this repository.
 
 Full detail in [PRIVACY.md](docs/PRIVACY.md). If you audit code for a living, the threat model and what it does not defend against are in [SECURITY.md](SECURITY.md).

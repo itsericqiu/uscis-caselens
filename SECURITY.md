@@ -12,10 +12,18 @@ three seriously.
 
 ## Least privilege
 
-- The browser extensions (Chrome, Firefox) request **zero
-  permissions**: no `permissions`, no `host_permissions`, no background
-  worker in any manifest. They inject one content script on `my.uscis.gov`
-  and nothing else.
+- The browser extensions (Chrome, Firefox) request **no permissions beyond
+  running on `my.uscis.gov` itself**: no `permissions`, no `host_permissions`,
+  no background worker in any manifest. They inject one content script on
+  `my.uscis.gov` and nothing else.
+- That content script's match pattern **is** host access, and both stores count
+  it as such — Chrome's own definition is "any match pattern specified in the
+  `permissions` and `content_scripts` fields". So the install prompt warns about
+  reading and changing data on `my.uscis.gov`, and it is right to: a script
+  running in that page can do both. What the manifest withholds is access to
+  every *other* site, and the ability to run anywhere the user is not already
+  looking. "Zero permissions" is true of the manifest keys and false of the
+  install prompt, which is why it is not the phrasing used here.
 - The userscript declares `@grant none`. It has no access to privileged
   userscript-manager APIs and can do nothing that ordinary page JavaScript
   running on `my.uscis.gov` couldn't already do.

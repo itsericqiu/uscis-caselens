@@ -252,8 +252,8 @@ between paragraphs and between bullets.
 > • Cases, history and settings are stored in this browser and are never
 >   transmitted anywhere.
 > • Read-only. Nothing can be filed, answered, withdrawn, uploaded or changed.
-> • Zero permissions: none declared, no host permissions, no background worker.
->   One content script, on https://my.uscis.gov/* only.
+> • No permissions beyond running on my.uscis.gov itself. One content script,
+>   on https://my.uscis.gov/* only, and no background worker.
 > • Settings > Erase everything removes all stored data.
 >
 > Works with receipt numbers beginning IOE. Signed out, the panel shows nothing.

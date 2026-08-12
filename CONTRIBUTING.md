@@ -51,9 +51,12 @@ better by being less certain than the data supports, the panel loses.
 - Nothing is transmitted off the machine, including "anonymous" or aggregated
   data. Clipboard and file download are the only ways data leaves the panel, and
   both are user-initiated.
-- The browser extensions must keep **zero permissions** — no `permissions`, no
-  `host_permissions`, no background worker. A change that needs a permission
-  needs a discussion first.
+- The browser extensions must keep **no permissions beyond the one content
+  script match** — no `permissions`, no `host_permissions`, no background
+  worker. A change that needs a permission needs a discussion first. Note that
+  the `content_scripts` match pattern is itself host access by both stores'
+  definition; widening it past `https://my.uscis.gov/*` is a permission change,
+  not a config tweak.
 - The userscript keeps `@grant none`. It must never require a userscript-manager
   API.
 

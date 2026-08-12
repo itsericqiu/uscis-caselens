@@ -56,6 +56,12 @@ The extensions declare no `permissions`, no `host_permissions` and no
 background worker. They register one content script, matching
 `https://my.uscis.gov/*`. The userscript runs with `@grant none`.
 
+That single match pattern is host access, and the browser will say so at
+install: the extension can read and change data on my.uscis.gov. That is
+accurate — a panel drawn onto the page can do both, and reading the page is how
+CaseLens finds the receipt numbers already printed on it. It requests nothing on
+any other site.
+
 ## Verifying this
 
 The source is three files, published under the MIT license at
