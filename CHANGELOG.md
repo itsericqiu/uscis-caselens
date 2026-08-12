@@ -4,6 +4,27 @@ Notable changes per release. The section matching a tag becomes that release's
 notes on GitHub, so keep entries written for someone deciding whether to update
 — not for someone reading a commit log.
 
+## 1.16.0
+
+- Renamed to "CaseLens — Unofficial USCIS Case Tracker". Nothing in the old name
+  signalled independence, and the store rule that matters is the affiliation one.
+- New icon: a lens, replacing a white "U" — which was the agency's initial, not
+  this tool's.
+- Store screenshots no longer reproduce the DHS seal, the agency wordmark or the
+  "official website of the United States government" banner. A listing image
+  carrying federal insignia contradicts the disclaimer printed beside it.
+- Store screenshots 02 and 03 had been byte-identical: the script scrolled a
+  container that never overflowed and never opened a case. It now opens one, and
+  fails the run if any two images match.
+- New `docs/PRIVACY.md`. Chrome requires a privacy policy URL for any extension
+  that handles user data, including data that never leaves the device.
+- README reorganised around what a reader decides in order: whether it works for
+  their case, whether it can affect their case, then install. The interaction
+  tour is gone — 13 bullets describing things a click reveals.
+- `docs/PUBLISHING.md` rewritten with per-store listing text, the Chrome privacy
+  answers, reviewer notes, and AMO source-submission instructions. Its AMO
+  category guidance was wrong; AMO has no Productivity category for extensions.
+
 ## 1.15.1
 
 - No behaviour change. Three long functions split along seams that were already

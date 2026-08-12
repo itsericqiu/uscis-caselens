@@ -29,33 +29,89 @@ var CHROME = [
   '/usr/bin/google-chrome'
 ].filter(function (p) { return fs.existsSync(p); })[0];
 
-// Each shot sets up a state, then we capture the whole 1280x800 viewport with
-// the panel positioned so it reads as a product screenshot rather than a crop.
+// Each shot sets up a state, then captures the whole 1280x800 viewport with the
+// panel over the sample account page, so it reads as a product screenshot
+// rather than a crop.
+//
+// `steps` are page snippets run in order after the panel opens. Earlier versions
+// of this file only set a scrollTop on `.uscistr-body`, which does nothing when
+// four collapsed rows already fit: shots 02 and 03 came out byte-identical and
+// nobody noticed until they were read as a listing. Anything that claims to show
+// an open case has to actually open one, and `assertDistinct` below now fails
+// the run rather than shipping the same picture twice.
+var DISMISS_INTRO =
+  "(function(){var b=[].slice.call(document.querySelectorAll('.uscistr-root button'))" +
+  ".filter(function(x){return (x.textContent||'').trim()==='Got it';})[0]; if(b)b.click();})()";
+
+// Opens the nth case in the list. `.uscistr-collapsed` is the row button in both
+// the narrow list and the wide rail, so this works in either layout.
+function openCase(n) {
+  return "(function(){var r=document.querySelectorAll('.uscistr-root .uscistr-collapsed');" +
+    "if(r[" + n + "])r[" + n + "].click();})()";
+}
+
+// The scroll container depends on the layout: `.uscistr-detail` in wide mode,
+// `.uscistr-body` in narrow. Scroll whichever exists and actually overflows.
+function scrollTo(px) {
+  return "(function(){var sel=['.uscistr-detail','.uscistr-body'];" +
+    "for(var i=0;i<sel.length;i++){var n=document.querySelector('.uscistr-root '+sel[i]);" +
+    "if(n&&n.scrollHeight>n.clientHeight+8){n.scrollTop=" + px + ";return;}}})()";
+}
+
+var OPEN_SETTINGS =
+  "(function(){var g=document.querySelector('[data-uscistr-settings-toggle]'); if(g)g.click();})()";
+
+// Order is the argument, not a gallery. Shot 1 carries most of the install
+// decision and store carousels rarely get scrolled past shot 3, so the two
+// things my.uscis.gov does not show sit at 2 and 3. The set ends on the privacy
+// controls rather than on dark mode: for a tool handling immigration data,
+// showing "Erase everything" closes the argument that the description only
+// makes in words.
 var SHOTS = [
   {
     name: '01-overview',
-    caption: 'All cases in one place',
-    dark: false,
-    setup: "(function(){var p=JSON.parse(localStorage.getItem('uscisTracker.prefs.v1')||'{}');p.collapsed=false;p.dark=false;localStorage.setItem('uscisTracker.prefs.v1',JSON.stringify(p));})()"
+    caption: 'Every case on the account, one line each',
+    steps: [DISMISS_INTRO]
   },
   {
-    name: '02-record-updated',
-    caption: 'Shows activity the website does not',
-    dark: false,
-    scroll: 320
+    name: '02-changed',
+    caption: 'What changed since the last visit is named',
+    scenario: 'changed',
+    steps: [DISMISS_INTRO]
   },
   {
-    name: '03-timeline',
-    caption: 'A merged timeline with sources named',
-    dark: false,
-    scroll: 900
+    name: '03-record-updated',
+    caption: 'Office, stage, and when the record was last touched',
+    steps: [DISMISS_INTRO, openCase(0)]
   },
   {
-    name: '04-dark',
-    caption: 'Dark mode',
-    dark: true
+    name: '04-timeline',
+    caption: 'One timeline per case, with each entry sourced',
+    steps: [DISMISS_INTRO, openCase(0), scrollTo(760)]
+  },
+  {
+    name: '05-privacy',
+    caption: 'Stored in this browser, and erasable from Settings',
+    steps: [DISMISS_INTRO, OPEN_SETTINGS]
   }
 ];
+
+// A listing image that duplicates another teaches a shopper nothing and reads as
+// padding. Cheap to check, and the failure it catches was invisible in review.
+function assertDistinct(files) {
+  var crypto = require('crypto');
+  var seen = {};
+  files.forEach(function (f) {
+    var sum = crypto.createHash('md5').update(fs.readFileSync(f)).digest('hex');
+    if (seen[sum]) {
+      console.error('store-screenshots: FAILED — ' + path.basename(f) +
+        ' is identical to ' + path.basename(seen[sum]) + '.');
+      process.exit(1);
+    }
+    seen[sum] = f;
+  });
+  console.log('store-screenshots: ' + files.length + ' distinct images.');
+}
 
 function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
@@ -77,6 +133,7 @@ async function main() {
 
   await sleep(2500);
 
+  var written = [];
   for (var i = 0; i < SHOTS.length; i++) {
     var shot = SHOTS[i];
     var client = await CDP.connect(PORT);
@@ -86,21 +143,20 @@ async function main() {
       width: W, height: H, deviceScaleFactor: 1, mobile: false
     });
 
-    await client.send('Page.navigate', { url: BASE + '?scenario=normal' });
+    await client.send('Page.navigate', { url: BASE + '?scenario=' + (shot.scenario || 'normal') });
     await sleep(30000);   // four cases load sequentially by design
 
-    // Open the panel, apply the shot's state, hide the harness chrome.
+    // Open the panel, then dress the page, then drive the panel. Steps run last
+    // because opening a case re-renders, which would discard a scroll applied
+    // before it.
     await client.eval("(function(){var p=document.querySelector('.uscistr-pill'); if (p) p.click();})()");
     await sleep(1500);
-    if (shot.setup) { await client.eval(shot.setup); }
     if (shot.dark) {
       await client.eval("(function(){var p=JSON.parse(localStorage.getItem('uscisTracker.prefs.v1')||'{}');p.dark=true;localStorage.setItem('uscisTracker.prefs.v1',JSON.stringify(p));var r=document.querySelector('.uscistr-root'); if(r)r.classList.add('uscistr-dark');})()");
       await sleep(600);
     }
-    // Replace the harness strip with a neutral backdrop so the shot reads as
-    // the product, not as a test page.
-    // Replace the harness scaffolding with the account-page replica, so the
-    // panel is shown over the page it actually overlays.
+    // Replace the harness scaffolding with the sample account page, so the
+    // panel is shown over the kind of page it actually overlays.
     await client.eval(
       "(function(){" +
       "Array.prototype.forEach.call(document.body.children,function(n){" +
@@ -111,18 +167,22 @@ async function main() {
       "document.body.insertBefore(f, document.body.firstChild);" +
       "})()");
     await sleep(2500);
-    if (shot.scroll) {
-      await client.eval("(function(){var b=document.querySelector('.uscistr-body'); if(b) b.scrollTop=" + shot.scroll + ";})()");
-      await sleep(500);
+
+    for (var s = 0; s < (shot.steps || []).length; s++) {
+      await client.eval(shot.steps[s]);
+      await sleep(1200);   // dismissing the note and opening a case each re-render
     }
     await sleep(700);
 
     var res = await client.send('Page.captureScreenshot', { format: 'png' });
     var file = path.join(OUT, shot.name + '.png');
     fs.writeFileSync(file, Buffer.from(res.data, 'base64'));
+    written.push(file);
     console.log('wrote', path.relative(ROOT, file), '(' + W + 'x' + H + ')  —', shot.caption);
     await client.close();
   }
+
+  assertDistinct(written);
 }
 
 main().then(function () { process.exit(0); })

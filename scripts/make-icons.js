@@ -36,40 +36,52 @@ function createPNG(width, height) {
     navy.copy(pixelData, i * 4);
   }
 
-  // Draw white "U" using three rectangles
-  // U proportions: bars are ~20% of width thick, U occupies central ~60% of canvas
-  const barWidth = Math.max(1, Math.floor(width * 0.2));
-  const centerX = Math.floor((width - width * 0.6) / 2);
-  const uWidth = Math.floor(width * 0.6);
-  const leftBarX = centerX;
-  const rightBarX = centerX + uWidth - barWidth;
-  const barTopY = Math.floor(height * 0.15);
-  const barBottomY = Math.floor(height * 0.85);
-  const bottomBarHeight = Math.max(1, barWidth);
+  // A lens: a white ring with a solid centre.
+  //
+  // This used to be a white "U". Three problems with that, all the same
+  // problem: "U" is the agency's initial, not this tool's; it says nothing
+  // about CaseLens; and on a solid official-looking tile it read as a
+  // first-party government mark next to a name containing "USCIS". A store
+  // listing that must state it is unaffiliated should not open with a glyph
+  // implying otherwise. A lens is on-name and unmistakably third-party.
+  //
+  // The teal stays: #1F5D5B is conspicuously not USCIS navy, which is doing
+  // quiet work here, and it matches the panel's accent so the installed icon
+  // and the in-page mark read as one product.
+  const cx = width / 2;
+  const cy = height / 2;
+  const ringRadius = width * 0.30;    // centreline of the ring stroke
+  const ringHalf = width * 0.085;     // half the stroke width
+  const dotRadius = width * 0.115;
 
-  // Helper: fill rectangle with white (255, 255, 255, 255)
-  function fillRect(x, y, w, h) {
-    for (let dy = 0; dy < h; dy++) {
-      for (let dx = 0; dx < w; dx++) {
-        const px = x + dx;
-        const py = y + dy;
-        if (px >= 0 && px < width && py >= 0 && py < height) {
-          const idx = (py * width + px) * 4;
-          pixelData[idx] = 255;     // R
-          pixelData[idx + 1] = 255; // G
-          pixelData[idx + 2] = 255; // B
-          pixelData[idx + 3] = 255; // A
-        }
+  // Rectangles could not draw this without stair-stepping, which at 16px is
+  // the difference between a lens and a smudge. Coverage is sampled on a 4x4
+  // grid per pixel and used to blend white over the ground.
+  const SS = 4;
+
+  function coverage(px, py) {
+    let hits = 0;
+    for (let sy = 0; sy < SS; sy++) {
+      for (let sx = 0; sx < SS; sx++) {
+        const x = px + (sx + 0.5) / SS - cx;
+        const y = py + (sy + 0.5) / SS - cy;
+        const d = Math.sqrt(x * x + y * y);
+        if (Math.abs(d - ringRadius) <= ringHalf || d <= dotRadius) hits++;
+      }
+    }
+    return hits / (SS * SS);
+  }
+
+  for (let py = 0; py < height; py++) {
+    for (let px = 0; px < width; px++) {
+      const a = coverage(px, py);
+      if (a <= 0) continue;
+      const idx = (py * width + px) * 4;
+      for (let c = 0; c < 3; c++) {
+        pixelData[idx + c] = Math.round(pixelData[idx + c] * (1 - a) + 255 * a);
       }
     }
   }
-
-  // Left vertical bar
-  fillRect(leftBarX, barTopY, barWidth, barBottomY - barTopY);
-  // Right vertical bar
-  fillRect(rightBarX, barTopY, barWidth, barBottomY - barTopY);
-  // Bottom horizontal bar connecting them
-  fillRect(leftBarX, barBottomY, uWidth, bottomBarHeight);
 
   // Encode PNG
   const pngSignature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);

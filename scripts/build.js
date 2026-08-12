@@ -53,7 +53,7 @@ const combinedContent = codesContent + '\n' + styleContent + '\n' + coreContent;
 // copy only ever moves between versions that passed CI, never to whatever is
 // mid-work on the default branch.
 const userscriptHeader = `// ==UserScript==
-// @name         CaseLens — USCIS Case Tracker
+// @name         CaseLens — Unofficial USCIS Case Tracker
 // @namespace    https://github.com/itsericqiu/uscis-caselens
 // @version      ${VERSION}
 // @description  See all your USCIS cases in one place. Everything stays in your browser.

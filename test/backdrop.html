@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>USCIS Account — Home Page</title>
+<title>Sample Immigration Account — Home Page</title>
 <!--
   A replica of the my.uscis.gov account page, used as the backdrop for store
   screenshots so the panel is shown where it actually appears.
@@ -13,9 +13,18 @@
   and the PII gate only catches receipt numbers. Everything here is invented:
   the same placeholder cases as test/fixtures.js.
 
-  Layout and wording follow the real page's structure — the government banner,
-  the account header, "Your Cases", the concurrent-filing badge, the per-case
-  tab row, and USCIS's own status phrasing.
+  Layout follows the real page's structure — the account header, "Your Cases",
+  the concurrent-filing badge, the per-case tab row, and USCIS's own status
+  phrasing — so the panel is shown at the size and against the density it
+  actually meets.
+
+  What is deliberately NOT reproduced: the DHS seal, the "U.S. Citizenship and
+  Immigration Services" wordmark, and the "An official website of the United
+  States government" banner. These images are published on store listings that
+  must state CaseLens is unaffiliated with USCIS, and a screenshot carrying
+  federal insignia says the opposite of the text beside it. The identity here
+  is a generic sample account, which keeps the layout honest without borrowing
+  a government identity. scripts/store-screenshots.js enforces this.
 -->
 <style>
   :root { --u-blue:#0b4778; --u-link:#0071bc; --u-border:#d6d7d9; --u-text:#212121; }
@@ -24,13 +33,11 @@
          font:16px/1.5 "Source Sans Pro","Helvetica Neue",Helvetica,Arial,sans-serif; }
 
   .gov-banner { background:#f0f0f0; font-size:12px; padding:6px 0; border-bottom:1px solid #dcdcdc; }
-  .gov-banner .inner { max-width:1140px; margin:0 auto; padding:0 24px; display:flex; gap:8px; align-items:center; }
-  .flag { width:16px; height:11px; background:linear-gradient(#b22234 0 33%, #fff 33% 66%, #b22234 66%); position:relative; }
-  .flag::before { content:""; position:absolute; inset:0 60% 45% 0; background:#3c3b6e; }
+  .gov-banner .inner { max-width:1140px; margin:0 auto; padding:0 24px; display:flex; gap:8px; align-items:center; color:#5b616b; }
 
   header.site { border-bottom:1px solid var(--u-border); }
   header.site .inner { max-width:1140px; margin:0 auto; padding:14px 24px; display:flex; align-items:center; gap:18px; }
-  .seal { width:52px; height:52px; border-radius:50%; background:var(--u-blue); flex:none;
+  .seal { width:52px; height:52px; border-radius:50%; background:#8a8f96; flex:none;
           display:flex; align-items:center; justify-content:center; color:#fff; font-size:9px;
           text-align:center; line-height:1.1; font-weight:700; letter-spacing:.02em; }
   .wordmark { font-size:15px; font-weight:700; color:var(--u-blue); line-height:1.25; }
@@ -76,12 +83,12 @@
 <body>
 
 <div class="gov-banner"><div class="inner">
-  <span class="flag"></span> An official website of the United States government
+  Sample account page — not a government website
 </div></div>
 
 <header class="site"><div class="inner">
-  <div class="seal">DHS</div>
-  <div class="wordmark">U.S. Citizenship<br>and Immigration Services</div>
+  <div class="seal">SAMPLE</div>
+  <div class="wordmark">Immigration Account<br>Sample Page</div>
   <div class="acct">
     <span class="me">My Account</span>
     <a href="#">Resources</a>
