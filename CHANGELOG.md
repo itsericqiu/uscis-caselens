@@ -4,6 +4,93 @@ Notable changes per release. The section matching a tag becomes that release's
 notes on GitHub, so keep entries written for someone deciding whether to update
 — not for someone reading a commit log.
 
+## 1.13.0
+
+**Small things that read as bugs, and one comment that was a bug waiting to happen**
+
+- The header shows what needs you and what changed in a colour and weight you
+  can pick out. Both were the lightest grey in the panel, styled identically to
+  "nothing new" — the one distinction that line exists to draw was the one it
+  did not make.
+- The raw-data rows say what each response is ("Case detail", "Status and
+  history") instead of a URL path containing a literal `{n}`, which to anyone
+  not reading it as a template looks like a placeholder that failed to fill in.
+- Closing Settings with Escape returns focus to the Settings button instead of
+  dropping it out of the panel onto the page underneath.
+
+Internal, but the reason matters: the code that prints an appointment time
+carried three stacked comments, two asserting **different facts about the same
+field** — one that the payload has no timezone information, the other that it
+is a correctly converted UTC instant. Only the second is true, and it is
+verified against a real notice. On the one value where acting on the wrong
+number means missing a biometrics appointment, a comment that contradicts its
+neighbour is how the next person reintroduces a bug that took five releases to
+argue out. Also repaired three doc comments spliced into the wrong functions by
+an earlier bulk edit — one of them plausibly why a rename broke a safety guard
+in 1.10.0 — and deleted three stale first drafts left above their replacements,
+including one still describing the alarm list as covering denials.
+
+## 1.12.1
+
+**Imported backups are checked, not just accepted**
+
+A backup file's case numbers were validated and its contents were not, so a
+hostile file could add entries that appear in your timeline exactly as though
+this panel had observed them. History entries are now held to a known type, a
+real date and a length limit, and saved statuses to the shape the panel itself
+produces; anything else is dropped rather than half-trusted.
+
+**Other protections**
+
+- Signing out of my.uscis.gov without reloading the page left the panel on
+  screen with your cases still in it. It now notices and closes itself, keeping
+  your saved data for next time.
+- Removing a case now also deletes the emergency copies the panel makes when it
+  cannot read its own stored data. They were invisible, never used, and
+  outlived a deletion the confirmation promised.
+- "Hide receipt numbers" also blanks attorney names, A-numbers, dates and
+  countries of birth, and the remaining address fields in the raw data.
+- The check that stops real receipt numbers being published now matches
+  lowercase ones too — it was stricter about capital letters than the code it
+  guards, and it caught a slip immediately.
+
+**Build**
+
+Every GitHub Action is pinned to an exact commit rather than a moving tag,
+including the one that publishes the release your copy updates itself from.
+Store credentials are handed only to the steps that use them. `SECURITY.md`
+now states plainly what the automated checks do *not* catch, rather than
+leaving their limits implied.
+
+## 1.12.0
+
+**Fewer places for the same bug to hide**
+
+No behaviour change on its own, but the parts of this codebase most likely to
+be edited next were the ones most likely to mislead:
+
+- The work of assembling a case for display ran about twice per case on every
+  redraw, while its own note claimed it ran once. Now it runs once.
+- Six pieces of the display reached around that work to re-derive facts for
+  themselves, which is how "did the documents request fail?" ended up being
+  asked three different ways in three places, one of them wrong.
+- A second date parser was quietly sorting imported history with the wrong
+  rules for USCIS's own date format. Deleted; there is one parser now.
+- A tracked case was being constructed four different ways that had already
+  drifted apart.
+
+**Fixes that fell out of reading it**
+
+- "USCIS publishes no processing-time estimate for this case" was printed when
+  USCIS *had* published one in a form this panel cannot read. Those are
+  different statements and now read differently.
+- A gap label spanning the fold in the timeline announced a quiet stretch that
+  never happened — every hidden event sat inside it.
+- Reassurance by negation, throughout: "it is not a warning" on a line nothing
+  else denies being one; four consecutive negations naming "decision" and
+  "approval" only to deny them; and "says nothing about the case itself" three
+  times on one screen in three rewordings. Each says what is true instead, once.
+
 ## 1.11.1
 
 **A check that read nothing no longer looks like a check that found nothing**

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CaseLens — USCIS Case Tracker
 // @namespace    https://github.com/itsericqiu/uscis-caselens
-// @version      1.12.1
+// @version      1.13.0
 // @description  See all your USCIS cases in one place. Everything stays in your browser.
 // @match        https://my.uscis.gov/*
 // @run-at       document-idle
@@ -994,6 +994,13 @@ var CASELENS_STYLE = [
   "  font-variant-numeric: tabular-nums;",
   "  white-space: nowrap;",
   "}",
+  // The two counts that carry consequence get weight and ink; the rest of the
+  // line stays quiet. "2 with something new" and "nothing new" were previously
+  // identical in size, weight and colour — the one distinction this line exists
+  // to draw was the one it did not make.
+  ".uscistr-root .uscistr-subtitle-changed { color: var(--ust-accent); font-weight: 600; }",
+  ".uscistr-root .uscistr-subtitle-demand { color: var(--ust-warn-text); font-weight: 600; }",
+  ".uscistr-root .uscistr-subtitle-sep { opacity: 0.55; }",
   ".uscistr-root .uscistr-header-actions { display: flex; align-items: center; gap: var(--ust-s1); }",
   ".uscistr-root .uscistr-body {",
   "  flex: 1 1 auto;",
@@ -1660,7 +1667,7 @@ var CASELENS_STYLE = [
   ".uscistr-root .uscistr-is-passed { opacity: 0.75; }",
   ".uscistr-root .uscistr-raw-summary {",
   "  display: grid;",
-  "  grid-template-columns: 12px minmax(0, 1fr) auto;",
+  "  grid-template-columns: 12px auto minmax(0, 1fr) auto;",
   "  align-items: center;",
   "  gap: var(--ust-s3);",
   "  width: calc(100% + var(--ust-s4) * 2);",
@@ -1676,6 +1683,7 @@ var CASELENS_STYLE = [
   "  cursor: pointer;",
   "  transition: background-color var(--ust-d1) var(--ust-ease), color var(--ust-d1) var(--ust-ease);",
   "}",
+  ".uscistr-root .uscistr-raw-name { font-family: var(--ust-font); color: var(--ust-text-2); white-space: nowrap; }",
   ".uscistr-root .uscistr-raw-summary:hover { background: var(--ust-bg-hover); color: var(--ust-text-1); }",
   ".uscistr-root .uscistr-raw-summary svg {",
   "  width: 12px;",
@@ -2055,7 +2063,7 @@ var CASELENS_STYLE = [
   // SECTION 1: Constants
   // ==========================================================================
 
-  var VERSION = '1.12.1';
+  var VERSION = '1.13.0';
 
   var STORAGE_KEYS = {
     cases: 'uscisTracker.cases.v1',      // [{ number, label, addedAt }]
@@ -2072,10 +2080,6 @@ var CASELENS_STYLE = [
     dismissed: 'uscisTracker.dismissed.v1'
   };
 
-  // What a receipt number is: three letters and ten digits. This deliberately
-  // matches the rule the add-case error message states. It used to accept only
-  // IOE, so someone holding a paper-filed EAC receipt was told the correct rule
-  // and then shown an error for obeying it.
   // One shape, stated once: a receipt number is three letters and ten digits.
   // There used to be three of these, and two disagreed — the add-case form
   // accepted only IOE while import accepted any prefix, so someone holding a
@@ -3932,9 +3936,6 @@ var CASELENS_STYLE = [
     'I-485J': 'Supplement J often shows no visible movement at all until the underlying I-485 is decided.'
   };
 
-  // Codes that mean USCIS may need something from the applicant, or that a
-  // case has been held/denied. Used only to raise a factual banner — never to
-  // characterise the outcome.
   // Codes that change what a person should DO, each with the NIEM description
   // that justifies its category. Nothing goes in here without wording from
   // core/uscis-codes.js that plainly supports the claim the banner makes —
@@ -4003,20 +4004,6 @@ var CASELENS_STYLE = [
   //   keys starting with 'on' + a function -> addEventListener
   //   anything else (title, type, placeholder, href, target, rel, ...) -> setAttribute
   // null/undefined attr values are skipped entirely. `children` may contain
-  // Ties a disclosure button to the thing it opens, so a screen reader says
-  // what "Explain" or "Show full text" is about to reveal instead of just
-  // announcing a button whose label is a verb with no object.
-  //
-  // render() rebuilds the whole panel, so ids only have to be unique within one
-  // render pass; the counter never resets and never collides.
-  var domIdSeq = 0;
-  function linkDisclosure(button, target) {
-    if (!button || !target) return target;
-    if (!target.id) target.id = 'uscistr-d' + (++domIdSeq);
-    button.setAttribute('aria-controls', target.id);
-    return target;
-  }
-
   // strings (become text nodes), elements, or null/undefined (skipped) so
   // callers can inline conditional children without extra filtering.
   function el(tag, attrs, children) {
@@ -4055,6 +4042,21 @@ var CASELENS_STYLE = [
 
   function clearNode(node) {
     while (node.firstChild) node.removeChild(node.firstChild);
+  }
+
+  // Tie a disclosure button to the thing it opens, so a screen reader says what
+  // "Explain" or "Show full text" is about to reveal instead of announcing a
+  // button whose label is a verb with no object.
+  //
+  // render() rebuilds the whole panel, so ids only need to be unique within one
+  // render pass; the counter never resets and never collides.
+  var domIdSeq = 0;
+
+  function linkDisclosure(button, target) {
+    if (!button || !target) return target;
+    if (!target.id) target.id = 'uscistr-d' + (++domIdSeq);
+    button.setAttribute('aria-controls', target.id);
+    return target;
   }
 
   var SVG_NS = 'http://www.w3.org/2000/svg';
@@ -4209,8 +4211,6 @@ var CASELENS_STYLE = [
     return formatDateAs(ms, 'day');
   }
 
-  // "5:58 PM" in the viewer's own zone. Only ever called for values that
-  // actually carried a time — never for day-precision entries.
   // The short zone label for this device, e.g. "EDT". USCIS sends appointments
   // as a real UTC instant, so rendering it in the local zone shows the very
   // same moment — naming the zone is what makes that unambiguous. If the label
@@ -4230,6 +4230,8 @@ var CASELENS_STYLE = [
     return '';
   }
 
+  // "5:58 PM" in the viewer's own zone. Only ever called for values that
+  // actually carried a time — never for day-precision entries.
   function formatTimeOfDay(ms) {
     if (ms === null || ms === undefined) return '';
     var d = new Date(ms);
@@ -4542,6 +4544,28 @@ var CASELENS_STYLE = [
     return count;
   }
 
+  // The subtitle as elements, so the two counts that mean something can carry
+  // weight. It used to be one concatenated string in the lightest ink in the
+  // panel — "2 with something new" styled identically to "nothing new", which
+  // is the one distinction the line exists to draw.
+  function buildSubtitle() {
+    var parts = headerSubtitle();
+    if (typeof parts === 'string') {
+      return el('div', { 'class': 'uscistr-subtitle', text: parts });
+    }
+    var wrap = el('div', { 'class': 'uscistr-subtitle' });
+    for (var i = 0; i < parts.length; i++) {
+      if (i) wrap.appendChild(el('span', { 'class': 'uscistr-subtitle-sep', text: ' · ' }));
+      var part = parts[i];
+      if (typeof part === 'string') {
+        wrap.appendChild(el('span', { text: part }));
+      } else {
+        wrap.appendChild(el('span', { 'class': 'uscistr-subtitle-' + part.tone, text: part.text }));
+      }
+    }
+    return wrap;
+  }
+
   // One line answering "anything new anywhere?" before the user reads a card.
   function headerSubtitle() {
     if (!state.cases.length) return 'No cases tracked yet';
@@ -4556,16 +4580,16 @@ var CASELENS_STYLE = [
     // only changes, so the second half of the glance question — does anything
     // need me — could only be answered by scanning every row.
     if (needsYou > 0) {
-      parts.push(needsYou + ' needing you');
+      parts.push({ text: needsYou + ' needing you', tone: 'demand' });
     }
 
     // "nothing new" is a claim about the cases. It may only be made when we
     // actually heard back. When checks failed we learned nothing, which is a
     // different statement and has to read differently.
     if (changed > 0) {
-      parts.push(changed + ' with something new');
+      parts.push({ text: changed + ' with something new', tone: 'changed' });
     } else if (failed > 0) {
-      parts.push("couldn't check " + failed);
+      parts.push({ text: "couldn't check " + failed, tone: 'demand' });
     } else if (newest !== null && needsYou === 0) {
       parts.push('nothing new');
     }
@@ -4579,7 +4603,7 @@ var CASELENS_STYLE = [
     } else if (newest !== null) {
       parts.push('checked ' + relativeDate(new Date(newest).toISOString()));
     }
-    return parts.join(' · ');
+    return parts;
   }
 
   function buildHeader() {
@@ -4613,7 +4637,7 @@ var CASELENS_STYLE = [
         brandMark('uscistr-mark'),
         el('div', { 'class': 'uscistr-titles' }, [
           el('div', { 'class': 'uscistr-title uscistr-brand-name', text: 'CaseLens' }),
-          el('div', { 'class': 'uscistr-subtitle', text: headerSubtitle() })
+          buildSubtitle()
         ])
       ]),
       el('span'),
@@ -5684,22 +5708,12 @@ var CASELENS_STYLE = [
     return out;
   }
 
-  // What kind of card this is, decided once and read by every section below.
-  //
-  //   'unchecked' — added but never fetched
-  //   'loading'   — first fetch in flight, nothing to show yet
-  //   'fresh'     — this check read real data; the card speaks for right now
-  //   'stale'     — this check told us nothing and we hold an earlier copy:
-  //                 show that copy, marked, rather than blanking the card
-  //   'blank'     — this check failed and there is no earlier copy at all
-  //   'empty'     — every endpoint answered, all of them empty, nothing cached
-  //
   // Two rules depend on this being one decision rather than several. Copy that
-  // asserts absence ("USCIS hasn't published a status yet", "that's common for
-  // recently filed cases") is reachable ONLY from 'fresh': a fetch that failed
-  // knows nothing about what USCIS has published. And a card is never emptied
-  // while a snapshot exists — a 2am session timeout must not be
-  // indistinguishable from "my cases are gone".
+  // asserts absence ("USCIS hasn't published a status yet") is never reachable
+  // from a check that failed — a failed fetch knows nothing about what USCIS
+  // has published. And a card is never emptied while a snapshot exists: a 2am
+  // session timeout must not be indistinguishable from "my cases are gone".
+  //
   // Where this card's content is coming from — the only question any caller
   // actually asks. It used to return six values, of which four ('loading',
   // 'fresh', 'blank', 'empty') were computed on every render and never
@@ -6293,17 +6307,6 @@ var CASELENS_STYLE = [
     return -1;
   }
 
-  // Where the case has reached, and — separately — which stages we actually
-  // have a code for. Those are two different facts and the rail was showing
-  // only the first: an I-485 approved on an interview waiver reached the
-  // decision stage without ever evidencing an interview, and filling every
-  // segment below the index claimed the interview happened.
-  //
-  // The index is monotonic and sticky: a stage never regresses, even when
-  // USCIS's current code moves backward (an interview gets descheduled and the
-  // case returns to FTA0). Regressions belong in the timeline, with the event
-  // that caused them. `evidenced` is not sticky in the same way — it is simply
-  // the set of stages some observed code mapped to.
   // The sequence index of the earliest stage that a still-future appointment
   // says has not happened. Returns -1 when nothing is pending.
   function earliestPendingAppointmentStage(seq, view) {
@@ -6337,6 +6340,17 @@ var CASELENS_STYLE = [
     return lowest;
   }
 
+  // Where the case has reached, and — separately — which stages we actually
+  // have a code for. Those are two different facts and the rail was showing
+  // only the first: an I-485 approved on an interview waiver reached the
+  // decision stage without ever evidencing an interview, and filling every
+  // segment below the index claimed the interview happened.
+  //
+  // The index is monotonic and sticky: a stage never regresses, even when
+  // USCIS's current code moves backward (an interview gets descheduled and the
+  // case returns to FTA0). Regressions belong in the timeline, with the event
+  // that caused them. `evidenced` is not sticky in the same way — it is simply
+  // the set of stages some observed code mapped to.
   function stageInfo(entry, view) {
     var formType = view.detail && view.detail.formType ? String(view.detail.formType).toUpperCase()
       : (view.notice && view.notice.formNumber ? String(view.notice.formNumber).toUpperCase() : null);
@@ -6916,24 +6930,25 @@ var CASELENS_STYLE = [
         el('div', {}, [
           el('div', { 'class': 'uscistr-upcoming-title', text:
             appt.label + ' · ' + formatWeekday(appt.displayAt) + ', ' + formatDateFull(appt.displayAt) }),
-          // USCIS sends this as a UTC instant with no office timezone, so the
-          // time we can render is whatever this computer's clock makes of it —
-          // a laptop still set to another zone shows a different hour, and near
-          // midnight a different date. Calling it "local" implies local to the
-          // office, which we cannot know. For a biometrics appointment that is
-          // a costly thing to get wrong, so the label says what it actually is
-          // and points at the notice.
-          // USCIS sends this as a correctly-converted UTC instant — a 3:00 PM
-          // Eastern appointment arrives as 19:00Z — so converting it to this
-          // computer's clock gives the right wall time for anyone whose
-          // machine is set to the office's zone, which is the normal case. It
-          // is wrong for someone travelling with a laptop still on another
-          // zone, and we cannot detect that, so the label says whose clock
-          // this is and the notice is named as the authority.
-          // The zone is named so a mismatch with the office is visible, and the
-          // notice is named as the tiebreaker in the same breath — a time is
-          // the one value here where acting on the wrong number means missing
-          // an appointment.
+          // USCIS sends this as a correctly-converted UTC instant: a 3:00 PM
+          // Eastern appointment arrives as 19:00Z (verified against a real
+          // notice — see docs/API-SCHEMA.md, notices[].appointmentDateTime).
+          // Rendering it in this computer's clock therefore gives the right
+          // wall time for anyone whose machine is set to the office's zone,
+          // which is the normal case.
+          //
+          // It is wrong for someone travelling with a laptop still on another
+          // zone, and we cannot detect that. So the label names whose clock
+          // this is, and names the notice as the authority in the same breath —
+          // a time is the one value here where acting on the wrong number means
+          // missing an appointment.
+          //
+          // Three comment blocks used to sit here, two of them asserting
+          // different things about the same field: one said the payload carries
+          // "no office timezone" and the other that it is correctly converted.
+          // Only the second is true. On this value in particular, a comment
+          // that contradicts its neighbour is how the next person reintroduces
+          // the bug 1.3.0–1.3.4 already argued its way out of.
           el('div', { 'class': 'uscistr-upcoming-meta', text:
             formatTimeOfDay(appt.displayAt) +
             (apptZone ? ' ' + apptZone : '') +
@@ -7226,15 +7241,15 @@ var CASELENS_STYLE = [
 
   // Document URLs come from an undocumented API, so they are untrusted input.
   // Only same-origin my.uscis.gov links become clickable; anything else is
-  // rendered as plain text. Three cases have to be rejected explicitly:
-  //   "javascript:..."             — script execution
-  //   "//evil.com/x"               — protocol-relative, resolves off-origin
-  //   "https://my.uscis.gov.evil.com" — prefix match that is a different host
-  // Document URLs come from an undocumented API and are untrusted. Hand-rolled
-  // prefix checks are not safe here: the URL parser treats a backslash as a
-  // separator and strips tab/CR/LF anywhere, so "/\\evil.com/x" and
-  // "/<TAB>/evil.com" both resolve off-origin while looking relative. Let the
-  // parser resolve it, then compare the origin it actually produced.
+  // rendered as plain text. What has to be rejected:
+  //   "javascript:..."                — script execution
+  //   "//evil.com/x"                  — protocol-relative, resolves off-origin
+  //   "https://my.uscis.gov.evil.com" — prefix match, different host
+  //   "/\\evil.com/x", "/<TAB>/evil.com" — look relative, resolve off-origin
+  //
+  // Hand-rolled prefix checks cannot catch the last pair: the URL parser treats
+  // a backslash as a separator and strips tab/CR/LF anywhere. So let the parser
+  // resolve it, then compare the origin it actually produced.
   function isSafeDocUrl(url) {
     if (typeof url !== 'string' || !url) return false;
     try {
@@ -7442,11 +7457,15 @@ var CASELENS_STYLE = [
   }
 
   var RAW_JSON_SECTIONS = [
-    { key: 'caseDetail', label: '/api/cases/{n}' },
-    { key: 'caseStatus', label: '/api/case_status/{n}' },
-    { key: 'documents', label: '/api/cases/{n}/documents' },
-    { key: 'processingTimes', label: '/processing_times/{n}' },
-    { key: 'location', label: '/receipt_info/{n}' }
+    // Named for what each endpoint returns, with the path underneath. The
+    // labels used to be paths alone, containing a literal `{n}` — which to
+    // anyone not reading it as a URL template is indistinguishable from a
+    // placeholder the panel failed to fill in.
+    { key: 'caseDetail', label: 'Case detail', path: '/api/cases/…' },
+    { key: 'caseStatus', label: 'Status and history', path: '/api/case_status/…' },
+    { key: 'documents', label: 'Documents', path: '/api/cases/…/documents' },
+    { key: 'processingTimes', label: 'Processing times', path: '/processing_times/…' },
+    { key: 'location', label: 'Office', path: '/receipt_info/…' }
   ];
 
   // Five always-visible endpoint rows, each with its own HTTP badge, sat at the
@@ -7516,11 +7535,12 @@ var CASELENS_STYLE = [
         })(pre, data)
       });
       summary.appendChild(chevron || el('span'));
-      summary.appendChild(el('span', { 'class': 'uscistr-raw-path', text: section.label }));
+      summary.appendChild(el('span', { 'class': 'uscistr-raw-name', text: section.label }));
+      summary.appendChild(el('span', { 'class': 'uscistr-raw-path', text: section.path }));
       summary.appendChild(chip(status.text, status.variant));
       // The visible label is a URL path; say what it is out loud.
       summary.setAttribute('aria-label',
-        'Raw response from ' + section.label + ' — ' + status.text);
+        'Raw ' + section.label.toLowerCase() + ' response from USCIS — ' + status.text);
       linkDisclosure(summary, pre);
 
       wrap.appendChild(summary);
@@ -8559,6 +8579,11 @@ var CASELENS_STYLE = [
         if (!uiState.settingsOpen) return;
         uiState.settingsOpen = false;
         render();
+        // Put focus back on the control that opened it. Without this, closing
+        // by keyboard drops focus to <body> — which puts a keyboard user at the
+        // top of the USCIS page, outside the panel they were using.
+        var gear = ROOT && ROOT.querySelector('[data-uscistr-settings-toggle]');
+        if (gear) { try { gear.focus(); } catch (err) { /* not focusable */ } }
       });
 
       // So does clicking anywhere outside it.

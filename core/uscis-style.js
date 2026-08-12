@@ -439,6 +439,13 @@ var CASELENS_STYLE = [
   "  font-variant-numeric: tabular-nums;",
   "  white-space: nowrap;",
   "}",
+  // The two counts that carry consequence get weight and ink; the rest of the
+  // line stays quiet. "2 with something new" and "nothing new" were previously
+  // identical in size, weight and colour — the one distinction this line exists
+  // to draw was the one it did not make.
+  ".uscistr-root .uscistr-subtitle-changed { color: var(--ust-accent); font-weight: 600; }",
+  ".uscistr-root .uscistr-subtitle-demand { color: var(--ust-warn-text); font-weight: 600; }",
+  ".uscistr-root .uscistr-subtitle-sep { opacity: 0.55; }",
   ".uscistr-root .uscistr-header-actions { display: flex; align-items: center; gap: var(--ust-s1); }",
   ".uscistr-root .uscistr-body {",
   "  flex: 1 1 auto;",
@@ -1105,7 +1112,7 @@ var CASELENS_STYLE = [
   ".uscistr-root .uscistr-is-passed { opacity: 0.75; }",
   ".uscistr-root .uscistr-raw-summary {",
   "  display: grid;",
-  "  grid-template-columns: 12px minmax(0, 1fr) auto;",
+  "  grid-template-columns: 12px auto minmax(0, 1fr) auto;",
   "  align-items: center;",
   "  gap: var(--ust-s3);",
   "  width: calc(100% + var(--ust-s4) * 2);",
@@ -1121,6 +1128,7 @@ var CASELENS_STYLE = [
   "  cursor: pointer;",
   "  transition: background-color var(--ust-d1) var(--ust-ease), color var(--ust-d1) var(--ust-ease);",
   "}",
+  ".uscistr-root .uscistr-raw-name { font-family: var(--ust-font); color: var(--ust-text-2); white-space: nowrap; }",
   ".uscistr-root .uscistr-raw-summary:hover { background: var(--ust-bg-hover); color: var(--ust-text-1); }",
   ".uscistr-root .uscistr-raw-summary svg {",
   "  width: 12px;",
