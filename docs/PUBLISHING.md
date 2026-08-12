@@ -183,10 +183,10 @@ listing invites re-review.
   (100 chars)
 - **AMO summary**, max 250 — AMO shows a longer one, so do not reuse Chrome's:
 
-  > An unofficial panel on my.uscis.gov showing every case on your account in
-  > one place: status, a merged timeline, which office holds it, your
-  > documents, and what changed since you last looked. No server, no account,
-  > no data leaves your browser.
+  > An unofficial panel on my.uscis.gov that shows every case on your account
+  > at once, laying out every field your account page's own data already
+  > contains. Runs entirely in your browser: no server, no account, and nothing
+  > is sent anywhere.
 
   Some AMO locales enforce name + summary ≤ 70 characters on the product-page
   form. Fallback short summary: `Every USCIS case, one panel.`
@@ -216,6 +216,13 @@ occurrences: unnatural repetition of a keyword is a listed suspension ground.
 > advice or an official determination. Mailed notices and the official website
 > remain the authority on any case.
 >
+> HOW IT WORKS
+>
+> Your account page already loads your case data when you open it. CaseLens
+> makes those same requests and lays out every field they return — including
+> fields the page itself does not display — for all of your cases at once,
+> rather than one case at a time.
+>
 > WHAT IT SHOWS
 >
 > • Every case at once, one line each: form, status in the agency's exact
@@ -230,32 +237,20 @@ occurrences: unnatural repetition of a keyword is a listed suspension ground.
 > • Nicknames, JSON export and import, receipt-number masking, and dark mode.
 > • Spanish status wording where it is supplied.
 >
-> NO PREDICTIONS
->
-> CaseLens will not guess a decision date or say whether a case is going well.
-> Nobody outside the agency knows either of those, and a number invented by a
-> tracker is only something new to refresh at 2am. Where an official processing
-> estimate is published, the panel shows how much of that range has passed.
-> Otherwise it shows days elapsed, which is known.
->
 > PRIVACY
 >
-> • Zero permissions. No permissions, no host permissions, no background
->   worker. One content script, on https://my.uscis.gov/* only.
-> • No server, no account, no analytics, no telemetry, no advertising.
+> • Runs entirely in your browser. No server, no account, no analytics, no
+>   telemetry, no advertising.
+> • Makes no request to any site other than my.uscis.gov, and loads no outside
+>   code, fonts or images.
 > • Cases, history and settings are stored in this browser and are never
 >   transmitted anywhere.
-> • Requests go to my.uscis.gov and nowhere else. DevTools will confirm it.
 > • Read-only. Nothing can be filed, answered, withdrawn, uploaded or changed.
+> • Zero permissions: none declared, no host permissions, no background worker.
+>   One content script, on https://my.uscis.gov/* only.
 > • Settings > Erase everything removes all stored data.
 >
-> LIMITS, STATED PLAINLY
->
-> • Only receipt numbers beginning IOE work. The prefixes EAC, WAC, LIN, SRC,
->   MSC and YSC are handled in an older system these endpoints do not reach.
-> • Signed out, the panel renders nothing.
-> • The endpoints are undocumented and can change without notice, which would
->   break the panel until it is updated.
+> Works with receipt numbers beginning IOE. Signed out, the panel shows nothing.
 >
 > Source is three readable files, MIT licensed:
 > https://github.com/itsericqiu/uscis-caselens

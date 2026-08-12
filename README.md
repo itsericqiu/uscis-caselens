@@ -16,15 +16,11 @@ Cases already listed on your account page are picked up automatically. Others ca
 
 Built for a desktop browser window.
 
-## Can it affect your case?
-
-It cannot file, answer, withdraw, upload, or change anything. Every request is a read, and it can reach nothing your own account cannot already reach. It never touches anyone else's case, and it does not appear anywhere in your record at USCIS.
-
-What it can do is be wrong or out of date, which is why the panel labels a case it could not reach rather than showing stale data as current, and why USCIS's own site and your mailed notices stay the authority.
-
 ## What it shows
 
-USCIS's current status in its own wording with its date, every case at once, the office holding each one, documents on file, scheduled appointments, and days elapsed since filing. Status text is never rewritten. Spanish appears where USCIS supplies it.
+Your account page already loads your case data when you open it. CaseLens makes those same requests and lays out every field they return — including fields the page itself does not display — for all your cases at once, rather than one at a time.
+
+That means USCIS's current status in its own wording with its date, the office holding each case, documents on file, scheduled appointments, and days elapsed since filing. Status text is never rewritten. Spanish appears where USCIS supplies it.
 
 The official site does not show which office holds a case, or when USCIS last touched the record while the status wording stayed the same. Both appear here.
 
@@ -33,8 +29,8 @@ The official site does not show which office holds a case, or when USCIS last to
 ## Privacy
 
 - **Uses your existing login.** Never sees, asks for, or stores a password.
-- **Talks only to my.uscis.gov**, the site you are already signed into.
-- **Reads only.** Nothing can be submitted or changed.
+- **Talks only to my.uscis.gov**, the site you are already signed into. No outside code, fonts or images.
+- **Reads only.** It cannot file, answer, withdraw, upload or change anything, and can reach nothing your own account cannot.
 - **Cases and history stay in your browser** (`localStorage`). No account, no server, no analytics, no tracking.
 - **Small enough that people do read it.** Three files, and the extension published to a store is byte-for-byte the code in this repository.
 
