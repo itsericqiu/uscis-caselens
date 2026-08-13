@@ -235,6 +235,9 @@ between paragraphs and between bullets.
 >   wording, and the date of that status.
 > • A merged timeline of status history and logged event codes, with the source
 >   of each entry named.
+> • A stage map built from the case's own record: a step appears only when
+>   USCIS logs activity for it. Steps a form's instructions provide for but
+>   this data does not report are marked "not reported", never guessed.
 > • Which office holds each case. The website does not display this.
 > • When a record was last touched even though the status text did not change.
 >   The website does not display this either.
