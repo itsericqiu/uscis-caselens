@@ -25,6 +25,16 @@ jobs:
   verify:
     name: Verify
     uses: ./.github/workflows/ci.yml
+    # A caller's permissions CAP the called workflow's: without this grant,
+    # ci.yml's release-on-bump job (which requests contents: write) makes the
+    # whole workflow invalid at startup — "requesting 'contents: write', but
+    # is only allowed 'contents: read'". Latent from the day release-on-bump
+    # was added, because release.yml had never actually run: every real
+    # release came from ci.yml directly, and the tags it pushes come from
+    # GITHUB_TOKEN, whose pushes never trigger workflows. The first manual
+    # dispatch found it.
+    permissions:
+      contents: write
 
   version-check:
     name: Check version consistency
