@@ -376,10 +376,20 @@ browser**. Nothing leaves the device, so the manifest's existing
 Both stores accept private notes. For this extension they are close to
 mandatory: a reviewer cannot obtain a my.uscis.gov account with a pending
 immigration case, and an add-on a reviewer cannot exercise can be rejected.
-Chrome's field is the **Test instructions** tab; AMO's is **Notes for
-Reviewers**, per version.
 
-Cover four things, in this order:
+The two fields are nothing alike, and neither takes the other's text:
+
+- **Chrome — Test instructions tab: 500 characters maximum**, and Chrome
+  takes no source upload, so the harness reaches its reviewer only through
+  the public repo URL. State: no account needed, the clone/serve/open
+  commands, the pill/Alt+U, the scenario names, and that all data is
+  fictitious. Nothing else fits, and nothing else is needed — the
+  same-origin fetch() explanation already lives in the 1000-character host
+  permission justification.
+- **AMO — Notes for Reviewers, per version: 3000 characters**, alongside an
+  actual source-archive upload. This is where the four-part long form goes:
+
+
 
 1. **How to test without an account.** The offline harness is the answer:
 
