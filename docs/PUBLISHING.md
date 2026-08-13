@@ -243,7 +243,8 @@ between paragraphs and between bullets.
 >   The website does not display this either.
 > • Documents on file, scheduled appointments, and days elapsed since filing.
 > • A badge naming what changed since the last visit.
-> • Nicknames, JSON export and import, receipt-number masking, and dark mode.
+> • Nicknames, a JSON export of your full case record, receipt-number
+>   masking, and dark mode.
 > • Spanish status wording where it is supplied.
 >
 > PRIVACY

@@ -264,6 +264,21 @@ function run() {
     eq(badExpected.join(','), '', 'every expected step names a real stage type');
   })();
 
+  // --- the export ----------------------------------------------------------
+  describe('buildExportPayload — a records file, not tool state');
+  (function () {
+    var payload = A.buildExportPayload();
+    eq(payload.kind, 'caselens-record', 'the file names its kind');
+    eq(Array.isArray(payload.cases), true, 'cases is an array');
+    eq(typeof payload.exportedAt, 'string', 'export is timestamped');
+    // The envelope carries no tool-state keys: prefs, dismissed and codeText
+    // stopped being export material when import was removed — they restore
+    // nothing and are nobody's records.
+    eq('prefs' in payload, false, 'prefs are not exported');
+    eq('dismissed' in payload, false, 'dismissals are not exported');
+    eq('codeText' in payload, false, 'learned code text is not exported');
+  })();
+
   // --- redaction -----------------------------------------------------------
   // This is a privacy control implemented as a regex over escaped JSON. It gets
   // the strictest tests in the file.

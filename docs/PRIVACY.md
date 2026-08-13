@@ -31,9 +31,11 @@ any third party. There is no third party.
 
 Two features write data out of the panel, and both require a deliberate action:
 
-- **Export** downloads a JSON backup to the device. That file contains full
-  receipt numbers even when "Hide receipt numbers" is on, because a masked
-  backup could not restore anything.
+- **Export** downloads a JSON records file to the device: everything USCIS
+  returned about the cases on the latest successful check — including names,
+  addresses, and full receipt numbers, regardless of the "Hide receipt
+  numbers" setting — plus the changes CaseLens observed between checks. It is
+  a personal record, not a backup; nothing imports it.
 - **Copy summary** places case text on the clipboard.
 
 Where those files then go is outside CaseLens's control.

@@ -39,7 +39,8 @@ var EXPORTS = [
   // through the same paths real API responses take. buildCaseView/buildCaseCard
   // exercise nearly the whole render pipeline against the fake-DOM stubs —
   // a throw anywhere in there is a blank panel for a real user.
-  'sortTimelineItems', 'collectTimelineItems', 'buildCaseView', 'buildCaseCard'
+  'sortTimelineItems', 'collectTimelineItems', 'buildCaseView', 'buildCaseCard',
+  'buildExportPayload'
 ];
 
 function fakeElement() {

@@ -4,6 +4,21 @@ Notable changes per release. The section matching a tag becomes that release's
 notes on GitHub, so keep entries written for someone deciding whether to update
 — not for someone reading a commit log.
 
+## 1.18.0
+
+- Export is now a records file: everything USCIS returned about each case on
+  the latest check, verbatim and grouped per case, plus the changes this panel
+  observed between checks. Shaped for a person or their attorney to read, not
+  for the tool to restore. Nothing new is persisted — the raw responses are
+  captured at export time from memory.
+- Import is removed. A new browser reads the account page fresh; the export's
+  value is the record, not migration. Removing it also deleted the tool's
+  largest untrusted-input surface — a hostile backup file was a named threat
+  in SECURITY.md, and that threat is now retired rather than defended.
+- The export filename is `caselens-record-<date>.json`, and the confirmation
+  states plainly that the file carries names and addresses, not just receipt
+  numbers.
+
 ## 1.17.0
 
 - The stage map is rebuilt around evidence instead of per-form scripts. Stages

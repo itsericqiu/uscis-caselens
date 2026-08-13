@@ -1271,7 +1271,6 @@ var CASELENS_STYLE = [
   "  animation: ust-shimmer 1.4s ease-in-out infinite;",
   "  color: transparent;",
   "}",
-  ".uscistr-root .uscistr-hidden-file { display: none; }",
   ".uscistr-root .uscistr-card-number {",
   "  font-family: var(--ust-mono);",
   "  font-size: var(--ust-fs-mono);",

@@ -5,10 +5,11 @@
 CaseLens handles sensitive immigration case data on behalf of people whose
 ability to work, travel, or stay in the country may depend on it. The
 adversaries that matter here are: (a) anything that could exfiltrate case
-data off the user's machine, (b) hostile or malformed data coming back from
-an undocumented, unversioned USCIS API, and (c) a malicious or corrupted
-backup file someone imports. Everything below follows from taking those
-three seriously.
+data off the user's machine, and (b) hostile or malformed data coming back
+from an undocumented, unversioned USCIS API. Everything below follows from
+taking those two seriously. (A third — a malicious backup file someone
+imports — was retired with the import feature in 1.18.0: the export is a
+read-only records file and nothing ingests it.)
 
 ## Least privilege
 
@@ -47,8 +48,6 @@ response data is treated as untrusted:
   and a prefix-collision hostname (`my.uscis.gov.evil.com`) are rejected —
   resolved with the URL parser and compared by origin, so separator tricks (backslashes, embedded tabs) cannot escape it.
 - Case numbers are URL-encoded before they are used to build any request, so no input can reshape a URL. Shape validation is advisory — the add-case form lets you override it.
-- Imported backup files (export/import, JSON) are validated before their
-  contents are written to storage.
 
 ## No secrets stored
 

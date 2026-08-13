@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CaseLens — Unofficial USCIS Case Tracker
 // @namespace    https://github.com/itsericqiu/uscis-caselens
-// @version      1.17.0
+// @version      1.18.0
 // @description  See all your USCIS cases in one place. Everything stays in your browser.
 // @match        https://my.uscis.gov/*
 // @run-at       document-idle
@@ -1982,7 +1982,6 @@ var CASELENS_STYLE = [
   "  animation: ust-shimmer 1.4s ease-in-out infinite;",
   "  color: transparent;",
   "}",
-  ".uscistr-root .uscistr-hidden-file { display: none; }",
   ".uscistr-root .uscistr-card-number {",
   "  font-family: var(--ust-mono);",
   "  font-size: var(--ust-fs-mono);",
@@ -2254,7 +2253,7 @@ var CASELENS_STYLE = [
   // SECTION 1: Constants
   // ==========================================================================
 
-  var VERSION = '1.17.0';
+  var VERSION = '1.18.0';
 
   var STORAGE_KEYS = {
     cases: 'uscisTracker.cases.v1',      // [{ number, label, addedAt }]
@@ -5130,283 +5129,77 @@ var CASELENS_STYLE = [
     return wrap;
   }
 
-  function exportBackup() {
-    var payload = {
+  // The export is a person's record of their own immigration data, shaped
+  // for reading — grouped per case, endpoints labelled, everything USCIS
+  // returned on the latest successful check included verbatim. It is NOT a
+  // tool-state backup and nothing imports it: a new install reads the account
+  // page fresh, and this file is what someone keeps, or hands an attorney.
+  // Raw responses exist only in memory after a successful check, so each
+  // case says explicitly when its responses are absent rather than omitting
+  // them silently — "no successful check" and "nothing to include" are
+  // different statements.
+  function buildExportPayload() {
+    var history = load(STORAGE_KEYS.history, {});
+    var cases = [];
+    for (var i = 0; i < state.cases.length; i++) {
+      var entry = state.cases[i];
+      var num = String(entry.number).toUpperCase();
+      var item = {
+        receiptNumber: entry.number,
+        nickname: entry.label || null,
+        addedAt: entry.addedAt ? new Date(entry.addedAt).toISOString() : null,
+        lastKnownSummary: getSnapshot(entry.number) || null,
+        changeHistory: history[num] || [],
+        uscisResponses: null
+      };
+      if (entry.result) {
+        item.checkedAt = entry.result.fetchedAt || null;
+        item.uscisResponses = {
+          caseDetail: entry.result.caseDetail,
+          caseStatus: entry.result.caseStatus,
+          documents: entry.result.documents,
+          receiptInfo: entry.result.location,
+          processingTimes: entry.result.processingTimes
+        };
+      } else {
+        item.uscisResponsesNote = 'No successful check in this browser session, so the raw ' +
+          'responses are not available to include. Refresh, then export again.';
+      }
+      cases.push(item);
+    }
+    return {
+      kind: 'caselens-record',
       version: VERSION,
       exportedAt: new Date().toISOString(),
-      cases: load(STORAGE_KEYS.cases, []),
-      snapshots: load(STORAGE_KEYS.snapshots, {}),
-      history: load(STORAGE_KEYS.history, {}),
-      prefs: load(STORAGE_KEYS.prefs, {}),
-      // Without these a restored backup silently un-removes every case the
-      // reader had removed, on the next auto-discovery pass, and loses the
-      // status wording learned from their own cases.
-      dismissed: load(STORAGE_KEYS.dismissed, {}),
-      codeText: load(STORAGE_KEYS.codeText, {})
+      note: 'Everything USCIS returned about these cases on the latest check, plus the ' +
+        'changes CaseLens observed between checks. Exported by CaseLens, an unofficial ' +
+        'tool; my.uscis.gov and mailed notices are the authority on any case.',
+      cases: cases
     };
-    // The file is unencrypted and carries full receipt numbers and every
-    // recorded change, whatever "Hide receipt numbers" is set to — masking a
-    // backup would make it useless for restoring. Someone about to email this
-    // to themselves, or drop it in shared cloud storage, should know that
-    // before the download lands, not after.
+  }
+
+  function exportRecord() {
+    // The file is unencrypted and deliberately unredacted, whatever "Hide
+    // receipt numbers" is set to — a masked record is not a record. Someone
+    // about to email this to themselves, or drop it in shared cloud storage,
+    // should know what it carries before the download lands, not after.
     var ok = window.confirm(
-      'Save a backup of your CaseLens data?\n\n' +
-      'The file will contain your full receipt numbers, every status this ' +
-      'panel has recorded, and your saved notes — as plain, unencrypted text.\n\n' +
+      'Save your case records as a file?\n\n' +
+      'The file will contain everything USCIS returned about your cases — ' +
+      'including names, addresses, and full receipt numbers — plus every ' +
+      'change this panel has recorded, as plain, unencrypted text.\n\n' +
       'Keep it somewhere you would keep a copy of your immigration notices.');
     if (!ok) return;
 
+    var payload = buildExportPayload();
     var blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     var url = URL.createObjectURL(blob);
     var dateStr = new Date().toISOString().slice(0, 10);
-    var a = el('a', { href: url, download: 'caselens-backup-' + dateStr + '.json' });
+    var a = el('a', { href: url, download: 'caselens-record-' + dateStr + '.json' });
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  }
-
-  // What a history row is allowed to be.
-  //
-  // Import validated the KEYS of history and snapshots and wrote their VALUES
-  // through untouched — so a hostile backup could inject rows that render in
-  // the timeline as if this panel had observed them ("Status changed to: Case
-  // Was Denied — call 1-800-…"). It is textContent, so not XSS; it is worse in
-  // the way that matters here, because it is indistinguishable from the
-  // panel's own record. A malicious backup file is threat (c) in SECURITY.md's
-  // own model, and this is the payload that model predicts.
-  var HISTORY_KINDS = { status: 1, document: 1, office: 1, backend: 1 };
-  var HISTORY_TEXT_CAP = 300;
-
-  function sanitizeHistoryEntry(h) {
-    if (!h || typeof h !== 'object') return null;
-    if (!HISTORY_KINDS[h.kind]) return null;
-    if (typeof h.at !== 'string' || parseUscisDate(h.at) === null) return null;
-    return {
-      at: h.at,
-      kind: h.kind,
-      from: clampText(h.from),
-      to: clampText(h.to)
-    };
-  }
-
-  function clampText(value) {
-    if (value === null || value === undefined) return null;
-    var text = flattenValue(value);
-    if (text === null) return null;
-    return text.length > HISTORY_TEXT_CAP ? text.slice(0, HISTORY_TEXT_CAP) + '…' : text;
-  }
-
-  // Snapshots are read by the renderers as facts about the case, so an
-  // imported one is held to the shape normalize() produces. Anything else is
-  // dropped rather than partially trusted.
-  function sanitizeSnapshot(snap) {
-    if (!snap || typeof snap !== 'object') return null;
-    var out = {
-      at: typeof snap.at === 'string' ? snap.at : null,
-      status: clampText(snap.status),
-      statusAt: typeof snap.statusAt === 'string' ? snap.statusAt : null,
-      backendAt: typeof snap.backendAt === 'string' ? snap.backendAt : null,
-      actionCode: clampText(snap.actionCode),
-      office: clampText(snap.office),
-      formType: clampText(snap.formType),
-      formName: clampText(snap.formName),
-      submissionDate: typeof snap.submissionDate === 'string' ? snap.submissionDate : null,
-      closed: strictBool(snap.closed),
-      actionRequired: strictBool(snap.actionRequired),
-      evidenceCount: typeof snap.evidenceCount === 'number' ? snap.evidenceCount : 0,
-      docNames: [],
-      appointments: []
-    };
-    if (Array.isArray(snap.docNames)) {
-      for (var i = 0; i < snap.docNames.length && i < 200; i++) {
-        var name = clampText(snap.docNames[i]);
-        if (name !== null) out.docNames.push(name);
-      }
-    }
-    if (Array.isArray(snap.appointments)) {
-      for (var a = 0; a < snap.appointments.length && a < 50; a++) {
-        var appt = snap.appointments[a];
-        if (!appt || typeof appt.at !== 'number') continue;
-        out.appointments.push({ label: clampText(appt.label), at: appt.at });
-      }
-    }
-    return out;
-  }
-
-  // Merge an imported backup into localStorage: union cases by number (never
-  // overwrite an existing label), concat + dedupe history per case by
-  // at+kind+to, keep existing snapshots unless a case has none locally, and
-  // ignore imported prefs entirely (a restored backup shouldn't silently
-  // change this browser's dark-mode/notify/redact settings).
-  function mergeImport(parsed) {
-    if (!parsed || typeof parsed !== 'object') {
-      window.alert('That file does not look like a CaseLens backup.');
-      return;
-    }
-    // Valid JSON is not the same as a backup. `{}` passed the type check,
-    // imported nothing, and re-rendered with no message at all — which is
-    // indistinguishable from a successful import of a file with your cases in
-    // it, and from the tool being broken.
-    if (!Array.isArray(parsed.cases) && !parsed.snapshots && !parsed.history) {
-      window.alert('That file is valid JSON, but it has no CaseLens cases, ' +
-        'snapshots or history in it. Nothing was changed.');
-      return;
-    }
-
-    // Four independent merges, one per storage key. Each validates what it
-    // reads, because a backup file is untrusted input; each is separate so
-    // that validation can be read without the other three in the way.
-    // Preferences are deliberately not imported.
-    var addedCases = mergeImportedCases(parsed.cases);
-    mergeImportedHistory(parsed.history);
-    mergeImportedSnapshots(parsed.snapshots);
-    mergeImportedDismissals(parsed.dismissed);
-
-    loadAll();
-    render();
-    reportImport(addedCases);
-    refreshAll();
-  }
-
-  // Union by receipt number; an entry already here always wins, so importing
-  // never overwrites a nickname or an added-at date.
-  function mergeImportedCases(importedCases) {
-    var added = 0;
-    var byNumber = {};
-    var existing = load(STORAGE_KEYS.cases, []);
-    var i, key;
-
-    for (i = 0; i < existing.length; i++) byNumber[existing[i].number] = existing[i];
-
-    var incoming = Array.isArray(importedCases) ? importedCases : [];
-    for (i = 0; i < incoming.length; i++) {
-      var c = incoming[i];
-      if (!c || !isValidReceiptNumber(c.number)) continue;
-      if (byNumber[c.number]) continue;
-      byNumber[c.number] = makeCaseEntry(c);
-      added++;
-    }
-
-    var merged = [];
-    for (key in byNumber) {
-      if (Object.prototype.hasOwnProperty.call(byNumber, key)) merged.push(byNumber[key]);
-    }
-    save(STORAGE_KEYS.cases, merged);
-    return added;
-  }
-
-  // Concatenated per case, deduped on (date, kind, new value), newest first,
-  // trimmed to the cap. Every imported row passes sanitizeHistoryEntry.
-  function mergeImportedHistory(importedHistory) {
-    var existing = load(STORAGE_KEYS.history, {});
-    var incoming = (importedHistory && typeof importedHistory === 'object') ? importedHistory : {};
-    var merged = {};
-    var key, i;
-
-    for (key in existing) {
-      if (Object.prototype.hasOwnProperty.call(existing, key) && Array.isArray(existing[key])) {
-        merged[key] = existing[key].slice();
-      }
-    }
-
-    for (key in incoming) {
-      if (!Object.prototype.hasOwnProperty.call(incoming, key)) continue;
-      if (!isValidReceiptNumber(key)) continue;
-
-      var combined = (merged[key] || []).concat(Array.isArray(incoming[key]) ? incoming[key] : []);
-      var seen = {};
-      var deduped = [];
-      for (i = 0; i < combined.length; i++) {
-        var h = sanitizeHistoryEntry(combined[i]);
-        if (!h) continue;
-        var dedupeKey = h.at + '|' + h.kind + '|' + h.to;
-        if (seen[dedupeKey]) continue;
-        seen[dedupeKey] = true;
-        deduped.push(h);
-      }
-      deduped.sort(function (a, b) {
-        var ta = parseUscisDate(a.at), tb = parseUscisDate(b.at);
-        if (ta === null && tb === null) return 0;
-        if (ta === null) return 1;
-        if (tb === null) return -1;
-        return tb - ta;
-      });
-      if (deduped.length > HISTORY_CAP) deduped = deduped.slice(0, HISTORY_CAP);
-      merged[key] = deduped;
-    }
-
-    save(STORAGE_KEYS.history, merged);
-  }
-
-  // Existing snapshots win: one already here was written from a real read on
-  // this machine, an imported one is a copy of unknown age.
-  function mergeImportedSnapshots(importedSnapshots) {
-    var existing = load(STORAGE_KEYS.snapshots, {});
-    var incoming = (importedSnapshots && typeof importedSnapshots === 'object') ? importedSnapshots : {};
-    var merged = {};
-    var key;
-
-    for (key in incoming) {
-      if (!Object.prototype.hasOwnProperty.call(incoming, key)) continue;
-      if (!isValidReceiptNumber(key)) continue;
-      var clean = sanitizeSnapshot(incoming[key]);
-      if (clean) merged[key] = clean;
-    }
-    for (key in existing) {
-      if (Object.prototype.hasOwnProperty.call(existing, key)) merged[key] = existing[key];
-    }
-
-    save(STORAGE_KEYS.snapshots, merged);
-  }
-
-  // Removals are restored, or a backup silently un-removes every case the
-  // reader removed on the next auto-discovery pass.
-  function mergeImportedDismissals(importedDismissed) {
-    var existing = loadDismissed();
-    var incoming = (importedDismissed && typeof importedDismissed === 'object') ? importedDismissed : {};
-
-    for (var key in incoming) {
-      if (!Object.prototype.hasOwnProperty.call(incoming, key)) continue;
-      if (!isValidReceiptNumber(key) || existing[key]) continue;
-      existing[key] = incoming[key];
-    }
-
-    save(STORAGE_KEYS.dismissed, existing);
-  }
-
-  // Say what happened. The merge rules are safe — union, existing data wins,
-  // settings untouched — and saying so is what makes that trustworthy rather
-  // than merely true.
-  function reportImport(addedCases) {
-    var total = load(STORAGE_KEYS.cases, []).length;
-    window.alert(
-      (addedCases
-        ? 'Imported ' + plural(addedCases, 'new case') + '. You are now tracking ' +
-          plural(total, 'case') + '.'
-        : 'Nothing new to add — every case in that file was already here. You are ' +
-          'tracking ' + plural(total, 'case') + '.') +
-      '\n\nHistory and saved snapshots were merged in. Where a case existed in ' +
-      'both, what was already in this browser was kept. Your settings were not ' +
-      'changed.');
-  }
-
-  function importBackup(file) {
-    var reader = new FileReader();
-    reader.onload = function () {
-      var parsed;
-      try {
-        parsed = JSON.parse(reader.result);
-      } catch (e) {
-        window.alert('That file is not valid JSON.');
-        return;
-      }
-      mergeImport(parsed);
-    };
-    reader.onerror = function () {
-      window.alert('Could not read that file.');
-    };
-    reader.readAsText(file);
   }
 
   // Always present, never dismissible: the panel is a mirror, and it says so.
@@ -5428,20 +5221,12 @@ var CASELENS_STYLE = [
   }
 
   function buildFooter() {
+    // Export only — import was removed in 1.18.0. The export is a person's
+    // record, not tool state: a new install reads the account page fresh, and
+    // deleting the import path deleted the tool's largest untrusted-input
+    // surface (a hostile backup file was a named threat in SECURITY.md).
     var exportBtn = el('button', {
-      'class': 'uscistr-btn uscistr-btn-sm', type: 'button', text: 'Export', onclick: exportBackup
-    });
-    var fileInput = el('input', {
-      type: 'file', accept: 'application/json', 'class': 'uscistr-hidden-file',
-      onchange: function (e) {
-        var file = e.target.files && e.target.files[0];
-        if (file) importBackup(file);
-        e.target.value = '';
-      }
-    });
-    var importBtn = el('button', {
-      'class': 'uscistr-btn uscistr-btn-sm', type: 'button', text: 'Import',
-      onclick: function () { fileInput.click(); }
+      'class': 'uscistr-btn uscistr-btn-sm', type: 'button', text: 'Export', onclick: exportRecord
     });
 
     var left = el('div', { 'class': 'uscistr-footer-left' }, [
@@ -5466,7 +5251,7 @@ var CASELENS_STYLE = [
       })
     ]);
     var right = el('div', { 'class': 'uscistr-footer-right' }, [
-      exportBtn, importBtn, fileInput,
+      exportBtn,
       el('span', { 'class': 'uscistr-footer-sep', text: '|' }),
       el('span', { 'class': 'uscistr-version', text: 'v' + VERSION })
     ]);

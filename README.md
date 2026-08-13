@@ -53,9 +53,9 @@ A userscript manager can see every site you visit — you are trusting it as wel
 
 **"Record was updated."** Every case carries a last-updated timestamp separate from its status. It sometimes moves while the status wording stays the same. The official site does not show this. It means only that the record was touched — not a decision or a new stage.
 
-**Removing a case deletes its history.** USCIS does not publish that history and it cannot be recovered. Export first. Clearing browser site data for my.uscis.gov erases it the same way.
+**Removing a case deletes its history.** USCIS does not publish that history and it cannot be recovered. Export first if you want a copy for your records. Clearing browser site data for my.uscis.gov erases it the same way.
 
-**Exports contain full receipt numbers**, even with "Hide receipt numbers" on. Treat the file as sensitive.
+**Export is a records file, not a backup.** It contains everything USCIS returned about your cases on the latest check — names, addresses, and full receipt numbers included, whatever "Hide receipt numbers" is set to — plus every change this panel recorded. There is no import: a new browser reads your account page fresh. Treat the file like a mailed notice.
 
 **Event codes** like `FTA0` or `LDA` are labelled with USCIS's own wording where your case supplies it, otherwise from the federal NIEM schema. Codes in neither are shown as the raw code, and the raw code stays visible alongside any label.
 

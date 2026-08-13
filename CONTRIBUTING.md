@@ -71,7 +71,6 @@ better by being less certain than the data supports, the panel loses.
   renders as plain text. Watch for protocol-relative (`//host`) and
   prefix-collision (`my.uscis.gov.example.com`) forms.
 - Case numbers are validated and URL-encoded before use in a request.
-- Imported backup files are untrusted input and are validated before storage.
 
 ## Changing stored data
 
