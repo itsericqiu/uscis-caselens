@@ -416,12 +416,12 @@ Cover four things, in this order:
 
 ### Expected `web-ext lint` output
 
-`npx web-ext lint --source-dir=extensions/firefox` reports **0 errors, 2
-warnings**, both the same cause: `strict_min_version` is 109, which predates
-`data_collection_permissions` (Firefox 140 desktop, 142 Android). Leave it.
-The key is ignored on older versions and the extension needs nothing to run
-there, so raising the floor would drop working installs to silence a notice.
-AMO does not reject on warnings.
+`npx web-ext lint --source-dir=extensions/firefox` reports **0 errors, 0
+warnings** since 1.17.0. The gecko floor is 140 (desktop) / 142 (Android) —
+the versions that introduced `data_collection_permissions` — which excludes
+no supported Firefox: ESR 140 is the current ESR line. An earlier note here
+recommended leaving the floor at 109 and tolerating two warnings; that was
+written before checking the ESR calendar and was wrong.
 
 ## AMO source-code submission
 
@@ -431,8 +431,10 @@ readable, which satisfies the rule's purpose. Arguing that costs a review round;
 uploading a zip of a repo already published costs nothing. Upload it.
 
 Include `core/`, `scripts/`, `test/`, both manifests, `LICENSE`, and a README at
-the archive root stating: Node 18+, **no dependencies and no lockfile**, no
-minifier or bundler; `node scripts/build.js` regenerates the outputs and
+the archive root stating: Node 18+; **the build has no dependencies** — nothing
+is downloaded, `scripts/build.js` is plain concatenation (`package.json` holds
+development-only test tooling that no build or shipped file uses);
+`node scripts/build.js` regenerates the outputs and
 `node scripts/build.js --check` proves byte-identity with the submitted file;
 `node scripts/package.js` reproduces the zip.
 

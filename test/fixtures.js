@@ -263,13 +263,20 @@
     ]
   };
 
+  // Shaped like a real account (verified live 2026-08-12): USCIS-generated
+  // documents always carry a specific `type` — "Account Acceptance Notice",
+  // "Appointment Scheduled" — while the applicant's own uploads are type
+  // "Other" or "G-28" with sourceType "Applicant Provided". The appointment
+  // document's createDate matches its notice's generationDate on purpose:
+  // that is the shape the timeline dedupe (one letter seen through two
+  // endpoints) has to handle.
   var CASE_1_DOCUMENTS = [
-    { fileName: CASE_1 + '-0000000000000-part1.tif', contentId: fakeContentId(1), type: 'Other', createDate: isoOffset(daysAgo(149, 2, 9, 53)), sourceType: 'USCIS Provided' },
-    { fileName: CASE_1 + '-0000000000001-part1.tif', contentId: fakeContentId(2), type: 'Other', createDate: isoOffset(daysAgo(148, 3, 22, 11)), sourceType: 'USCIS Provided' },
+    { fileName: 'Account Acceptance Notice.pdf', contentId: fakeContentId(1), type: 'Account Acceptance Notice', createDate: isoOffset(daysAgo(149, 2, 9, 53)), sourceType: 'USCIS Generated' },
+    { fileName: CASE_1 + '-0000000000001-part1.tif', contentId: fakeContentId(2), type: 'Other', createDate: isoOffset(daysAgo(148, 3, 22, 11)), sourceType: 'Applicant Provided' },
     { fileName: CASE_1 + '-0000000000002-part1.tif', contentId: fakeContentId(3), type: 'Other', createDate: isoOffset(daysAgo(95, 14, 5, 47)), sourceType: 'Applicant Provided' },
-    { fileName: CASE_1 + '-0000000000003-part1.tif', contentId: fakeContentId(4), type: 'Other', createDate: isoOffset(daysAgo(94, 9, 0, 3)), sourceType: 'Applicant Provided' },
-    { fileName: CASE_1 + '-0000000000004-part1.tif', contentId: fakeContentId(5), type: 'Other', createDate: isoOffset(daysAgo(45, 16, 31, 22)), sourceType: 'USCIS Provided' },
-    { fileName: CASE_1 + '-0000000000005-part1.tif', contentId: fakeContentId(6), type: 'Other', createDate: isoOffset(daysAgo(30, 21, 59, 8)), sourceType: 'USCIS Provided' }
+    { fileName: CASE_1 + '-0000000000003-part1.tif', contentId: fakeContentId(4), type: 'G-28', createDate: isoOffset(daysAgo(94, 9, 0, 3)), sourceType: 'Applicant Provided' },
+    { fileName: 'Appointment Scheduled.pdf', contentId: fakeContentId(5), type: 'Appointment Scheduled', createDate: isoOffset(daysAgo(45, 16, 31, 22)), sourceType: 'USCIS Generated' },
+    { fileName: CASE_1 + '-0000000000005-part1.tif', contentId: fakeContentId(6), type: 'Other', createDate: isoOffset(daysAgo(30, 21, 59, 8)), sourceType: 'Applicant Provided' }
   ];
 
   // ==========================================================================
@@ -347,8 +354,11 @@
   };
 
   var CASE_2_DOCUMENTS = [
-    { fileName: CASE_2 + '-0000000000000-part1.tif', contentId: fakeContentId(21), type: 'Other', createDate: isoOffset(daysAgo(198, 9, 30, 0)), sourceType: 'USCIS Provided' },
-    { fileName: CASE_2 + '-0000000000001-part1.tif', contentId: fakeContentId(22), type: 'Other', createDate: isoOffset(daysAgo(4, 6, 5, 0)), sourceType: 'USCIS Provided' }
+    { fileName: CASE_2 + '-0000000000000-part1.tif', contentId: fakeContentId(21), type: 'Other', createDate: isoOffset(daysAgo(198, 9, 30, 0)), sourceType: 'Applicant Provided' },
+    // USCIS names the outcome in the document type itself — the shape observed
+    // on a live approval, and the timeline row that carries USCIS's own words
+    // for a decision whose event code (SA) is absent from the published schema.
+    { fileName: 'I-765 C09 Standalone Approval.pdf', contentId: fakeContentId(22), type: 'I-765 C09 Standalone Approval', createDate: isoOffset(daysAgo(4, 6, 5, 0)), sourceType: 'USCIS Generated' }
   ];
 
   // ==========================================================================
@@ -485,7 +495,7 @@
   };
 
   var CASE_4_DOCUMENTS = [
-    { fileName: CASE_4 + '-0000000000000-part1.tif', contentId: fakeContentId(41), type: 'Other', createDate: isoOffset(daysAgo(19, 10, 20, 0)), sourceType: 'USCIS Provided' }
+    { fileName: CASE_4 + '-0000000000000-part1.tif', contentId: fakeContentId(41), type: 'G-28', createDate: isoOffset(daysAgo(19, 10, 20, 0)), sourceType: 'Applicant Provided' }
   ];
 
   // ---- processing_times ---------------------------------------------------
@@ -554,7 +564,7 @@
       contentId: fakeContentId(7),
       type: 'Other',
       createDate: isoOffset(now),
-      sourceType: 'USCIS Provided'
+      sourceType: 'Applicant Provided'
     });
 
     detail.events.push({

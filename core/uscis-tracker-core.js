@@ -34,7 +34,7 @@
   // SECTION 1: Constants
   // ==========================================================================
 
-  var VERSION = '1.16.0';
+  var VERSION = '1.17.0';
 
   var STORAGE_KEYS = {
     cases: 'uscisTracker.cases.v1',      // [{ number, label, addedAt }]
@@ -1878,9 +1878,8 @@
     panelMounted: false,          // has the panel been on screen since last opened
     renderedWide: false           // layout actually on screen, so resize can compare
   };
-  // Per-case reading state — which disclosures are open on which card, and how
-  // far the stage rail has been seen to advance. Keyed by receipt number, and
-  // lasts exactly as long as the page does.
+  // Per-case reading state — which disclosures are open on which card. Keyed
+  // by receipt number, and lasts exactly as long as the page does.
   //
   // These used to be set as `ui*` properties directly on the case entries in
   // state.cases — the same objects persistCases() writes to localStorage. They
@@ -1901,38 +1900,68 @@
 
   // ---- UI constants ---------------------------------------------------------
 
-  // Stage sequences per form type (docs/design/03 §4.2). A stage owns a set of
-  // action/event codes; a case sits at the highest stage any of its observed
-  // codes maps to. Forms absent from this table get NO stage rail at all — we
-  // do not guess a sequence for a form we have not verified.
-  var STAGE_SEQUENCES = {
-    'I-485': [
-      { name: 'Received', codes: ['RCV0', 'H001', 'IAF', 'IAA'] },
-      { name: 'Biometrics', codes: ['FNA', 'IMAF', 'FNB', 'MA70', 'H008', 'FNG', 'FNH'] },
-      { name: 'Under review', codes: ['FSA0', 'FTA0', 'FT0'] },
-      { name: 'Interview', codes: ['FH', 'FHB', 'FJ', 'IM', 'HG', 'FM'] },
-      { name: 'Decision', codes: ['DA', 'DB', 'SA', 'APR0', 'IEA', 'IEC', 'IEE'] },
-      { name: 'Card produced', codes: ['LAA', 'LBA', 'LDA', 'LEA'] }
-    ],
-    'I-765': [
-      { name: 'Received', codes: ['RCV0', 'H001', 'IAF', 'IAA'] },
-      { name: 'Biometrics', codes: ['FNA', 'IMAF', 'FNB', 'MA70', 'H008', 'FNG', 'FNH'] },
-      { name: 'Under review', codes: ['FSA0', 'FTA0', 'FT0'] },
-      { name: 'Approved', codes: ['DA', 'DB', 'SA', 'IEA', 'IEE'] },
-      { name: 'Card produced', codes: ['LAA', 'LBA', 'LDA', 'LEA'] }
-    ],
-    'I-131': [
-      { name: 'Received', codes: ['RCV0', 'H001', 'IAF', 'IAA'] },
-      { name: 'Biometrics', codes: ['FNA', 'IMAF', 'FNB', 'MA70', 'H008', 'FNG', 'FNH'] },
-      { name: 'Under review', codes: ['FSA0', 'FTA0', 'FT0'] },
-      { name: 'Approved', codes: ['DA', 'DB', 'SA', 'IEA', 'IEE'] },
-      { name: 'Document produced', codes: ['LAA', 'LBA', 'LDA', 'LEA'] }
-    ],
-    'I-485J': [
-      { name: 'Received', codes: ['RCV0', 'H001', 'IAF', 'IAA'] },
-      { name: 'Under review', codes: ['FSA0', 'FTA0', 'FT0'] },
-      { name: 'Reviewed', codes: ['DA', 'DB', 'SA'] }
-    ]
+  // Evidence-driven stages (docs/design/04-evidence-stages.md). There is no
+  // per-form sequence any more: a case's map is a definitional spine —
+  // Received, Under review, Decision, true of every case that exists — plus
+  // whatever steps its own record evidences, ordered by the case's own
+  // timestamps. The code→step mapping lives in core/uscis-codes.js
+  // (USCIS_CODE_STAGES), where each entry cites the NIEM description that
+  // justifies it. A form or code this tool has never seen gets a correct,
+  // sparse map rather than none, because the form universe is open: concurrent
+  // companions (I-485J, I-131) arrive with IOE receipts despite never
+  // appearing on any published list of online-filable forms.
+  var STAGE_TYPE_LABELS = {
+    received: 'Received',
+    appointment: 'Appointment',
+    biometrics: 'Biometrics',
+    evidence: 'Evidence requested',
+    interview: 'Interview',
+    review: 'Under review',
+    decision: 'Decision',
+    card: 'Card produced'
+  };
+
+  // The one per-form label nuance that is published fact: an I-131 produces a
+  // travel document, not a card (Form I-131 Instructions, "Refugee Travel
+  // Document"/"Advance Parole Document"; NIEM MBB/MBC say "document produced").
+  var STAGE_LABEL_OVERRIDES = {
+    'I-131': { card: 'Document produced' }
+  };
+
+  // Steps a form's own USCIS instructions provide for. Verified against the
+  // instructions PDFs on uscis.gov (retrieved 2026-08-12); every one phrases
+  // biometrics conditionally — "if we determine that a biometric services
+  // appointment is necessary, we will send you an appointment notice" — so the
+  // claim this table supports is "this form can involve X", never "X will
+  // happen" or "X is required for you". An expected step with no evidence
+  // renders in the NOT-REPORTED state, which exists because of a verified
+  // fact: USCIS does not report biometrics through these endpoints at all. A
+  // live account whose owner attended a biometrics appointment carries no
+  // biometrics code, no "biometric" string in any field — only a generic
+  // "Appointment Scheduled" notice. A hollow stage would read as "you have not
+  // done this", which for that account was false.
+  //
+  // Citations (all: Instructions for the form, uscis.gov/sites/default/files/
+  // document/forms/<form>instr.pdf, "Biometric Services Appointment" section):
+  //   I-485  "review your copy ... before you go to your biometric services
+  //           appointment at a USCIS ASC"
+  //   I-765  "Biometric Services Appointment" (Required Evidence)
+  //   I-131  "go to their local Application Support Center (ASC) for their
+  //           biometric services appointment"
+  //   N-400  "USCIS may require you to appear for an interview and provide
+  //           biometrics"
+  //   I-90   "If we determine that a biometric services appointment is
+  //           necessary, we will send you an appointment notice"
+  //   I-751  same conditional wording as I-90
+  //   I-821  "Biometric Services Appointment" (What Evidence Must You Submit)
+  var FORM_EXPECTED_STEPS = {
+    'I-485': ['biometrics'],
+    'I-765': ['biometrics'],
+    'I-131': ['biometrics'],
+    'N-400': ['biometrics'],
+    'I-90': ['biometrics'],
+    'I-751': ['biometrics'],
+    'I-821': ['biometrics']
   };
 
   // Supplement J legitimately shows nothing for months; say so rather than let
@@ -1985,7 +2014,7 @@
 
   // No 'document' rank: documents carry provenance 'local' with kind
   // 'document', so no item is ever built with that provenance.
-  var PROV_RANK = { official: 0, notice: 1, coded: 2, local: 4, anchor: 5 };
+  var PROV_RANK = { official: 0, notice: 1, coded: 2, document: 3, local: 4, anchor: 5 };
   var DEDUPE_WINDOW_MS = 36 * 60 * 60 * 1000;   // official (day) x coded (second), same code
   var GAP_LABEL_MIN_DAYS = 14;
   var BACKEND_MIN_LAG_MS = 3 * 24 * 60 * 60 * 1000;  // §4.3: below 3 days it is noise
@@ -3419,7 +3448,50 @@
     appendLocalChangeItems(items, getHistory(entry.number));
     appendBackendActivityItem(items, detail, notice);
     appendFiledAnchor(items, detail);
+    appendUscisDocumentItems(items, summarizeDocuments(result.documents));
     return items;
+  }
+
+  // Document types whose presence is stage evidence. Exact-match against a
+  // reviewed list, the same discipline as event codes: an unrecognised type
+  // still renders verbatim in the timeline, it just moves no stage.
+  var DOCUMENT_TYPE_STAGES = {
+    'Appointment Scheduled': 'appointment'
+  };
+
+  // Source 6 — documents USCIS itself generated. `sourceType` cleanly
+  // separates "USCIS Generated" from "Applicant Provided" (verified live
+  // 2026-08-12), and the `type` field carries USCIS's own wording for what
+  // the document is — "I-765 C09 Standalone Approval", "Appointment
+  // Scheduled" — which for some milestones is stronger evidence than any
+  // event code: SA, the code approvals ride on, is absent from the published
+  // schema entirely, while the document names the outcome outright. The
+  // user's own uploads stay in the documents section where they belong.
+  function appendUscisDocumentItems(items, docs) {
+    if (!docs) return;
+    for (var i = 0; i < docs.length; i++) {
+      var doc = docs[i];
+      if (String(doc.source || '') !== 'USCIS Generated') continue;
+      var typeText = flattenValue(doc.type);
+      if (!typeText) continue;
+      // "Other" is a bucket, not wording: a row reading "Other" says nothing
+      // the documents section doesn't. Observed USCIS-generated documents
+      // always carry a specific type; this guards against the generic one.
+      if (String(typeText) === 'Other') continue;
+      var atMs = doc.date ? parseUscisDate(doc.date) : null;
+      items.push({
+        id: 'doc:' + i,
+        provenance: 'document',
+        kind: 'document',
+        sortAt: atMs === null ? null : endOfLocalDay(atMs),
+        displayAt: atMs,
+        precision: 'day',
+        code: null,
+        label: String(typeText),
+        fileName: doc.name ? String(doc.name) : null,
+        docStageType: DOCUMENT_TYPE_STAGES[String(typeText)] || null
+      });
+    }
   }
 
   // Source 1 — what USCIS sent: its own status history, its coded events, and
@@ -3714,6 +3786,30 @@
       seenCoded[key] = true;
     }
 
+    // Pass 5 — an "Appointment Scheduled" document and the appointment notice
+    // are one letter seen through two endpoints: the PDF on file, and the
+    // notice record carrying the appointment date. The notice row wins — it
+    // has the date that matters — when its generation date sits within the
+    // dedupe window of the document's creation date.
+    for (i = 0; i < items.length; i++) {
+      var docItem = items[i];
+      if (docItem.provenance !== 'document' || docItem.removed) continue;
+      if (!docItem.docStageType || docItem.displayAt === null) continue;
+      for (j = 0; j < items.length; j++) {
+        var noticeItem = items[j];
+        if (noticeItem.provenance !== 'notice' || noticeItem.removed) continue;
+        if (noticeItem.kind !== 'appointment') continue;
+        // generatedAt is already parsed ms (extractUscisEvents parses dates
+        // once, at the boundary).
+        var genAt = typeof noticeItem.generatedAt === 'number' ? noticeItem.generatedAt : null;
+        if (genAt === null) continue;
+        if (Math.abs(genAt - docItem.displayAt) <= DEDUPE_WINDOW_MS) {
+          docItem.removed = true;
+          break;
+        }
+      }
+    }
+
     var kept = [];
     for (i = 0; i < items.length; i++) {
       if (!items[i].removed) kept.push(items[i]);
@@ -3747,15 +3843,19 @@
     });
 
     // The filed anchor is the origin of the record and always renders last,
-    // even when something else shares its calendar day.
+    // even when something else shares its calendar day. Anchors are collected
+    // as a list, not a scalar: real data has exactly one, but a malformed
+    // input with two must not silently DROP one — found by fuzzing, and
+    // "never drop data from the timeline" is not conditional on the input
+    // being well-formed.
     var ordered = [];
-    var filed = null;
+    var filed = [];
     for (i = 0; i < dated.length; i++) {
-      if (dated[i].kind === 'filed') filed = dated[i];
+      if (dated[i].kind === 'filed') filed.push(dated[i]);
       else ordered.push(dated[i]);
     }
     ordered = ordered.concat(undated);
-    if (filed) ordered.push(filed);
+    for (i = 0; i < filed.length; i++) ordered.push(filed[i]);
     return ordered;
   }
 
@@ -4008,6 +4108,7 @@
     if (item.provenance === 'coded') {
       return { icon: 'ring', tone: codeIsTheLabel(item) ? 'quiet' : 'coded' };
     }
+    if (item.provenance === 'document') return { icon: 'page', tone: 'official' };
     if (item.kind === 'backend') return { icon: 'ringDashed', tone: 'quiet' };
     if (item.kind === 'filed') return { icon: 'cap', tone: 'quiet' };
     return { icon: 'diamond', tone: 'local' };
@@ -4049,6 +4150,10 @@
         ? 'Notice generated ' + formatDayLabel(item.generatedAt)
         : dateText);
       parts.push(item.letterId ? 'USCIS notice ' + item.letterId : 'USCIS notice');
+    } else if (item.provenance === 'document') {
+      // The label IS USCIS's own `type` wording for the document, verbatim.
+      parts.push(dateText);
+      parts.push('USCIS document');
     } else if (item.kind === 'backend') {
       parts.push(item.runCount
         ? formatDayLabel(item.runFrom) + ' – ' + formatDayLabel(item.runTo)
@@ -4311,17 +4416,11 @@
       if (items[i].labelSource === 'none' && items[i].code) unexplainedCodes.push(items[i].code);
     }
 
-    // Does this case's form have a stage sequence, and does it place this code?
-    // A row may only say a code had no effect on the rail when that is true.
-    var stageSeq = null;
-    var stageFormType = (view.detail && view.detail.formType) ||
-      (view.notice && view.notice.formNumber) || null;
-    if (stageFormType) stageSeq = STAGE_SEQUENCES[String(stageFormType).toUpperCase()] || null;
-
     for (i = 0; i < visible.length; i++) {
       var isLast = i === visible.length - 1;
-      var movesStage = !!(stageSeq && visible[i].code &&
-        stageIndexOfCode(stageSeq, visible[i].code) >= 0);
+      // Whether this row's code is stage activity — form-independent now, the
+      // mapping lives with the code descriptions in core/uscis-codes.js.
+      var movesStage = !!(visible[i].code && stageTypeOfCode(visible[i].code));
       wrap.appendChild(buildTimelineRow(entry, visible[i], isLast, spanish, movesStage));
       // Gap labels convert a list of dates into a visible rhythm, and make the
       // current silence comparable to past silences. Not next to a backend row
@@ -4379,189 +4478,201 @@
 
   // ---- progress module ------------------------------------------------------
 
-  function stageIndexOfCode(seq, code) {
-    if (!code) return -1;
-    var wanted = String(code).toUpperCase();
-    for (var i = 0; i < seq.length; i++) {
-      for (var j = 0; j < seq[i].codes.length; j++) {
-        if (seq[i].codes[j] === wanted) return i;
-      }
-    }
-    return -1;
+  // The stage type a code is activity for, or null. "Activity for", not
+  // "completion of": an interview can be scheduled (FJ) and then cancelled
+  // (FKB), and both are interview-step activity — the timeline row carries
+  // which one it was.
+  function stageTypeOfCode(code) {
+    if (!code) return null;
+    if (typeof USCIS_CODE_STAGES === 'undefined') return null;
+    return USCIS_CODE_STAGES[String(code).toUpperCase()] || null;
   }
 
-  // The sequence index of the earliest stage that a still-future appointment
-  // says has not happened. Returns -1 when nothing is pending.
-  function earliestPendingAppointmentStage(seq, view) {
-    if (!view.upcoming || !view.upcoming.length) return -1;
-
-    var lowest = -1;
-    for (var u = 0; u < view.upcoming.length; u++) {
-      var item = view.upcoming[u];
-      if (item.kind !== 'appointment') continue;
-
-      // Match the appointment to a stage by name. Biometrics is the case that
-      // matters in practice; the label is USCIS's own notice wording.
-      // These must match STAGE_SEQUENCES[].name exactly. They read 'Bio' and
-      // 'Intvw' until 1.11.1, matching an abbreviated `label` field that was
-      // deleted in 1.10.0 when stage names were written out for translation —
-      // so this function silently always returned -1 and both clamps below it
-      // became no-ops. The guard it exists to provide had stopped running: a
-      // card could show biometrics as already passed a few hundred pixels
-      // below a band saying the appointment is in ten days, and because the
-      // rail is sticky it would not recover for the rest of the session.
-      var label = String(item.label || '').toLowerCase();
-      var wanted = null;
-      if (label.indexOf('biometric') !== -1 || label.indexOf('fingerprint') !== -1) wanted = 'Biometrics';
-      else if (label.indexOf('interview') !== -1) wanted = 'Interview';
-      if (!wanted) continue;
-
-      for (var i = 0; i < seq.length; i++) {
-        if (seq[i].name === wanted && (lowest === -1 || i < lowest)) lowest = i;
-      }
-    }
-    return lowest;
-  }
-
-  // Where the case has reached, and — separately — which stages we actually
-  // have a code for. Those are two different facts and the rail was showing
-  // only the first: an I-485 approved on an interview waiver reached the
-  // decision stage without ever evidencing an interview, and filling every
-  // segment below the index claimed the interview happened.
+  // Build the case's stage map from its own evidence. Returns
+  //   { stages: [ { type, label, state, at } ... ],   ordered for display
+  //     formType, closed, unmapped: [codes] }
+  // where state is one of:
+  //   'evidenced'    USCIS logged activity at this step (code, document, or a
+  //                  dated notice). Never a claim the step completed.
+  //   'current'      the open case's present position — always Under review
+  //   'not-reported' this form's instructions provide for the step, and
+  //                  nothing on the case reports it. Verified against a live
+  //                  account: USCIS does not report biometrics through these
+  //                  endpoints even when an appointment took place, so absence
+  //                  of evidence here is NOT evidence the step didn't happen.
+  //   'ahead'        the definitional stages not yet reached
   //
-  // The index is monotonic and sticky: a stage never regresses, even when
-  // USCIS's current code moves backward (an interview gets descheduled and the
-  // case returns to FTA0). Regressions belong in the timeline, with the event
-  // that caused them. `evidenced` is not sticky in the same way — it is simply
-  // the set of stages some observed code mapped to.
+  // There is no per-form sequence and therefore no index to defend: no
+  // mismatch mode, no monotonic stickiness, no appointment clamp. Ordering is
+  // the case's own timestamps, with only two definitional pins — Received
+  // first, Decision (then Card) last.
   function stageInfo(entry, view) {
     var formType = view.detail && view.detail.formType ? String(view.detail.formType).toUpperCase()
       : (view.notice && view.notice.formNumber ? String(view.notice.formNumber).toUpperCase() : null);
-    var seq = formType ? STAGE_SEQUENCES[formType] : null;
-    if (!seq) return { mode: 'none', formType: formType };
-
-    var codes = [];
-    var seen = {};
+    // Strict === true, the same rule every other consumer of this boolean
+    // follows: state may come only from a structured boolean USCIS sent.
+    // Found by fuzzing — with truthy coercion, a malformed closed:"false"
+    // (a STRING) renders the case as finished.
+    var closed = !!(view.detail && view.detail.closed === true);
+    var now = new Date().getTime();
     var i;
-    function addCode(code) {
-      if (!code) return;
-      var key = String(code).toUpperCase();
-      if (seen[key]) return;
-      seen[key] = true;
-      codes.push(key);
-    }
-    if (view.notice && view.notice.actionCode) addCode(view.notice.actionCode);
-    for (i = 0; i < view.items.length; i++) addCode(view.items[i].code);
-    for (i = 0; i < view.upcoming.length; i++) addCode(view.upcoming[i].code);
 
-    var best = -1;
-    var evidenced = {};
+    // -- Gather evidence: earliest timestamp per stage type ------------------
+    var evidence = {};   // type -> { at: ms|null }
     var unmapped = [];
-    var foreign = [];
-    for (i = 0; i < codes.length; i++) {
-      var idx = stageIndexOfCode(seq, codes[i]);
-      if (idx >= 0) evidenced[idx] = true;
-      if (idx < 0) {
-        // A code this form's sequence does not contain. If some OTHER form's
-        // sequence knows it as a stage this form lacks — an interview code on
-        // an I-765, say — then our model of this form is the thing that is
-        // wrong, and the rail is the disposable part. Otherwise the code
-        // simply does not vote.
-        if (stageNameElsewhere(seq, codes[i])) foreign.push(codes[i]);
-        else unmapped.push(codes[i]);
-      } else if (idx > best) {
-        best = idx;
+    var seenUnmapped = {};
+    function addEvidence(type, at) {
+      if (!type) return;
+      if (!evidence[type]) { evidence[type] = { at: at }; return; }
+      if (at !== null && (evidence[type].at === null || at < evidence[type].at)) {
+        evidence[type].at = at;
       }
     }
-    if (foreign.length) {
-      return { mode: 'mismatch', seq: seq, formType: formType, unmapped: unmapped, foreign: foreign };
+    function addCode(code, at) {
+      if (!code) return;
+      var type = stageTypeOfCode(code);
+      if (type) { addEvidence(type, at); return; }
+      var key = String(code).toUpperCase();
+      if (!seenUnmapped[key]) { seenUnmapped[key] = true; unmapped.push(key); }
     }
-    if (best < 0) {
-      return { mode: 'indeterminate', seq: seq, formType: formType, unmapped: unmapped };
+
+    if (view.notice && view.notice.actionCode) {
+      addCode(view.notice.actionCode,
+        view.notice.actionCodeDate ? parseUscisDate(view.notice.actionCodeDate) : null);
     }
-    // A scheduled appointment that hasn't happened yet is structured evidence
-    // that its stage is still ahead. Without this the marker could sit past
-    // Biometrics on a card that says, 400px above, that biometrics is in ten
-    // days — and someone could read their appointment as already handled.
-    // Structured data outranks anything inferred from codes.
-    var pendingStage = earliestPendingAppointmentStage(seq, view);
-    if (pendingStage > 0 && best >= pendingStage) best = pendingStage - 1;
+    for (i = 0; i < view.items.length; i++) {
+      var item = view.items[i];
+      addCode(item.code, item.displayAt);
+      // A past appointment is evidence in itself: the notice is structured
+      // data with a date. Its TYPE is deliberately not inferred — biometrics
+      // and interview notices arrive as identical generic records.
+      if (item.kind === 'appointment') addEvidence('appointment', item.displayAt);
+      // USCIS-generated documents carry USCIS's own wording in `type`; the
+      // reviewed mapping below is exact-match only.
+      if (item.kind === 'document' && item.docStageType) addEvidence(item.docStageType, item.displayAt);
+    }
+    for (i = 0; i < view.upcoming.length; i++) {
+      var up = view.upcoming[i];
+      addCode(up.code, up.displayAt);
+      if (up.kind === 'appointment') addEvidence('appointment', up.displayAt);
+    }
+    // Structured evidence requests outrank code inference.
+    if (view.evidenceCount > 0) addEvidence('evidence', null);
 
-    // Monotonic and sticky: a stage index never decreases within a session.
-    if (typeof caseUi(entry).maxStage === 'number' && caseUi(entry).maxStage > best) best = caseUi(entry).maxStage;
-    if (pendingStage > 0 && best >= pendingStage) best = pendingStage - 1;
-    caseUi(entry).maxStage = best;
+    // -- Assemble stages -----------------------------------------------------
+    function labelFor(type) {
+      var overrides = formType ? STAGE_LABEL_OVERRIDES[formType] : null;
+      return (overrides && overrides[type]) || STAGE_TYPE_LABELS[type];
+    }
 
-    // The structured boolean outranks anything we inferred from codes. It
-    // moves the index, never the evidence: a closed case has reached the end
-    // of the sequence, but that says nothing about the stages in between.
-    var closed = !!(view.detail && view.detail.closed);
-    if (closed) best = seq.length - 1;
+    var stages = [];
 
-    return {
-      mode: 'known', seq: seq, formType: formType, index: best,
-      evidenced: evidenced, unmapped: unmapped, closed: closed
-    };
-  }
+    // Received: definitional — the case exists because the filing arrived.
+    // Dated by the filing anchor when present, upgraded by receipt codes.
+    var receivedAt = view.detail && view.detail.submissionDate
+      ? parseUscisDate(view.detail.submissionDate) : null;
+    if (evidence.received && evidence.received.at !== null &&
+        (receivedAt === null || evidence.received.at < receivedAt)) {
+      receivedAt = evidence.received.at;
+    }
+    stages.push({ type: 'received', label: labelFor('received'), state: 'evidenced', at: receivedAt, sort: -Infinity });
 
-  // True when `code` belongs to a stage in some other form's sequence whose
-  // name this form's sequence does not have at all.
-  function stageNameElsewhere(seq, code) {
-    var ownNames = {};
-    var i, j;
-    for (i = 0; i < seq.length; i++) ownNames[seq[i].name] = true;
-    for (var form in STAGE_SEQUENCES) {
-      if (!STAGE_SEQUENCES.hasOwnProperty(form)) continue;
-      var other = STAGE_SEQUENCES[form];
-      for (i = 0; i < other.length; i++) {
-        if (ownNames[other[i].name]) continue;
-        for (j = 0; j < other[i].codes.length; j++) {
-          if (other[i].codes[j] === code) return true;
+    // Evidenced middle steps, by their own earliest timestamps. Future-dated
+    // evidence (an upcoming appointment) sorts after "now", which places it
+    // past the current marker without any clamp: date order does the work.
+    var MIDDLE = ['appointment', 'biometrics', 'evidence', 'interview'];
+    for (i = 0; i < MIDDLE.length; i++) {
+      var mt = MIDDLE[i];
+      if (evidence[mt]) {
+        stages.push({ type: mt, label: labelFor(mt), state: 'evidenced',
+          at: evidence[mt].at,
+          sort: evidence[mt].at === null ? now - 2 : evidence[mt].at });
+      }
+    }
+
+    // Expected-but-unreported steps, from the form's own instructions. One
+    // stage per type: evidence above already claimed the type if any exists.
+    var expected = formType ? FORM_EXPECTED_STEPS[formType] : null;
+    if (expected) {
+      for (i = 0; i < expected.length; i++) {
+        if (!evidence[expected[i]]) {
+          stages.push({ type: expected[i], label: labelFor(expected[i]),
+            state: 'not-reported', at: null, sort: now - 1 });
         }
       }
     }
-    return false;
+
+    // Under review: the open case's present position — a statement of where
+    // the case sits, not a claim review activity occurred. On a closed case
+    // it appears only when evidenced, as history.
+    if (!closed) {
+      stages.push({ type: 'review', label: labelFor('review'), state: 'current',
+        at: evidence.review ? evidence.review.at : null, sort: now });
+    } else if (evidence.review) {
+      stages.push({ type: 'review', label: labelFor('review'), state: 'evidenced',
+        at: evidence.review.at, sort: evidence.review.at === null ? now : evidence.review.at });
+    }
+
+    // Decision: definitional endpoint. Evidenced by a decision code, or by
+    // the structured `closed` boolean — which says the case ended, never how.
+    var decisionState = (evidence.decision || closed) ? 'evidenced' : 'ahead';
+    stages.push({ type: 'decision', label: labelFor('decision'), state: decisionState,
+      at: evidence.decision ? evidence.decision.at : null, sort: Infinity });
+
+    // Card/document production: only ever shown when evidenced, pinned after
+    // Decision — production follows a decision by definition.
+    if (evidence.card) {
+      stages.push({ type: 'card', label: labelFor('card'), state: 'evidenced',
+        at: evidence.card.at, sort: Infinity });
+    }
+
+    stages.sort(function (a, b) {
+      if (a.sort !== b.sort) return a.sort - b.sort;
+      return 0;
+    });
+    // The sort above keeps Decision and Card at Infinity in insertion order,
+    // which is already Decision-then-Card.
+
+    return { stages: stages, formType: formType, closed: closed, unmapped: unmapped };
   }
 
-  // Never more than 5 segments on screen at 400px. A 6-stage form shows stages
-  // 1-5 until the fifth is reached, then re-renders with 1-2 collapsed into a
-  // single Filed cap.
+  // Never more than 5 segments on screen at 400px. When evidence produces
+  // more, NOT-REPORTED markers drop first — they carry the least information
+  // and their caveat lives in the disclosure — and only then do the earliest
+  // stages collapse into a single "Filed" cap. The first version collapsed
+  // from the front unconditionally, which on a six-stage card swallowed
+  // "Evidence requested" — the one stage that represents a demand — while
+  // keeping a dashed marker that says nothing happened.
   function stageSegments(info) {
-    var seq = info.seq;
-    var index = info.mode === 'known' ? info.index : -1;
-    var segments = [];
-    var i;
-    if (seq.length <= 5 || index < 4) {
-      var count = Math.min(seq.length, 5);
-      for (i = 0; i < count; i++) segments.push({ name: seq[i].name, stage: i });
-      return segments;
+    var stages = info.stages;
+    if (stages.length <= 5) return stages;
+    var kept = [];
+    for (var i = 0; i < stages.length; i++) {
+      if (stages[i].state !== 'not-reported') kept.push(stages[i]);
     }
-    segments.push({ label: 'Filed', name: 'Filed', stage: 1, collapsed: true });
-    for (i = 2; i < seq.length; i++) segments.push({ name: seq[i].name, stage: i });
-    return segments;
+    if (kept.length <= 5) return kept;
+    var keep = kept.slice(kept.length - 4);
+    var swallowed = kept.slice(0, kept.length - 4);
+    var anyEvidenced = false;
+    for (i = 0; i < swallowed.length; i++) {
+      if (swallowed[i].state === 'evidenced') anyEvidenced = true;
+    }
+    return [{
+      type: 'collapsed', label: 'Filed', state: anyEvidenced ? 'evidenced' : 'ahead',
+      at: swallowed[0].at, collapsed: swallowed
+    }].concat(keep);
   }
 
-  // True when some observed code actually mapped to this segment. A collapsed
-  // segment stands for the stages it swallowed, so evidence for any of them
-  // counts as evidence for it.
-  function segmentEvidenced(info, seg) {
-    var evidenced = info.evidenced || {};
-    if (!seg.collapsed) return !!evidenced[seg.stage];
-    for (var s = 0; s <= seg.stage; s++) {
-      if (evidenced[s]) return true;
-    }
-    return false;
-  }
-
-  // Three states, not two. A segment behind the current one is filled only
-  // when a code put the case there; otherwise the connector is solid (the case
-  // is past it) but the node stays hollow (we never saw it happen). Claiming
-  // an interview or a biometrics appointment that never occurred is a false
-  // statement about someone's own case.
+  // Four states. Filled means "USCIS logged activity at this step" — never
+  // that the step completed. The not-reported mark exists because absence of
+  // evidence is not evidence of absence here: USCIS does not report
+  // biometrics through these endpoints at all, verified against a live
+  // account whose owner attended one. Claiming an interview or a biometrics
+  // appointment happened when nothing says so — or that it did NOT happen
+  // when USCIS simply doesn't say — are both false statements about someone's
+  // own case, and the two-state rail could only avoid one of them.
   function buildStageRail(info) {
     var segments = stageSegments(info);
-    var index = info.mode === 'known' ? info.index : -1;
-    var closed = info.mode === 'known' && info.closed;
     var rail = el('div', { 'class': 'uscistr-stage', role: 'img' });
     var current = null;
     var i;
@@ -4569,36 +4680,29 @@
       var seg = segments[i];
       var stateClass;
       var glyph;
-      if (index < 0 || seg.stage > index) {
+      var title;
+      if (seg.state === 'current') {
+        stateClass = 'uscistr-is-current';
+        glyph = 'pulse';
+        current = seg;
+        title = seg.label;
+      } else if (seg.state === 'evidenced') {
+        // A closed case's Decision is evidenced by the structured `closed`
+        // boolean, which says the case ended — never how. The cap glyph marks
+        // a terminus rather than an achievement.
+        var terminal = seg.type === 'decision' || seg.type === 'card' || seg.collapsed;
+        stateClass = 'uscistr-is-done';
+        glyph = terminal ? 'cap' : 'disc';
+        title = seg.label + (seg.at !== null && seg.at !== undefined
+          ? ' — ' + formatDateAs(seg.at, 'day') : '');
+      } else if (seg.state === 'not-reported') {
+        stateClass = 'uscistr-is-unreported';
+        glyph = 'ring';
+        title = seg.label + ' — this form can involve this step, and USCIS does not report it in this data. Not reported is not the same as not done.';
+      } else {
         stateClass = 'uscistr-is-ahead';
         glyph = 'ring';
-      } else if (seg.stage === index) {
-        // A closed case is finished, not waiting at a stage: the end of the
-        // rail is a terminus and there is no "you are here".
-        //
-        // But "closed" only says the case is over — never how it ended. This
-        // branch used to mark the terminal stage DONE without the evidence
-        // check every lower stage gets, and the terminal stage is "Card
-        // produced" / "Document produced". A denied, withdrawn or abandoned
-        // case therefore rendered as though a card had been produced, which is
-        // the most consequential thing this rail can say and was false in every
-        // one of those cases. A closed case now caps the rail without claiming
-        // the last stage happened unless a code on this case says it did.
-        if (closed && !segmentEvidenced(info, seg)) {
-          stateClass = 'uscistr-is-passed';
-          glyph = 'cap';
-          current = null;
-        } else {
-          stateClass = closed ? 'uscistr-is-done' : 'uscistr-is-current';
-          glyph = closed ? 'cap' : 'pulse';
-          current = closed ? null : seg;
-        }
-      } else if (segmentEvidenced(info, seg)) {
-        stateClass = 'uscistr-is-done';
-        glyph = seg.collapsed ? 'cap' : 'disc';
-      } else {
-        stateClass = 'uscistr-is-passed';
-        glyph = 'ring';
+        title = seg.label;
       }
 
       var node = el('div', { 'class': 'uscistr-stage-node' });
@@ -4607,23 +4711,20 @@
 
       var segEl = el('div', { 'class': 'uscistr-stage-seg ' + stateClass }, [
         node,
-        el('div', {
-          'class': 'uscistr-stage-label',
-          text: seg.name,
-          title: stateClass === 'uscistr-is-passed'
-            ? seg.name + ' — no code on this case marks this stage'
-            : seg.name
-        }),
-        current === seg ? el('div', { 'class': 'uscistr-stage-here', text: '▲ you are here' }) : null
+        el('div', { 'class': 'uscistr-stage-label', text: seg.label, title: title }),
+        seg.state === 'current' ? el('div', { 'class': 'uscistr-stage-here', text: '▲ you are here' }) : null
       ]);
       rail.appendChild(segEl);
     }
-    rail.setAttribute('aria-label', current
-      ? 'Stage ' + (segments.indexOf(current) + 1) + ' of ' + segments.length + ': ' + current.name +
-        '. Stages ahead are typical, not scheduled.'
-      : closed
-        ? 'Stage map with ' + segments.length + ' stages. USCIS marks this case closed.'
-        : 'Stage map with ' + segments.length + ' stages. This case could not be placed on it.');
+    var ariaBits = [];
+    for (i = 0; i < segments.length; i++) {
+      var s = segments[i];
+      ariaBits.push(s.label + (s.state === 'current' ? ' (current position)'
+        : s.state === 'not-reported' ? ' (not reported in this data)'
+        : s.state === 'ahead' ? ' (ahead)' : ''));
+    }
+    rail.setAttribute('aria-label', 'Stage map built from this case’s own record: ' +
+      ariaBits.join(', ') + '.' + (info.closed ? ' USCIS marks this case closed.' : ''));
     return rail;
   }
 
@@ -4638,7 +4739,8 @@
     for (i = 0; i < view.items.length; i++) {
       var item = view.items[i];
       if (item.kind === 'backend') continue;   // would reset the counter without the user learning anything
-      if (item.provenance !== 'official' && item.provenance !== 'coded' && item.provenance !== 'notice') continue;
+      if (item.provenance !== 'official' && item.provenance !== 'coded' &&
+          item.provenance !== 'notice' && item.provenance !== 'document') continue;
       if (item.displayAt === null || item.displayAt === undefined) continue;
       if (item.displayAt > now) continue;
       times.push(item.displayAt);
@@ -4700,59 +4802,57 @@
     }
 
     // B1 — the stage rail. Equal-width segments: the geometry carries no time
-    // information, so it cannot be misread as a gauge.
+    // information, so it cannot be misread as a gauge. Every case with data
+    // gets a map now — an unknown form gets the definitional spine rather
+    // than nothing, because the form universe is open and "never seen" is the
+    // normal case, not the edge case.
     var info = stageInfo(entry, view);
-    if (info.mode === 'mismatch') {
-      // Our sequence for this form is missing a stage the case has actually
-      // reached. Trust the data over the model and drop the rail rather than
-      // force the code into a shape it does not fit.
+    wrap.appendChild(buildStageRail(info));
+    if (info.closed) {
       wrap.appendChild(el('div', { 'class': 'uscistr-progress-label', text:
-        'No stage map for this case: USCIS logged ' + info.foreign.join(', ') +
-        ', which this tool’s ' + info.formType + ' stage list does not contain. Rather than force it into the wrong shape, the map is left out. Every event is still in the timeline below.' }));
-    } else if (info.mode !== 'none') {
-      wrap.appendChild(buildStageRail(info));
-      if (info.mode === 'indeterminate') {
-        wrap.appendChild(el('div', { 'class': 'uscistr-progress-label', text:
-          'This case cannot be placed on a stage map — USCIS has only sent codes with no published meaning (' +
-          info.unmapped.join(', ') + '). The timeline below still shows everything USCIS logged.' }));
-      } else if (info.closed) {
-        wrap.appendChild(el('div', { 'class': 'uscistr-progress-label', text:
-          'USCIS marks this case closed, so the map ends here.' }));
-      }
-      // Nothing is printed about what comes next. We have no population data
-      // and never will: "cases at this stage usually move to X" was invented,
-      // and forms skip stages routinely — an I-131 often rides on the I-485's
-      // biometrics and never has its own.
-      // Standing methodology. Identical on every card and every visit, so it
-      // is disclosed rather than printed: four fixed paragraphs above the
-      // timeline pushed the actual events off the first screen. The rail is
-      // still labelled as our own reading — that claim is one click away and
-      // in the button's own wording, never removed.
-      var railNotes = [];
-      if (info.unmapped.length && info.mode === 'known') {
-        railNotes.push('Codes with no published meaning (' + info.unmapped.join(', ') +
-          ') are in the timeline but do not move this map.');
-      }
-      if (STAGE_FOOTNOTES[info.formType]) railNotes.push(STAGE_FOOTNOTES[info.formType]);
-      railNotes.push('This stage map is an interpretation of the codes on this case, not a USCIS status. Segments are equal width on purpose: none of them measures time.');
+        'USCIS marks this case closed, so the map ends here.' }));
+    }
+    // Nothing is printed about what comes next. We have no population data
+    // and never will: "cases at this stage usually move to X" was invented,
+    // and steps appear only when this case's own record evidences them.
+    // Standing methodology is disclosed rather than printed: identical on
+    // every card, so it lives one click away instead of pushing the actual
+    // events off the first screen.
+    var railNotes = [];
+    // Gate the dashed-marker note on the segments actually drawn: a crowded
+    // rail drops not-reported markers first, and a note explaining a marker
+    // that is not on screen would be describing nothing.
+    var drawnSegs = stageSegments(info);
+    var hasUnreported = false;
+    for (var si = 0; si < drawnSegs.length; si++) {
+      if (drawnSegs[si].state === 'not-reported') hasUnreported = true;
+    }
+    if (hasUnreported) {
+      railNotes.push('A dashed marker means this form’s own USCIS instructions provide for the step, and nothing in this data reports it. USCIS does not report biometrics through these endpoints at all — even when an appointment took place — so “not reported” never means “not done”.');
+    }
+    if (info.unmapped.length) {
+      railNotes.push('Codes with no published meaning (' + info.unmapped.join(', ') +
+        ') are in the timeline but do not move this map.');
+    }
+    if (STAGE_FOOTNOTES[info.formType]) railNotes.push(STAGE_FOOTNOTES[info.formType]);
+    railNotes.push('This map is built from this case’s own record: a step appears only when USCIS logged activity for it, in the order the record shows, and a filled marker means activity was logged — not that the step is finished. Received, Under review and Decision appear on every case because every case has them. Segments are equal width on purpose: none of them measures time.');
 
-      var railOpen = !!caseUi(entry).showRailNote;
-      var railBtn = el('button', {
-        'class': 'uscistr-more', type: 'button',
-        'aria-expanded': railOpen ? 'true' : 'false',
-        'data-focus-key': 'railNote:' + entry.number,
-        text: railOpen ? 'Hide' : 'How this map is read',
-        onclick: function () { caseUi(entry).showRailNote = !caseUi(entry).showRailNote; render(); }
-      });
-      wrap.appendChild(railBtn);
-      if (railOpen) {
-        var railNote = el('div', { 'class': 'uscistr-disclosure' });
-        for (var rn = 0; rn < railNotes.length; rn++) {
-          railNote.appendChild(el('p', { text: railNotes[rn] }));
-        }
-        linkDisclosure(railBtn, railNote);
-        wrap.appendChild(railNote);
+    var railOpen = !!caseUi(entry).showRailNote;
+    var railBtn = el('button', {
+      'class': 'uscistr-more', type: 'button',
+      'aria-expanded': railOpen ? 'true' : 'false',
+      'data-focus-key': 'railNote:' + entry.number,
+      text: railOpen ? 'Hide' : 'How this map is read',
+      onclick: function () { caseUi(entry).showRailNote = !caseUi(entry).showRailNote; render(); }
+    });
+    wrap.appendChild(railBtn);
+    if (railOpen) {
+      var railNote = el('div', { 'class': 'uscistr-disclosure' });
+      for (var rn = 0; rn < railNotes.length; rn++) {
+        railNote.appendChild(el('p', { text: railNotes[rn] }));
       }
+      linkDisclosure(railBtn, railNote);
+      wrap.appendChild(railNote);
     }
 
     // A closed case has stopped waiting, so none of the waiting machinery
@@ -5836,7 +5936,29 @@
         : null
     ]));
 
-    // Line 3 — only when something is actually being asked of this person.
+    // Line 3 — position and place, when the case has data to say so. The
+    // stage answers "where is it", the office answers "who has it" — the two
+    // facts a scan of the list most wants and neither of which the status
+    // sentence reliably carries. Facts only: the stage map's own current or
+    // furthest-evidenced step, and USCIS's jurisdiction string.
+    if (view.hasData || view.fromCache) {
+      var metaParts = [];
+      var posText = collapsedStagePosition(entry, view);
+      if (posText) metaParts.push(posText);
+      var office = view.officeCode || view.office || null;
+      if (office) metaParts.push(String(office));
+      if (metaParts.length) {
+        var metaLine = el('div', { 'class': 'uscistr-collapsed-place uscistr-truncate' });
+        for (var mp = 0; mp < metaParts.length; mp++) {
+          if (mp > 0) metaLine.appendChild(el('span', { 'class': 'uscistr-subtitle-sep', text: ' · ' }));
+          metaLine.appendChild(el('span', { text: metaParts[mp] }));
+        }
+        row.appendChild(metaLine);
+        spoken.push(metaParts.join(', '));
+      }
+    }
+
+    // Line 4 — only when something is actually being asked of this person.
     // Collapsing every case is only safe if a deadline can never end up hidden
     // behind a click, so this is the one line a row must never omit.
     var demands = collapsedDemands(view);
@@ -5865,6 +5987,32 @@
     if (entry.changedSince) spoken.push('changed since you last looked');
     row.setAttribute('aria-label', spoken.join('. ') + '. Open for the full record.');
     return row;
+  }
+
+  // The row's one-phrase answer to "where is it": the latest step the case's
+  // own record evidences, with its date — or the present position when
+  // nothing beyond receipt is evidenced. Never a prediction, never a
+  // characterisation; the same stage map the open card draws, reduced to its
+  // newest fact.
+  function collapsedStagePosition(entry, view) {
+    var info = stageInfo(entry, view);
+    var now = new Date().getTime();
+    var latest = null;
+    for (var i = 0; i < info.stages.length; i++) {
+      var s = info.stages[i];
+      if (s.state !== 'evidenced' || s.type === 'received') continue;
+      // Future-dated evidence (an upcoming appointment) belongs to the amber
+      // demand line, which already carries it; this line answers where the
+      // case IS, not what is coming.
+      if (s.at !== null && s.at !== undefined && s.at > now) continue;
+      latest = s;   // stages are already in display order; keep the last
+    }
+    if (latest) {
+      return latest.label + (latest.at !== null && latest.at !== undefined
+        ? ' · ' + formatDateAs(latest.at, 'day') : '');
+    }
+    if (!info.closed) return STAGE_TYPE_LABELS.review;
+    return null;   // closed with nothing evidenced: the Closed day-chip already says it
   }
 
   // Falls back to USCIS's own form title when we have no short name for the
@@ -6354,17 +6502,25 @@
   // Refresh every tracked case strictly one after another (never in
   // parallel) — the same politeness constraint fetchAllForCase() applies
   // within a single case, just extended across cases.
+  // Cases refresh CONCURRENTLY, each case's endpoints still sequential with
+  // STAGGER_MS between them. This was a serial chain — four cases took four
+  // times as long as one, which on load meant reading a spinner for most of a
+  // minute. The account page itself fires its case requests in parallel, the
+  // total request count is identical either way, and the per-case stagger
+  // still keeps any single case's burst polite. Case starts are offset a beat
+  // apart so the first requests don't land as one volley.
   function refreshAll() {
-    var chain = Promise.resolve();
+    var waits = [];
+    var started = 0;
     for (var i = 0; i < state.cases.length; i++) {
-      (function (entry) {
-        chain = chain.then(function () {
-          if (entry.loading) return Promise.resolve();
+      (function (entry, slot) {
+        if (entry.loading) return;
+        waits.push(sleep(slot * STAGGER_MS).then(function () {
           return refreshCase(entry.number);
-        });
-      })(state.cases[i]);
+        }));
+      })(state.cases[i], started++);
     }
-    return chain;
+    return Promise.all(waits);
   }
 
   function restartRefreshTimer() {

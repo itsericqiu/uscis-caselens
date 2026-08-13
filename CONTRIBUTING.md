@@ -112,8 +112,10 @@ Each file must parse on its own (`node --check`), so the closure in the core
 file cannot be opened in one file and closed in another. Anything extracted has
 to be a top-level `var`, as the dictionary and the stylesheet are.
 
-Plain ES5-flavoured JavaScript, zero dependencies, no build step required to
-read it:
+Plain ES5-flavoured JavaScript, zero runtime or build dependencies, no build
+step required to read it. `package.json` holds development-only test tooling
+(the property fuzzer's fast-check); nothing in it is used by `scripts/build.js`
+or reaches the shipped files, and `--check` proves that with nothing installed:
 
 - `var`, `function` declarations. No arrow functions, `const`/`let`, template
   literals, `async`/`await`, spread, or destructuring.
@@ -134,6 +136,7 @@ node --check core/uscis-style.js
 node scripts/build.js          # regenerate userscript + extension copies
 node scripts/build.js --check  # must exit 0
 node test/unit.js              # pure functions: dates, diffing, redaction
+npm ci && node scripts/fuzz.js # property fuzz: stage semantics, diff truth, render safety
 node scripts/privacy-gate.js   # no origin other than my.uscis.gov, in all 3 shipped files
 node scripts/pii-gate.js       # no real receipt numbers, any prefix — run after `git add`
 node scripts/undefined-check.js # every called function is defined

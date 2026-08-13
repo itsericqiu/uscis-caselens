@@ -4,7 +4,7 @@ A panel on [my.uscis.gov](https://my.uscis.gov) showing every case on your accou
 
 **Unofficial and independent.** Not affiliated with, endorsed by, or connected to USCIS or the Department of Homeland Security. Not legal advice. Your mailed notices and my.uscis.gov are the authority on your case — if this panel disagrees with them, believe them.
 
-<img src="docs/store/01-record-updated.png" alt="The CaseLens panel with one case open: every case listed down the left, and on the right the status, appointment date, which office holds it, how far through the stages it is, and a note that USCIS touched the record after the current status was set." width="820">
+<img src="docs/store/01-record-updated.png" alt="The CaseLens panel with one case open: every case listed down the left, and on the right the status, appointment date, which office holds it, a map of the steps this case's record shows, and a note that USCIS touched the record after the current status was set." width="820">
 
 <sub>Sample cases, not real data. <a href="docs/store/04-overview.png">All cases at a glance</a> · <a href="docs/store/03-timeline.png">timeline</a> · <a href="docs/screenshots/panel-dark.png">dark mode</a>.</sub>
 
@@ -24,7 +24,7 @@ That means USCIS's current status in its own wording with its date, the office h
 
 The official site does not show which office holds a case, or when USCIS last touched the record while the status wording stayed the same. Both appear here.
 
-**No predictions, deliberately.** CaseLens will not guess a decision date or tell you a case is going well. Nobody outside USCIS knows either of those, and a number invented by a tracker is only something new to refresh at 2am. Where USCIS publishes a processing estimate — which is rare — the panel shows how much of that range has passed. Otherwise it shows days elapsed, which is known.
+CaseLens does not predict decision dates and does not characterise a case as going well or badly. Where USCIS publishes a processing estimate for a case, the panel shows how much of that range has passed; otherwise it shows days elapsed.
 
 ## Privacy
 
@@ -32,16 +32,16 @@ The official site does not show which office holds a case, or when USCIS last to
 - **Talks only to my.uscis.gov**, the site you are already signed into. No outside code, fonts or images.
 - **Reads only.** It cannot file, answer, withdraw, upload or change anything, and can reach nothing your own account cannot.
 - **Cases and history stay in your browser** (`localStorage`). No account, no server, no analytics, no tracking.
-- **No permissions beyond running on my.uscis.gov.** Installing the extension will warn that it can read and change data on that one site, which is accurate — a panel drawn on the page can do both. It asks for nothing on any other site, and there is no background process.
-- **Small enough that people do read it.** Three files, and the extension published to a store is byte-for-byte the code in this repository.
+- **No permissions beyond running on my.uscis.gov.** The install prompt warns that it can read and change data on that one site. It asks for nothing on any other site, and there is no background process.
+- **Three source files.** The published extension is byte-for-byte the code in this repository.
 
-Full detail in [PRIVACY.md](docs/PRIVACY.md). If you audit code for a living, the threat model and what it does not defend against are in [SECURITY.md](SECURITY.md).
+Full detail in [PRIVACY.md](docs/PRIVACY.md). Threat model and limits: [SECURITY.md](SECURITY.md).
 
 ## Install
 
 CaseLens installs as a **userscript**. Store versions (Firefox Add-ons, Chrome Web Store) are planned.
 
-A userscript manager can see every site you visit; that is how it adds scripts to pages. You are trusting it as well as this tool. The store versions will not need one.
+A userscript manager can see every site you visit — you are trusting it as well as this tool. The store versions will not need one.
 
 1. **Install a userscript manager.** [Violentmonkey](https://violentmonkey.github.io/) on Chrome, Edge or Firefox, or [Userscripts](https://github.com/quoid/userscripts) on Safari. Both are open source. Tampermonkey also works; turn off "Anonymous statistics" in its settings.
 2. **Open the [install file](https://github.com/itsericqiu/uscis-caselens/releases/latest/download/caselens.user.js).** That link always points at the newest tested release, and your copy updates itself from it.
@@ -49,17 +49,17 @@ A userscript manager can see every site you visit; that is how it adds scripts t
 
 **If nothing appears.** Recent Chrome versions require user scripts to be allowed explicitly. Go to `chrome://extensions`, open your userscript manager's details, and switch on **Allow user scripts**. Until then the script never runs, with no error shown.
 
-## Things you would not guess
+## Worth knowing
 
-**"Record was updated."** Every case carries a last-updated timestamp separate from its status message. It sometimes moves while the status wording stays identical, meaning something at USCIS touched the file. The official site does not show this. It is reported only when the gap is more than about three days, and it means nothing beyond the record being touched: not a decision, not a new stage, and it asks nothing of you.
+**"Record was updated."** Every case carries a last-updated timestamp separate from its status. It sometimes moves while the status wording stays the same. The official site does not show this. It means only that the record was touched — not a decision or a new stage.
 
-**Removing a case deletes its history.** USCIS does not publish that history and it cannot be recovered. Export first. Clearing your browser's site data for my.uscis.gov erases it the same way.
+**Removing a case deletes its history.** USCIS does not publish that history and it cannot be recovered. Export first. Clearing browser site data for my.uscis.gov erases it the same way.
 
-**Exports hold full receipt numbers**, even with "Hide receipt numbers" on, because a masked backup could not restore anything. Treat the file as sensitive.
+**Exports contain full receipt numbers**, even with "Hide receipt numbers" on. Treat the file as sensitive.
 
-**Event codes** like `FTA0` or `LDA` use USCIS's own wording where your case history supplies it, and otherwise the federal NIEM schema, an open government standard covering 492 codes in internal operations language rather than anything USCIS wrote to you. Codes in neither are shown raw rather than guessed at, and the raw code stays visible alongside any label.
+**Event codes** like `FTA0` or `LDA` are labelled with USCIS's own wording where your case supplies it, otherwise from the federal NIEM schema. Codes in neither are shown as the raw code, and the raw code stays visible alongside any label.
 
-**The changed badge** names what differs from your last visit. "Mark seen" clears it; the entry stays in the timeline. Timeline entries are labelled with where they came from, and none are dropped.
+**The changed badge** names what differs from your last visit. "Mark seen" clears it; the entry stays in the timeline.
 
 ## What data is accessed
 

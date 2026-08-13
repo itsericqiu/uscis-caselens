@@ -46,6 +46,15 @@ jobs:
       - name: Unit tests — dates, change detection, redaction
         run: node test/unit.js
 
+      # fast-check is a devDependency only: the build is plain concatenation
+      # and `build.js --check` (above) proves the shipped bytes with nothing
+      # installed. Fixed seed in CI so a red run is reproducible.
+      - name: Install dev dependencies for the property fuzzer
+        run: npm ci
+
+      - name: Property fuzz — stage semantics, diff truthfulness, render safety, redaction
+        run: node scripts/fuzz.js --ci
+
       - name: Undefined-function gate — the bundle must not call what it never defines
         run: node scripts/undefined-check.js
 

@@ -4,6 +4,42 @@ Notable changes per release. The section matching a tag becomes that release's
 notes on GitHub, so keep entries written for someone deciding whether to update
 — not for someone reading a commit log.
 
+## 1.17.0
+
+- The stage map is rebuilt around evidence instead of per-form scripts. Stages
+  now materialise from what this case's own record shows, in the record's own
+  order; every form gets a map, including forms this tool has never seen.
+- New "not reported" stage state. Verified against a live account: USCIS does
+  not report biometrics through these endpoints even when an appointment took
+  place, so a hollow Biometrics marker was reading as "not done" when the
+  honest claim is "not visible here". Backed by each form's own instructions,
+  cited in the source.
+- Codes are classified once, in `core/uscis-codes.js`, next to the NIEM
+  descriptions that justify each entry — including the interview lifecycle
+  (scheduled, rescheduled, cancelled, failed to appear). Five codes observed
+  live but absent from the schema are declared in an explicit list, and a test
+  fails if a stage code is neither published nor declared.
+- Documents USCIS generated now appear on the timeline in USCIS's own words —
+  "I-765 C09 Standalone Approval" — dated, deduped against their notices.
+- Collapsed rows gained a position line: latest evidenced step plus the office
+  code.
+- Cases refresh in parallel; a four-case load no longer takes four times as
+  long as one.
+- Deleted: the four per-form stage sequences, mismatch mode, the sticky stage
+  index, and the appointment label matcher that never matched real notices
+  (they all say "Appointment Scheduled" — verified live).
+- Firefox minimum raised to 140 (142 on Android), the versions that introduced
+  the data-collection manifest key; clears both AMO validation warnings and
+  excludes no supported Firefox.
+- New property fuzzer (`scripts/fuzz.js`, fast-check as a dev-only dependency;
+  the build still uses nothing). Checks semantics, not just crashes: a stage
+  claims "evidenced" if and only if the record contains evidence; redaction
+  holds against hostile payloads; diffs report exactly the field that changed;
+  the full render path never throws. Runs in CI with a fixed seed.
+- Two bugs the fuzzer caught before anyone else could: a malformed
+  `closed: "false"` (a string) rendered a case as finished, and a timeline
+  with a duplicated filed anchor silently dropped one of them.
+
 ## 1.16.0
 
 - Renamed to "CaseLens — Unofficial USCIS Case Tracker". Nothing in the old name

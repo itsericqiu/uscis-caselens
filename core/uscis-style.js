@@ -372,7 +372,13 @@ var CASELENS_STYLE = [
   "  background: var(--ust-bg-inset);",
   "}",
   ".uscistr-root .uscistr-rail-list { display: flex; flex-direction: column; }",
-  ".uscistr-root .uscistr-rail-row {",
+  // Two classes on purpose: the row is a .uscistr-collapsed button, whose
+  // base rule sets border-radius LATER in this sheet. A single-class
+  // override here has equal specificity and loses to source order, so the
+  // rounding quietly survived — and the open row's inset accent bar follows
+  // the element's radius, drawing a curved accent inside the rail's straight
+  // edge.
+  ".uscistr-root .uscistr-collapsed.uscistr-rail-row {",
   "  border-bottom: 1px solid var(--ust-border-1);",
   "  border-radius: 0;",
   "}",
@@ -774,6 +780,13 @@ var CASELENS_STYLE = [
     // A row drawn from a stored copy is otherwise identical to a fresh one.
     ".uscistr-root .uscistr-collapsed-stale {",
     "  margin-top: 3px; padding-left: calc(7px + var(--ust-s3));",
+    "  font-size: var(--ust-fs-micro); color: var(--ust-text-3);",
+    "}",
+    // Position and place — the stage map's newest fact and USCIS's own
+    // jurisdiction string. Quieter than the status line: it answers a scan,
+    // never competes with USCIS's words.
+    ".uscistr-root .uscistr-collapsed-place {",
+    "  margin-top: 2px; padding-left: calc(7px + var(--ust-s3));",
     "  font-size: var(--ust-fs-micro); color: var(--ust-text-3);",
     "}",
   ".uscistr-root .uscistr-card.uscistr-is-collapsed { padding: 0; }",
@@ -1432,6 +1445,18 @@ var CASELENS_STYLE = [
   "}",
   ".uscistr-root .uscistr-stage-seg.uscistr-is-done .uscistr-stage-label { color: var(--ust-text-2); }",
   ".uscistr-root .uscistr-stage-seg.uscistr-is-current .uscistr-stage-label { color: var(--ust-text-1); font-weight: 600; }",
+  // Not-reported: the form's own instructions provide for this step, and
+  // USCIS does not report it in this data. A dashed ring, deliberately unlike
+  // both "done" (filled) and "ahead" (plain hollow): this marker must not be
+  // readable as either "happened" or "hasn't happened yet".
+  ".uscistr-root .uscistr-stage-seg.uscistr-is-unreported .uscistr-stage-node { color: var(--ust-text-3); }",
+  ".uscistr-root .uscistr-stage-seg.uscistr-is-unreported .uscistr-stage-node svg circle {",
+  "  stroke-dasharray: 2.4 1.8;",
+  "}",
+  ".uscistr-root .uscistr-stage-seg.uscistr-is-unreported .uscistr-stage-label {",
+  "  color: var(--ust-text-3);",
+  "  font-style: italic;",
+  "}",
   ".uscistr-root .uscistr-stage-here { font-size: var(--ust-fs-rail); line-height: 1.2; color: var(--ust-accent); white-space: nowrap; }",
   ".uscistr-root .uscistr-quiet { display: flex; flex-direction: column; gap: var(--ust-s2); }",
   ".uscistr-root .uscistr-quiet-head {",

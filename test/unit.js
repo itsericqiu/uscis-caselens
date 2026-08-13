@@ -154,17 +154,114 @@ function run() {
   }), false, 'supplementary endpoints alone are not a read');
 
   // --- the stage rail ------------------------------------------------------
-  describe('stageIndexOfCode');
+  describe('stageTypeOfCode');
+  eq(A.stageTypeOfCode('FNB'), 'biometrics', 'known code maps to its step');
+  eq(A.stageTypeOfCode('fnb'), 'biometrics', 'lookup is case-insensitive');
+  eq(A.stageTypeOfCode('ZZ9'), null, 'unknown code maps nowhere');
+  eq(A.stageTypeOfCode('__proto__'), null, 'prototype keys map nowhere');
+  eq(A.stageTypeOfCode('SA'), 'decision', 'observed-but-unpublished codes are declared, not invisible');
+
+  describe('stageInfo — stages materialise from evidence, never from a per-form script');
   (function () {
-    var seq = [
-      { name: 'Received', codes: ['RCV0', 'IAF'] },
-      { name: 'Biometrics', codes: ['FNA'] },
-      { name: 'Decision', codes: ['DA'] }
-    ];
-    eq(A.stageIndexOfCode(seq, 'FNA'), 1, 'known code maps to its stage');
-    eq(A.stageIndexOfCode(seq, 'fna'), 1, 'lookup is case-insensitive');
-    eq(A.stageIndexOfCode(seq, 'ZZ9'), -1, 'unknown code maps nowhere');
-    eq(A.stageIndexOfCode(seq, '__proto__'), -1, 'prototype keys map nowhere');
+    var now = new Date().getTime();
+    var day = 24 * 60 * 60 * 1000;
+    function mkView(over) {
+      var v = {
+        items: [], upcoming: [], evidenceCount: 0,
+        detail: { formType: over.formType || null, closed: !!over.closed,
+          submissionDate: over.filed || null },
+        notice: null
+      };
+      var k;
+      for (k in over) {
+        if (k === 'items' || k === 'upcoming' || k === 'evidenceCount' || k === 'notice') v[k] = over[k];
+      }
+      return v;
+    }
+    function types(info) {
+      return info.stages.map(function (s) { return s.type + ':' + s.state; }).join(' ');
+    }
+    var entry = { number: 'IOE0000000000' };
+
+    // The floor: an unknown form with no mappable codes still gets the spine.
+    var bare = A.stageInfo(entry, mkView({ formType: 'I-999',
+      items: [{ code: 'ZZ9', displayAt: now - day, kind: 'event' }] }));
+    eq(types(bare), 'received:evidenced review:current decision:ahead',
+      'unknown form, unknown code: the definitional spine and nothing invented');
+    eq(bare.unmapped.join(','), 'ZZ9', 'the unmapped code is reported, not dropped');
+
+    // Prefill from form instructions renders NOT-REPORTED, never hollow-ahead.
+    var i485 = A.stageInfo(entry, mkView({ formType: 'I-485', filed: '2026-03-14',
+      items: [
+        { code: 'IAF', displayAt: now - 100 * day, kind: 'event' },
+        { code: 'FTA0', displayAt: now - 60 * day, kind: 'event' },
+        { kind: 'appointment', displayAt: now - 30 * day, code: null }
+      ] }));
+    eq(types(i485),
+      'received:evidenced appointment:evidenced biometrics:not-reported review:current decision:ahead',
+      'attended-but-unreported biometrics shows as not-reported, with the real appointment evidenced');
+
+    // Evidence upgrades prefill: one stage per type, never two.
+    var withBio = A.stageInfo(entry, mkView({ formType: 'I-485',
+      items: [{ code: 'FNB', displayAt: now - 10 * day, kind: 'event' }] }));
+    var bioStages = withBio.stages.filter(function (s) { return s.type === 'biometrics'; });
+    eq(bioStages.length, 1, 'prefill plus evidence is one stage');
+    eq(bioStages[0].state, 'evidenced', 'and the evidence wins');
+
+    // A future appointment sorts after the current marker — date order, no clamp.
+    var future = A.stageInfo(entry, mkView({ formType: 'I-999',
+      upcoming: [{ kind: 'appointment', displayAt: now + 10 * day, code: null }] }));
+    eq(types(future), 'received:evidenced review:current appointment:evidenced decision:ahead',
+      'an upcoming appointment renders ahead of the present position');
+
+    // Closed evidences Decision without saying how; card pins after decision.
+    var closed = A.stageInfo(entry, mkView({ formType: 'I-765', closed: true,
+      items: [
+        { code: 'FTA0', displayAt: now - 40 * day, kind: 'event' },
+        { code: 'SA', displayAt: now - 20 * day, kind: 'event' },
+        { code: 'LDA', displayAt: now - 10 * day, kind: 'event' }
+      ] }));
+    eq(types(closed),
+      'received:evidenced review:evidenced biometrics:not-reported decision:evidenced card:evidenced',
+      'a finished case reads as history: no current marker, card after decision');
+
+    // Structured evidence requests are stage evidence without any code.
+    var rfe = A.stageInfo(entry, mkView({ formType: 'I-999', evidenceCount: 1 }));
+    eq(types(rfe), 'received:evidenced evidence:evidenced review:current decision:ahead',
+      'evidenceRequests[] alone materialises the evidence step');
+
+    // Interview lifecycle: a cancellation is interview-step activity.
+    eq(A.stageTypeOfCode('FKB'), 'interview', 'cancelled interview is still interview activity');
+  })();
+
+  describe('stage tables — every stage code is published or declared observed');
+  (function () {
+    var codes = A.__tables.USCIS_CODE_STAGES;
+    var niem = A.__tables.USCIS_CODE_MEANINGS;
+    var observed = A.__tables.USCIS_OBSERVED_CODES;
+    var bad = [];
+    var c;
+    for (c in codes) {
+      if (!Object.prototype.hasOwnProperty.call(codes, c)) continue;
+      if (!niem[c] && !observed[c]) bad.push(c);
+    }
+    eq(bad.join(','), '', 'no stage code exists outside NIEM + the observed list');
+    var badType = [];
+    var LABELS = A.__tables.STAGE_TYPE_LABELS;
+    for (c in codes) {
+      if (!Object.prototype.hasOwnProperty.call(codes, c)) continue;
+      if (!LABELS[codes[c]]) badType.push(c + '->' + codes[c]);
+    }
+    eq(badType.join(','), '', 'every mapping targets a real stage type');
+    var badExpected = [];
+    var EXPECTED = A.__tables.FORM_EXPECTED_STEPS;
+    for (c in EXPECTED) {
+      if (!Object.prototype.hasOwnProperty.call(EXPECTED, c)) continue;
+      for (var e = 0; e < EXPECTED[c].length; e++) {
+        if (!LABELS[EXPECTED[c][e]]) badExpected.push(c + '->' + EXPECTED[c][e]);
+      }
+    }
+    eq(badExpected.join(','), '', 'every expected step names a real stage type');
   })();
 
   // --- redaction -----------------------------------------------------------

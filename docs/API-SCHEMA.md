@@ -138,6 +138,32 @@ I-131). No body at all. The progress bar cannot rely on this; treat 204 as
 Note: `.tif` files, no direct `url` field — only an opaque `contentId`. Name
 field is `fileName`, date field is `createDate`.
 
+`sourceType` takes exactly two values on the observed account (2026-08-12):
+`"Applicant Provided"` (the filer's own uploads, always type `"Other"` or
+`"G-28"`) and `"USCIS Generated"`. USCIS-generated documents always carry a
+specific `type` in USCIS's own wording — observed values:
+
+- `Account Acceptance Notice`
+- `Appointment Scheduled`
+- `I-765 C09 Standalone Approval` (the form and category are in the type
+  string itself)
+
+The last one matters: it is USCIS naming an approval outright, on a case
+whose approval event code (`SA`) is absent from the published NIEM schema.
+For decisions, the document `type` can be stronger evidence than any code.
+
+### Biometrics is never reported through these endpoints
+
+Verified against a live account whose owner attended a biometrics
+appointment: no biometrics event code appears anywhere (`FNA`, `IMAF`,
+`FNB`, `MA70`, `FNG`, `FNH` — none), and the strings "biometric" and
+"fingerprint" occur in **no** API field. The only trace is the generic
+notice (`actionType: "Appointment Scheduled"`, one `appointmentDateTime`)
+and the matching `Appointment Scheduled` document. Interview notices arrive
+as the same generic record, so the *type* of an appointment cannot be
+inferred from this data. On a concurrent filing the appointment appears on
+the primary case only.
+
 ## 7. `GET /account/case-service/api/cases/{num}/history`
 
 **Returns HTTP 404.** This endpoint does not exist, despite community

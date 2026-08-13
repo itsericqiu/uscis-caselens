@@ -537,3 +537,159 @@ var USCIS_CODE_MEANINGS = {
 };
 
 var USCIS_CODE_SOURCE = 'NIEM scr:BenefitDocumentStatusCategoryCodeSimpleType';
+
+// ---------------------------------------------------------------------------
+// Stage classification (docs/design/04-evidence-stages.md)
+//
+// Maps a code to the STEP of a case it is activity for. The stage rail lights
+// a step when a code here appears on the case; "lit" means USCIS logged
+// activity at that step, never that the step completed — an interview can be
+// scheduled (FJ) and then cancelled (FKB), and both are interview-step
+// activity.
+//
+// Authored, not generated: every entry was placed by reading its NIEM
+// description above (the description is the justification — grep the code).
+// Codes deliberately absent: fee and payment accounting, holds, quality
+// control, internal routing, and anything whose description does not plainly
+// name a step. An absent code creates no stage and stays in the timeline.
+//
+// NIEM has NO oath/ceremony codes at all, so naturalization ceremonies cannot
+// be evidenced from codes; if they ever surface it will be via status text or
+// documents.
+//
+// Stage types: received, biometrics, evidence, interview, review, decision,
+// card. (appointment exists as a stage type but is evidenced only by notices
+// and documents, which carry dates — no code maps to it.)
+var USCIS_CODE_STAGES = {
+  // received — the filing arrived and was acknowledged
+  'AALB': 'received',   // Received at the lockbox
+  'ABA': 'received',    // Received, fee waived
+  'ABB': 'received',    // Received - fee collected elsewhere
+  'ACA': 'received',    // Received, fee in suspense
+  'IAA': 'received',    // Receipt notice sent
+  'IAAA': 'received',   // Receipt notice w/request for I-89 processing sent
+  'IAB': 'received',    // Modified receipt notice 1 sent
+  'IAC': 'received',    // Modified receipt notice 2 sent
+  'IAD': 'received',    // Fee collected elsewhere receipt notice sent
+  'IAF': 'received',    // Receipt letter emailed
+
+  // biometrics — fingerprint/biometrics step
+  'FN': 'biometrics',   // Fingerprint/agency checks ordered
+  'FNA': 'biometrics',  // Fingerprint appointment notice ordered
+  'FNB': 'biometrics',  // Fingerprints taken
+  'FNG': 'biometrics',  // Fingerprint processing complete-ident
+  'FNH': 'biometrics',  // Fingerprint processing complete-non-ident
+  'IMAF': 'biometrics', // Fingerprint appointment notice sent
+  'LIC': 'biometrics',  // Fingerprint not readable
+  'LLIA': 'biometrics', // Fingerprint not readable
+  'LN': 'biometrics',   // Fingerprint determined to be best available
+  'MA70': 'biometrics', // Biometrics received from ASC
+
+  // evidence — USCIS asked this person for something
+  'FA': 'evidence',     // Case return for additional evidence notice ordered
+  'FB0': 'evidence',    // Request evidence
+  'FBA': 'evidence',    // Initial evidence request notice ordered
+  'FBB': 'evidence',    // Additional evidence request notice ordered
+  'FBC': 'evidence',    // Initial and additional evidence requested notice ordered
+  'FC': 'evidence',     // Intent to revoke notice ordered
+  'FCA0': 'evidence',   // Intent to revoke - fraud
+  'FCB0': 'evidence',   // Intent to revoke - other
+  'FE': 'evidence',     // Intent to deny notice ordered
+  'II': 'evidence',     // Notice of intent to deny sent
+  'IK': 'evidence',     // Request for additional evidence sent
+  'IKE': 'evidence',    // Initial evidence requested via e-filing system
+  'IKF': 'evidence',    // Initial evidence reminder emailed
+  'IV': 'evidence',     // Notice of intent to revoke sent
+
+  // interview — the whole lifecycle, including cancellations: a cancelled
+  // interview is interview-step activity, and the timeline row says which
+  'BC': 'interview',    // Relocated from sc to local office for standard interview
+  'FH': 'interview',    // Place in interview que
+  'FHA': 'interview',   // Schedule case for asylum interview
+  'FHB': 'interview',   // Ready for interview scheduling
+  'FI': 'interview',    // Force schedule interview
+  'FJ': 'interview',    // Interview scheduled/notice ordered
+  'FKB': 'interview',   // Cancel interview based on request
+  'FL': 'interview',    // Failed to appear for interview or ADIT processing
+  'FM': 'interview',    // Reschedule interview
+  'FXA': 'interview',   // Terminate placement in interview que
+  'HE': 'interview',    // Request to re-schedule interview received
+  'HG': 'interview',    // Interview conducted
+  'IM': 'interview',    // Interview notice sent
+  'IXAA': 'interview',  // Interview cancellation by INS - notice sent
+  'IXAB': 'interview',  // Interview cancellation per request - notice sent
+
+  // review — officer/systems processing between receipt and decision
+  'FSA0': 'review',     // Request database checks
+  'FTA0': 'review',     // Database checks received
+  'FT0': 'review',      // Officer processing begun
+
+  // decision — a disposition, or the notice announcing one. Approvals,
+  // denials, revocations, withdrawals and terminations all map here: the
+  // stage says a decision exists, the timeline row says which. The rail never
+  // colours by outcome (CONTRIBUTING.md, honesty rules).
+  'DA': 'decision',     // Approved/notice ordered
+  'DB': 'decision',     // Approved & certified/notice ordered
+  'DC': 'decision',     // Approved in part/notice ordered
+  'DD': 'decision',     // Approved in part & certified/notice ordered
+  'DE': 'decision',     // Case ordered approved by AAO/notice ordered
+  'DF': 'decision',     // Case ordered approved by EOIR/notice ordered
+  'DG': 'decision',     // Case ordered approved by court/notice ordered
+  'DH': 'decision',     // Approved on service motion/notice ordered
+  'DI': 'decision',     // Approval reaffirmed after DOS return/notice ordered
+  'EA': 'decision',     // Denial notice ordered
+  'EB': 'decision',     // Denial & certification notice ordered
+  'EC': 'decision',     // Denial notice with finding of fraud ordered
+  'ED': 'decision',     // Denial & certification notice with finding of fraud ordered
+  'EE': 'decision',     // Case ordered denied by AAO
+  'EF': 'decision',     // Case ordered denied by EOIR
+  'EGA': 'decision',    // Revocation notice ordered
+  'EGB': 'decision',    // Revocation notice with finding of fraud ordered
+  'EGC': 'decision',    // Revocation & certification notice ordered
+  'EGD': 'decision',    // Revocation & certification notice w/finding of fraud ordered
+  'EK': 'decision',     // Withdrawal acknowledgment notice ordered
+  'EL': 'decision',     // Abandonment denial notice ordered
+  'EM': 'decision',     // Automatic termination per oi 103.2(o) notice ordered
+  'EN': 'decision',     // Case terminated; status acquired through other means
+  'EO': 'decision',     // Visa denied by DOS
+  'EP': 'decision',     // Petition terminated by DOS
+  'EQ': 'decision',     // Petition revoked by DOS
+  'IEA': 'decision',    // Approval notice sent
+  'IEB': 'decision',    // Certification approval notice sent
+  'IEE': 'decision',    // Approval letter emailed
+  'IFA': 'decision',    // Denial notice sent
+  'IFB': 'decision',    // Certification denial notice sent
+  'IR': 'decision',     // Revocation notice sent
+  'IT': 'decision',     // Withdrawal acknowledgment notice sent
+  'IYB': 'decision',    // Status termination notice sent
+
+  // card — production and delivery of the card or document
+  'LAA': 'card',        // Card request sent to ICPS print server
+  'LBA': 'card',        // Card order received at ICF
+  'LDA': 'card',        // Card produced
+  'LEA': 'card',        // Card mailed to applicant
+  'LEB': 'card',        // Card mailed to amc
+  'LEC': 'card',        // Card personally given to applicant
+  'LFA': 'card',        // Card returned as undeliverable
+  'MA': 'card',         // Card completed
+  'MBB': 'card',        // Refugee travel document produced
+  'MBC': 'card'         // Advance parole document produced
+};
+
+// Codes observed on live accounts that are absent from the NIEM schema. The
+// schema is versioned federal data; USCIS's systems have moved past it, and
+// these were learned only by seeing them on real cases. Every entry needs a
+// provenance note. A test asserts USCIS_CODE_STAGES contains nothing outside
+// USCIS_EVENT_CODES except this list.
+var USCIS_OBSERVED_CODES = {
+  'RCV0': 'received',   // observed 2026-08: appears at filing time; pairs with IAF
+  'H001': 'received',   // observed 2026-08: appears alongside receipt events
+  'H008': 'biometrics', // observed 2026-08: appears around ASC appointment handling
+  'SA': 'decision',     // observed 2026-08: present when USCIS's own status text says approved
+  'APR0': 'decision'    // observed 2026-08: pairs with approval status wording
+};
+for (var uscisObservedCode in USCIS_OBSERVED_CODES) {
+  if (USCIS_OBSERVED_CODES.hasOwnProperty(uscisObservedCode)) {
+    USCIS_CODE_STAGES[uscisObservedCode] = USCIS_OBSERVED_CODES[uscisObservedCode];
+  }
+}

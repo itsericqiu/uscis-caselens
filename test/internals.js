@@ -33,8 +33,13 @@ var EXPORTS = [
   'normalize', 'diffSnapshots', 'carryForwardUnread', 'snapshotHasContent', 'resultHasAnyData', 'payloadUsable', 'payloadFailed',
   'flattenValue', 'strictBool', 'stripHtml', 'pick', 'plural',
   'isValidReceiptNumber', 'redactRawJson', 'displayFileName',
-  'stageIndexOfCode', 'decorateAndDedupeTimeline', 'countNewHistory', 'hasTimeComponent',
-  'middleTruncate', 'parseEstimateMonths', 'futureAppointments'
+  'stageTypeOfCode', 'stageInfo', 'decorateAndDedupeTimeline', 'countNewHistory', 'hasTimeComponent',
+  'middleTruncate', 'parseEstimateMonths', 'futureAppointments',
+  // Fuzzing surface (scripts/fuzz.js): these pull hostile generated payloads
+  // through the same paths real API responses take. buildCaseView/buildCaseCard
+  // exercise nearly the whole render pipeline against the fake-DOM stubs —
+  // a throw anywhere in there is a blank panel for a real user.
+  'sortTimelineItems', 'collectTimelineItems', 'buildCaseView', 'buildCaseCard'
 ];
 
 function fakeElement() {
@@ -69,7 +74,18 @@ function load(prefs) {
     return '    ' + name + ': (typeof ' + name + " === 'function' ? " + name + ' : undefined),';
   }).join('\n');
 
-  src = src.slice(0, at) + '\n  __exports = {\n' + exportLines + '\n  };\n})();';
+  // Data tables under test. TABLE_EXPORTS live at the top level of
+  // uscis-codes.js or inside the core IIFE; the typeof guard covers both.
+  var TABLE_EXPORTS = [
+    'USCIS_CODE_MEANINGS', 'USCIS_CODE_STAGES', 'USCIS_OBSERVED_CODES',
+    'STAGE_TYPE_LABELS', 'FORM_EXPECTED_STEPS'
+  ];
+  var tableLines = TABLE_EXPORTS.map(function (name) {
+    return '      ' + name + ': (typeof ' + name + " !== 'undefined' ? " + name + ' : undefined),';
+  }).join('\n');
+
+  src = src.slice(0, at) + '\n  __exports = {\n' + exportLines +
+    '\n    __tables: {\n' + tableLines + '\n    }\n  };\n})();';
 
   var storage = {};
   var sandbox = {
