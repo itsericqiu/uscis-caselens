@@ -248,7 +248,14 @@ jobs:
           npx --yes web-ext@8.10.0 sign \
             --source-dir=extensions/firefox \
             --channel=listed \
+            --approval-timeout=0 \
             --artifacts-dir=web-ext-artifacts
+        # --approval-timeout=0: upload and exit, don't poll for review. The
+        # first real run uploaded successfully, then sat in "Waiting for
+        # approval..." for 12 minutes until an AMO JWT quirk ("exp is too
+        # long") killed the poll and marked a successful publish as a failed
+        # job. Listed-channel review takes days; polling for it in CI is
+        # waiting for a human with a job timeout.
         # `web-ext sign --channel=listed` uploads the extension to AMO for
         # human review; it does not bypass review. First-time submissions
         # may need the listing created once by hand in the AMO developer
