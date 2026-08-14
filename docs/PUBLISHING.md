@@ -243,6 +243,8 @@ between paragraphs and between bullets.
 >   The website does not display this either.
 > • Documents on file, scheduled appointments, and days elapsed since filing.
 > • A badge naming what changed since the last visit.
+> • "Everything USCIS sent": every response in full, one section per request,
+>   each field labelled and in the agency's own order, nothing filtered out.
 > • Nicknames, a JSON export of your full case record, receipt-number
 >   masking, and dark mode.
 > • Spanish status wording where it is supplied.
@@ -459,7 +461,7 @@ is hand-made, so nothing drifts from the shipped UI or the shipped mark.
 
 | Asset | File | Chrome | AMO | Built by |
 |---|---|---|---|---|
-| Screenshots | `01`–`05-*.png` | 1280×800, 1–5 | 1280×800, 1.6:1 | `store-screenshots.js` |
+| Screenshots | `01`–`06-*.png` | 1280×800, 1–5 | 1280×800, 1.6:1 | `store-screenshots.js` |
 | Listing icon | `listing-icon-128.png` | 128×128 | — | `make-icons.js` |
 | Listing icon | `listing-icon-{32,64}.png` | — | 32×32 and 64×64 | `make-icons.js` |
 | Small promo tile | `promo-small-440x280.png` | 440×280 | n/a | `promo-tiles.js` |
@@ -473,14 +475,21 @@ Screenshots are shot against fixture data — invented case numbers, never a rea
 account. `docs/screenshots/` is the README set and is the wrong shape for a
 listing.
 
-The five shots are ordered as an argument rather than a gallery. Carousel
-drop-off is steep, so positions 1 to 3 go to the things the account page cannot
-already do: the open record, what changed, the sourced timeline. The collapsed
-overview led this set once and was demoted to 4 — it shows "all your cases in
-one place" and nothing a reader could not get by looking at the page itself. The
-set ends on the privacy controls, because showing "Erase everything" closes an
-argument the description can only assert. Chrome has no per-screenshot caption
-field; any caption must be burned into the image. AMO has one.
+The shots are ordered as an argument rather than a gallery. Carousel drop-off is
+steep, so positions 1 to 3 go to the things the account page cannot already do:
+the open record, what changed, the sourced timeline. The collapsed overview led
+this set once and was demoted to 4 — it shows "all your cases in one place" and
+nothing a reader could not get by looking at the page itself. Position 5 is the
+privacy controls, because showing "Erase everything" closes an argument the
+description can only assert.
+
+**Chrome takes five, so `06-record` is AMO-only** unless something is dropped.
+It shows the record view — every field USCIS returned, unfiltered — which is the
+description's strongest claim and the one a screenshot can prove. If Chrome's
+set is ever reshuffled, it is the natural replacement for 4.
+
+Chrome has no per-screenshot caption field; any caption must be burned into the
+image. AMO has one.
 
 Regenerate before submitting if the layout has changed — check
 `git log -1 -- docs/store` against the last release that touched `core/`. Store

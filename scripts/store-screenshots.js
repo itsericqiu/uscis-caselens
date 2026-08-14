@@ -58,6 +58,27 @@ function scrollTo(px) {
     "if(n&&n.scrollHeight>n.clientHeight+8){n.scrollTop=" + px + ";return;}}})()";
 }
 
+// "Everything USCIS sent", then its first endpoint section. Both are lazy
+// disclosures, so each needs a real click; the record toggle re-renders the
+// card, which is why the section click is a separate step rather than one
+// snippet.
+//
+// A card carries TWO `.uscistr-raw-toggle` buttons — documents and the record —
+// so this selects on `data-focus-key`. Taking the first match opened Documents
+// instead, and the shot came out as the top of the card with nothing to show.
+var OPEN_RECORD =
+  "(function(){var b=document.querySelector('.uscistr-root .uscistr-raw-toggle[data-focus-key^=\"raw:\"]');" +
+  "if(b&&b.getAttribute('aria-expanded')!=='true')b.click();})()";
+// scrollIntoView acts on the nearest scrollport and does nothing useful here, so
+// the offset is applied to the panel's own scroll container directly.
+var OPEN_FIRST_RESPONSE =
+  "(function(){var s=document.querySelector('.uscistr-root .uscistr-raw-summary'); if(!s)return;" +
+  "if(s.getAttribute('aria-expanded')!=='true')s.click();" +
+  "var sel=['.uscistr-detail','.uscistr-body'];" +
+  "for(var i=0;i<sel.length;i++){var n=document.querySelector('.uscistr-root '+sel[i]);" +
+  "if(n&&n.scrollHeight>n.clientHeight+8){" +
+  "n.scrollTop+=s.getBoundingClientRect().top-n.getBoundingClientRect().top-12;return;}}})()";
+
 var OPEN_SETTINGS =
   "(function(){var g=document.querySelector('[data-uscistr-settings-toggle]'); if(g)g.click();})()";
 
@@ -100,6 +121,14 @@ var SHOTS = [
     name: '05-privacy',
     caption: 'Stored in this browser, and erasable from Settings',
     steps: [DISMISS_INTRO, OPEN_SETTINGS, SETTINGS_TO_ERASE]
+  },
+  // Sixth because Chrome shows five. AMO takes ten, and this is the shot that
+  // proves the description's strongest claim — every field, unfiltered — rather
+  // than asserting it.
+  {
+    name: '06-record',
+    caption: 'Every field USCIS returned, in the agency’s own order',
+    steps: [DISMISS_INTRO, openCase(0), OPEN_RECORD, OPEN_FIRST_RESPONSE]
   }
 ];
 

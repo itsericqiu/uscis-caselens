@@ -40,19 +40,41 @@ var EXPORTS = [
   // exercise nearly the whole render pipeline against the fake-DOM stubs —
   // a throw anywhere in there is a blank panel for a real user.
   'sortTimelineItems', 'collectTimelineItems', 'buildCaseView', 'buildCaseCard',
-  'buildExportPayload'
+  'buildExportPayload',
+  // The record view (docs/design/05-record-view.md). redactFieldValue is the
+  // single redaction policy both renderers must obey; buildRecordFields walks
+  // arbitrary API shapes, which is exactly what the fuzzer should hammer.
+  'redactFieldValue', 'humanizeFieldKey', 'buildRecordFields', 'caseResponses'
 ];
 
 function fakeElement() {
   var node = {
     style: {}, className: '', childNodes: [], attributes: {},
+    // el() wires every handler through addEventListener. This used to be a
+    // no-op, so the sandbox silently discarded all of them — and any test that
+    // "opened" a disclosure passed vacuously, having rendered nothing. A
+    // record-view privacy test did exactly that: it reported no leak because
+    // the nested content it was checking had never been built.
+    _handlers: {},
     setAttribute: function (k, v) { this.attributes[k] = v; },
     getAttribute: function (k) { return this.attributes[k] || null; },
     removeAttribute: function (k) { delete this.attributes[k]; },
     appendChild: function (c) { this.childNodes.push(c); return c; },
     querySelector: function () { return null; },
     querySelectorAll: function () { return []; },
-    addEventListener: function () {},
+    addEventListener: function (type, fn) {
+      if (typeof fn !== 'function') return;
+      (this._handlers[type] = this._handlers[type] || []).push(fn);
+    },
+    // Tests dispatch through this rather than reaching for .onclick, which
+    // el() never sets.
+    dispatch: function (type) {
+      var list = this._handlers[type] || [];
+      for (var i = 0; i < list.length; i++) {
+        list[i]({ currentTarget: this, target: this, preventDefault: function () {} });
+      }
+      return list.length;
+    },
     classList: { add: function () {}, remove: function () {}, contains: function () { return false; } }
   };
   return node;

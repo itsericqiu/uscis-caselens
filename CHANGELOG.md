@@ -4,6 +4,20 @@ Notable changes per release. The section matching a tag becomes that release's
 notes on GitHub, so keep entries written for someone deciding whether to update
 — not for someone reading a commit log.
 
+## 1.19.0
+
+- Every field USCIS returned is now readable in the panel. Each open case gains
+  "Everything USCIS sent", one section per endpoint with its HTTP result, and
+  inside it the response as labelled rows — `submissionDate` reads as
+  "Submission date" — in the order USCIS sent them. Nested objects and lists
+  stay collapsed with their counts, so an empty list still reads as empty
+  rather than disappearing.
+- Nothing is filtered or reordered on the way through, so a field USCIS starts
+  returning tomorrow appears tomorrow without an update here. The old raw-JSON
+  block is still there, one level down, for anyone who wants the bytes.
+- "Hide receipt numbers" now covers this view too: masked receipt numbers and
+  hidden names, on the same rules the rest of the panel follows.
+
 ## 1.18.0
 
 - Export is now a records file: everything USCIS returned about each case on

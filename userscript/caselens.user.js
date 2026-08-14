@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CaseLens — Unofficial USCIS Case Tracker
 // @namespace    https://github.com/itsericqiu/uscis-caselens
-// @version      1.18.0
+// @version      1.19.0
 // @description  See all your USCIS cases in one place. Everything stays in your browser.
 // @match        https://my.uscis.gov/*
 // @run-at       document-idle
@@ -1898,6 +1898,63 @@ var CASELENS_STYLE = [
   "  border-radius: var(--ust-r-full);",
   "}",
   ".uscistr-root .uscistr-raw[hidden] { display: none; }",
+
+  // The record view: every field USCIS returned, as label/value rows.
+  // (docs/design/05-record-view.md.) Values are the content, so keys are the
+  // quieter column — the inverse of a form, where the label leads.
+  ".uscistr-root .uscistr-rec-section {",
+  "  display: flex;",
+  "  flex-direction: column;",
+  "  gap: var(--ust-s3);",
+  "  padding: var(--ust-s4) 0 var(--ust-s4) var(--ust-s4);",
+  "}",
+  ".uscistr-root .uscistr-rec-fields { display: flex; flex-direction: column; gap: 2px; }",
+  ".uscistr-root .uscistr-rec-row {",
+  "  display: grid;",
+  "  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);",
+  "  gap: var(--ust-s4);",
+  "  align-items: baseline;",
+  "  font-size: var(--ust-fs-micro);",
+  "  line-height: 1.5;",
+  "  padding: 2px 0;",
+  "}",
+  ".uscistr-root .uscistr-rec-key { color: var(--ust-text-3); min-width: 0; overflow-wrap: break-word; }",
+  ".uscistr-root .uscistr-rec-val {",
+  "  color: var(--ust-text-1);",
+  "  min-width: 0;",
+  "  overflow-wrap: anywhere;",
+  // Values are the one thing here worth copying out of the panel.
+  "  -webkit-user-select: text;",
+  "  user-select: text;",
+  "}",
+  ".uscistr-root .uscistr-rec-group-wrap { display: flex; flex-direction: column; }",
+  ".uscistr-root .uscistr-rec-group {",
+  "  display: flex;",
+  "  align-items: center;",
+  "  gap: var(--ust-s3);",
+  "  padding: 3px 0;",
+  "  background: transparent;",
+  "  border: 0;",
+  "  color: var(--ust-text-2);",
+  "  font: inherit;",
+  "  font-size: var(--ust-fs-micro);",
+  "  text-align: left;",
+  "  cursor: pointer;",
+  "}",
+  ".uscistr-root .uscistr-rec-group:hover { color: var(--ust-text-1); }",
+  ".uscistr-root .uscistr-rec-group svg { width: 10px; height: 10px; flex: none; transition: transform var(--ust-d2) var(--ust-ease); }",
+  ".uscistr-root .uscistr-rec-group[aria-expanded=\"true\"] svg { transform: rotate(90deg); }",
+  // Nesting is shown by indentation and a hairline, so depth is legible
+  // without numbering the levels.
+  ".uscistr-root .uscistr-rec-group-body {",
+  "  display: flex;",
+  "  flex-direction: column;",
+  "  gap: 2px;",
+  "  margin-left: 5px;",
+  "  padding-left: var(--ust-s4);",
+  "  border-left: 1px solid var(--ust-border-1);",
+  "}",
+  ".uscistr-root .uscistr-rec-json { display: flex; flex-direction: column; gap: var(--ust-s3); }",
   // The `hidden` attribute only sets `display: none` from the user-agent
   // stylesheet, so any author rule setting `display` beats it — which is every
   // collapsible container here, since they are all flex. Without this the
@@ -2253,7 +2310,7 @@ var CASELENS_STYLE = [
   // SECTION 1: Constants
   // ==========================================================================
 
-  var VERSION = '1.18.0';
+  var VERSION = '1.19.0';
 
   var STORAGE_KEYS = {
     cases: 'uscisTracker.cases.v1',      // [{ number, label, addedAt }]
@@ -3743,6 +3800,33 @@ var CASELENS_STYLE = [
     'dateOfBirth', 'dob', 'countryOfBirth', 'placeOfBirth', 'nationality',
     'letterId', 'contentId'
   ];
+
+  // Fast lookup for the list above, so a walker can ask "is this key
+  // sensitive?" per field without scanning an array each time.
+  var REDACT_FIELD_SET = (function () {
+    var set = Object.create(null);
+    for (var i = 0; i < REDACT_JSON_FIELDS.length; i++) {
+      set[REDACT_JSON_FIELDS[i].toLowerCase()] = true;
+    }
+    return set;
+  })();
+
+  // THE redaction policy, in one place: given a field name and its value,
+  // what may be shown?
+  //
+  // This exists because the two renderers that show USCIS's payload cannot
+  // share a regex. redactRawJson() below works on serialised JSON text, and
+  // its field rule depends on seeing `"key": "value"`; the record view walks
+  // parsed objects and hands over bare values, which that pattern would match
+  // nothing in — silently, with names left on screen. Extracting the decision
+  // means one list governs both, and adding a field to REDACT_JSON_FIELDS
+  // protects both at once. test/unit.js holds them to agreement.
+  function redactFieldValue(key, value) {
+    if (!state.prefs || !state.prefs.redact) return value;
+    if (typeof key === 'string' && REDACT_FIELD_SET[key.toLowerCase()]) return '[hidden]';
+    if (typeof value !== 'string') return value;
+    return value.replace(/[A-Z]{3}[0-9]{10}/gi, function (n) { return redactNumber(n); });
+  }
 
   // "Hide receipt numbers" is used before sharing a screenshot, so it has to
   // cover the raw JSON too — that payload carries names, addresses and
@@ -7650,6 +7734,23 @@ var CASELENS_STYLE = [
     });
   }
 
+  // The five endpoint payloads for a case, labelled. Single source for both
+  // the record view and the export, so what a person reads on screen and what
+  // they save to a file are provably the same set rather than two lists that
+  // drift.
+  function caseResponses(entry) {
+    var result = entry && entry.result;
+    if (!result) return [];
+    var out = [];
+    for (var i = 0; i < RAW_JSON_SECTIONS.length; i++) {
+      var section = RAW_JSON_SECTIONS[i];
+      var data = result[section.key];
+      if (data === null || data === undefined) continue;
+      out.push({ key: section.key, label: section.label, path: section.path, data: data });
+    }
+    return out;
+  }
+
   var RAW_JSON_SECTIONS = [
     // Named for what each endpoint returns, with the path underneath. The
     // labels used to be paths alone, containing a literal `{n}` — which to
@@ -7672,7 +7773,7 @@ var CASELENS_STYLE = [
     if (!body.rows) return el('span');
 
     var wrap = el('div', { 'class': 'uscistr-raw-wrap' });
-    var label = 'Raw data from USCIS · ' + plural(body.rows, 'response');
+    var label = 'Everything USCIS sent · ' + plural(body.rows, 'response');
     if (body.failed) label += ' · ' + body.failed + " couldn't be read";
 
     var rawOpen = !!caseUi(entry).showRawJson;
@@ -7695,39 +7796,211 @@ var CASELENS_STYLE = [
     return wrap;
   }
 
+  // A field name as a person reads it, derived mechanically rather than from a
+  // lookup table: submissionTimestamp -> "Submission timestamp". No dictionary
+  // exists on purpose (docs/design/05-record-view.md) — a hand-maintained map
+  // renames USCIS's fields and falls behind the API. This falls behind
+  // nothing, because it enumerates whatever arrived.
+  function humanizeFieldKey(key) {
+    var text = String(key)
+      .replace(/[_-]+/g, ' ')
+      // camelCase and acronym runs: "isPremiumProcessed" -> "is Premium
+      // Processed", "letterID" -> "letter ID".
+      .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+      .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+      .trim();
+    if (!text) return String(key);
+    // Sentence case, not Title Case: these are arbitrary field names, and
+    // capitalising every word makes a list of them read like headlines. An
+    // all-caps word is left alone — it is an acronym (ID, USCIS, DOB), and
+    // lowercasing it would be a different word.
+    var words = text.split(/\s+/);
+    for (var i = 0; i < words.length; i++) {
+      if (!(words[i].length > 1 && words[i] === words[i].toUpperCase())) {
+        words[i] = words[i].toLowerCase();
+      }
+    }
+    text = words.join(' ');
+    return text.charAt(0).toUpperCase() + text.slice(1);
+  }
+
+  // How deep the walker will render before it stops. USCIS's payloads nest
+  // three or four levels; anything past this is either a shape nobody has seen
+  // or a hostile one, and the row says so rather than truncating in silence.
+  var RECORD_MAX_DEPTH = 8;
+
+  // Render one value. Scalars become a label/value row; objects and arrays
+  // recurse. Everything lands as text nodes — USCIS's statusText genuinely
+  // contains HTML anchors, and this view must never be the place that renders
+  // them.
+  //
+  // A present-but-null field gets a row saying so: USCIS sent the field and
+  // left it empty, which is different from not sending it at all, and the
+  // panel refuses to collapse those two anywhere else either.
+  function buildRecordValue(key, value, depth) {
+    var row;
+    if (depth > RECORD_MAX_DEPTH) {
+      row = el('div', { 'class': 'uscistr-rec-row' }, [
+        el('span', { 'class': 'uscistr-rec-key', text: humanizeFieldKey(key) }),
+        el('span', { 'class': 'uscistr-rec-val uscistr-is-quiet',
+          text: 'nested deeper than this view shows — use Show as JSON' })
+      ]);
+      return row;
+    }
+
+    if (Array.isArray(value)) {
+      // The count is information before you expand: "Events (0)" means USCIS
+      // sent an empty list; no Events row at all means they did not send the
+      // field.
+      return buildRecordGroup(humanizeFieldKey(key) + ' (' + value.length + ')',
+        value, depth, true);
+    }
+    if (value !== null && typeof value === 'object') {
+      return buildRecordGroup(humanizeFieldKey(key), value, depth, false);
+    }
+
+    var shown;
+    if (value === null) shown = '—';
+    else if (value === '') shown = '(empty)';
+    else shown = String(redactFieldValue(key, value));
+    row = el('div', { 'class': 'uscistr-rec-row' }, [
+      el('span', { 'class': 'uscistr-rec-key', text: humanizeFieldKey(key) }),
+      el('span', {
+        'class': 'uscistr-rec-val' + (value === null || value === '' ? ' uscistr-is-quiet' : ''),
+        text: shown
+      })
+    ]);
+    return row;
+  }
+
+  // A collapsible object or array. Collapsing is the one structural liberty
+  // this view takes, and it takes it because it imposes nothing on the data —
+  // it manages length. Contents render on first open.
+  function buildRecordGroup(label, value, depth, isArray) {
+    var body = el('div', { 'class': 'uscistr-rec-group-body', hidden: 'hidden' });
+    var toggle = el('button', {
+      'class': 'uscistr-rec-group', type: 'button', 'aria-expanded': 'false',
+      onclick: function (e) {
+        var button = e.currentTarget;
+        var open = button.getAttribute('aria-expanded') === 'true';
+        button.setAttribute('aria-expanded', open ? 'false' : 'true');
+        if (open) { body.setAttribute('hidden', 'hidden'); return; }
+        if (!body.childNodes.length) fillRecordGroup(body, value, depth, isArray);
+        body.removeAttribute('hidden');
+      }
+    });
+    var chevron = buildIcon('chevron');
+    toggle.appendChild(chevron || el('span'));
+    toggle.appendChild(el('span', { 'class': 'uscistr-rec-key', text: label }));
+    linkDisclosure(toggle, body);
+    return el('div', { 'class': 'uscistr-rec-group-wrap' }, [toggle, body]);
+  }
+
+  function fillRecordGroup(body, value, depth, isArray) {
+    var i;
+    if (isArray) {
+      if (!value.length) {
+        body.appendChild(el('div', { 'class': 'uscistr-rec-row uscistr-is-quiet',
+          text: 'USCIS sent this list with nothing in it.' }));
+        return;
+      }
+      for (i = 0; i < value.length; i++) {
+        // Array entries are numbered from 1: this is a record for a person,
+        // not an index into an array.
+        body.appendChild(buildRecordValue('#' + (i + 1), value[i], depth + 1));
+      }
+      return;
+    }
+    var keys = objectKeys(value);
+    if (!keys.length) {
+      body.appendChild(el('div', { 'class': 'uscistr-rec-row uscistr-is-quiet',
+        text: 'USCIS sent this with nothing in it.' }));
+      return;
+    }
+    for (i = 0; i < keys.length; i++) {
+      body.appendChild(buildRecordValue(keys[i], value[keys[i]], depth + 1));
+    }
+  }
+
+  // Own enumerable keys, in the order the response supplied them. Response
+  // order is deliberate: reordering would impose our judgement about what
+  // matters in the one view whose purpose is showing the data unreshaped.
+  function objectKeys(obj) {
+    var out = [];
+    for (var k in obj) {
+      if (Object.prototype.hasOwnProperty.call(obj, k)) out.push(k);
+    }
+    return out;
+  }
+
+  // The readable rendering of one endpoint payload.
+  function buildRecordFields(data) {
+    var wrap = el('div', { 'class': 'uscistr-rec-fields' });
+    // The envelope is always {"data": …}; unwrap it so the reader sees the
+    // case, not our transport.
+    var body = (data && typeof data === 'object' && 'data' in data) ? data.data : data;
+    if (body === null || body === undefined) {
+      wrap.appendChild(el('div', { 'class': 'uscistr-rec-row uscistr-is-quiet',
+        text: 'USCIS answered with no content for this one.' }));
+      return wrap;
+    }
+    if (typeof body !== 'object') {
+      wrap.appendChild(buildRecordValue('Value', body, 0));
+      return wrap;
+    }
+    if (Array.isArray(body)) {
+      fillRecordGroup(wrap, body, 0, true);
+      return wrap;
+    }
+    var keys = objectKeys(body);
+    if (!keys.length) {
+      wrap.appendChild(el('div', { 'class': 'uscistr-rec-row uscistr-is-quiet',
+        text: 'USCIS answered with an empty record.' }));
+      return wrap;
+    }
+    for (var i = 0; i < keys.length; i++) {
+      wrap.appendChild(buildRecordValue(keys[i], body[keys[i]], 0));
+    }
+    return wrap;
+  }
+
   function buildRawJsonBody(entry) {
     var wrap = el('div', { 'class': 'uscistr-raw-list', hidden: 'hidden' });
-    var result = entry.result;
+    var sections = caseResponses(entry);
     var rows = 0;
     var failed = 0;
-    for (var i = 0; i < RAW_JSON_SECTIONS.length; i++) {
-      var section = RAW_JSON_SECTIONS[i];
-      var data = result[section.key];
-      if (data === null || data === undefined) continue;
+    for (var i = 0; i < sections.length; i++) {
+      var section = sections[i];
+      var data = section.data;
       rows++;
 
       var status = payloadStatus(data);
       if (payloadFailed(data)) failed++;
-      var pre = el('pre', { 'class': 'uscistr-raw', hidden: 'hidden' });
+      // The section body: a readable field list, with the exact bytes one
+      // level deeper for anyone who wants them. Both render lazily on first
+      // open — five payloads' worth of DOM on every render is a cost nobody
+      // asked for.
+      var sectionBody = el('div', { 'class': 'uscistr-rec-section', hidden: 'hidden' });
       var chevron = buildIcon('chevron');
 
       var summary = el('button', {
         'class': 'uscistr-raw-summary', type: 'button', 'aria-expanded': 'false',
-        onclick: (function (preEl, dataVal) {
+        onclick: (function (bodyEl, dataVal) {
           return function (e) {
             var button = e.currentTarget;
             var open = button.getAttribute('aria-expanded') === 'true';
             button.setAttribute('aria-expanded', open ? 'false' : 'true');
             if (open) {
-              preEl.setAttribute('hidden', 'hidden');
-            } else {
-              // Stringify lazily on first expand rather than up front for
-              // every endpoint on every render.
-              if (!preEl.textContent) preEl.textContent = redactRawJson(JSON.stringify(dataVal, null, 2));
-              preEl.removeAttribute('hidden');
+              bodyEl.setAttribute('hidden', 'hidden');
+              return;
             }
+            if (!bodyEl.childNodes.length) {
+              bodyEl.appendChild(buildRecordFields(dataVal));
+              bodyEl.appendChild(buildRecordJsonToggle(dataVal));
+            }
+            bodyEl.removeAttribute('hidden');
           };
-        })(pre, data)
+        })(sectionBody, data)
       });
       summary.appendChild(chevron || el('span'));
       summary.appendChild(el('span', { 'class': 'uscistr-raw-name', text: section.label }));
@@ -7735,13 +8008,35 @@ var CASELENS_STYLE = [
       summary.appendChild(chip(status.text, status.variant));
       // The visible label is a URL path; say what it is out loud.
       summary.setAttribute('aria-label',
-        'Raw ' + section.label.toLowerCase() + ' response from USCIS — ' + status.text);
-      linkDisclosure(summary, pre);
+        section.label.toLowerCase() + ' — everything USCIS sent for this one, ' + status.text);
+      linkDisclosure(summary, sectionBody);
 
       wrap.appendChild(summary);
-      wrap.appendChild(pre);
+      wrap.appendChild(sectionBody);
     }
     return { el: wrap, rows: rows, failed: failed };
+  }
+
+  // The exact bytes, demoted one level below the readable list. Kept because
+  // "read it yourself" is the claim this whole project rests on, and because
+  // the field list is a rendering — this is the thing it renders.
+  function buildRecordJsonToggle(data) {
+    var pre = el('pre', { 'class': 'uscistr-raw', hidden: 'hidden' });
+    var toggle = el('button', {
+      'class': 'uscistr-more', type: 'button', 'aria-expanded': 'false',
+      text: 'Show as JSON',
+      onclick: function (e) {
+        var button = e.currentTarget;
+        var open = button.getAttribute('aria-expanded') === 'true';
+        button.setAttribute('aria-expanded', open ? 'false' : 'true');
+        button.textContent = open ? 'Show as JSON' : 'Hide JSON';
+        if (open) { pre.setAttribute('hidden', 'hidden'); return; }
+        if (!pre.textContent) pre.textContent = redactRawJson(JSON.stringify(data, null, 2));
+        pre.removeAttribute('hidden');
+      }
+    });
+    linkDisclosure(toggle, pre);
+    return el('div', { 'class': 'uscistr-rec-json' }, [toggle, pre]);
   }
 
   function sectionTitle(text, count) {

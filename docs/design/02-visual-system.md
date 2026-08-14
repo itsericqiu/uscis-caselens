@@ -386,16 +386,27 @@ date. Rows extend 8px past the card padding with a negative margin so the 8px ho
 background reads as a full-width row. Hover only; no focus state (rows are not interactive
 until a download affordance exists — `contentId` is opaque and there is no URL).
 
-### 3.10 Collapsible / raw JSON — `.uscistr-raw-wrap`
+### 3.10 The record view — `.uscistr-raw-wrap`, `.uscistr-rec-*`
+
+"Everything USCIS sent": one collapsible section per endpoint, holding a readable field
+list with the exact JSON one level further down. Rationale in
+[05-record-view.md](05-record-view.md).
 
 - **Summary** — a 26px full-bleed button, grid `12 | 1fr | auto`: chevron (rotates 90° over
   `--ust-d2`), mono endpoint path, HTTP status chip (`200` success / `204` neutral /
   `404` danger). Hover fills `--ust-bg-hover` and lifts the text to `--ust-text-1`.
   Uses `aria-expanded`, and the chevron rotation is bound to that attribute in CSS, so the
   visual and the accessible state cannot drift apart.
-- **Body** — `<pre>` 10.5px mono, `--ust-bg-inset`, radius 8, `max-height: 200px`,
-  `overflow: auto` with `overscroll-behavior: contain`, and `user-select: text` (the one
-  place selection is explicitly enabled — this block exists to be copied).
+- **Field rows** — `.uscistr-rec-row`, a `2fr | 3fr` grid at `--ust-fs-micro`, baseline
+  aligned. The key is the quiet column (`--ust-text-3`) and the value leads
+  (`--ust-text-1`) — the inverse of a form, because here the value is the content. Values
+  carry `user-select: text`; keys do not.
+- **Nested groups** — `.uscistr-rec-group` is a chevron button; its body indents behind a
+  1px `--ust-border-1` hairline, so depth reads without numbering the levels. Bodies fill
+  on first open.
+- **JSON** — `.uscistr-rec-json` holds a "Show as JSON" toggle over the same `<pre>`:
+  10.5px mono, `--ust-bg-inset`, radius 8, `max-height: 200px`, `overflow: auto` with
+  `overscroll-behavior: contain`, and `user-select: text`.
 
 ### 3.11 Buttons
 

@@ -24,6 +24,8 @@ That means USCIS's current status in its own wording with its date, the office h
 
 The official site does not show which office holds a case, or when USCIS last touched the record while the status wording stayed the same. Both appear here.
 
+Under each open case, **Everything USCIS sent** lists every response in full — one section per endpoint, each field labelled and in USCIS's own order, with the raw JSON one level further down. Nothing is filtered on the way through, so a field USCIS starts returning tomorrow shows up tomorrow.
+
 CaseLens does not predict decision dates and does not characterise a case as going well or badly. Where USCIS publishes a processing estimate for a case, the panel shows how much of that range has passed; otherwise it shows days elapsed.
 
 ## Privacy

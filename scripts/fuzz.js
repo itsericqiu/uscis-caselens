@@ -235,6 +235,33 @@ function expectedEvidence(A, view) {
   return types;
 }
 
+// Click every collapsed disclosure in a fake-DOM tree so lazily-rendered
+// content actually exists before a test inspects it. Returns how many were
+// opened — a caller that gets 0 has inspected nothing and should say so rather
+// than report success.
+function expandAll(node) {
+  // Opening a group renders its children, which may themselves be collapsed
+  // groups — so one pass is not enough. Iterate to a fixed point, bounded so a
+  // pathological shape cannot spin.
+  var total = 0;
+  for (var pass = 0; pass < 12; pass++) {
+    var state = { opened: 0, seen: 0 };
+    (function walk(n) {
+      if (!n || typeof n !== 'object' || state.seen > 4000) return;
+      state.seen++;
+      if (n.attributes && n.attributes['aria-expanded'] === 'false' &&
+          typeof n.dispatch === 'function') {
+        if (n.dispatch('click')) state.opened++;
+      }
+      var kids = n.childNodes || [];
+      for (var i = 0; i < kids.length; i++) walk(kids[i]);
+    })(node);
+    total += state.opened;
+    if (!state.opened) break;
+  }
+  return total;
+}
+
 // Walk the fake-DOM tree collecting every piece of text the panel would show.
 function collectText(node, out) {
   if (!node || typeof node !== 'object') return out;
@@ -419,6 +446,60 @@ run('render throw-safety + no leaked internals', fc.property(resultArb, function
     }
     return true;
   }), RUNS_HEAVY);
+})();
+
+// --- 7b. the record view walks arbitrary API shapes -------------------------
+// Unlike every other renderer, this one is not driven by a list of known
+// fields — it enumerates whatever arrived. So the shapes it must survive are
+// unbounded by construction, which is precisely what property testing is for.
+(function () {
+  // Arbitrary JSON-ish values, nested deeply enough to exercise the depth cap.
+  var jsonValueArb = fc.letrec(function (tie) {
+    return {
+      value: fc.oneof(
+        { weight: 6, arbitrary: fc.oneof(garbageArb, fc.string({ maxLength: 30 }),
+            fc.integer(), fc.boolean(), fc.constant(null)) },
+        { weight: 2, arbitrary: fc.array(tie('value'), { maxLength: 5 }) },
+        { weight: 2, arbitrary: fc.dictionary(
+            fc.oneof(fc.string({ minLength: 1, maxLength: 14 }),
+              fc.constantFrom('applicantName', 'address', 'letterId', 'receiptNumber',
+                'formType', '__proto__', 'constructor')),
+            tie('value'), { maxKeys: 6 }) }
+      )
+    };
+  }).value;
+
+  var R = internals.load({ redact: true });
+
+  run('record view renders any shape without throwing', fc.property(jsonValueArb, function (v) {
+    var node = R.buildRecordFields({ data: v });   // must not throw
+    return !!node;
+  }), RUNS_HEAVY);
+
+  // The privacy property that matters: with redaction on, no sensitive field's
+  // value can reach rendered text, at any depth, inside any container.
+  run('record view never renders a sensitive value when redaction is on', fc.property(
+    fc.oneof(
+      fc.record({ applicantName: fc.constant('SECRET-NAME') }),
+      fc.record({ nested: fc.record({ address: fc.constant('SECRET-NAME') }) }),
+      fc.record({ list: fc.array(fc.record({ letterId: fc.constant('SECRET-NAME') }), { minLength: 1, maxLength: 3 }) }),
+      fc.record({ deep: fc.record({ deeper: fc.record({ email: fc.constant('SECRET-NAME') }) }) })
+    ),
+    function (payload) {
+      var node = R.buildRecordFields({ data: payload });
+      // Groups render lazily, so force every collapsed body open before
+      // reading the text — an unopened group passes this test vacuously,
+      // which is exactly what it did until the fake DOM learned to dispatch.
+      // (A flat payload has nothing to open, which is fine; the anti-vacuity
+      // check is that SOMETHING rendered, not that a group existed.)
+      expandAll(node);
+      var texts = collectText(node, []);
+      if (!texts.length) return false;   // rendered nothing means checked nothing
+      for (var i = 0; i < texts.length; i++) {
+        if (texts[i].indexOf('SECRET-NAME') !== -1) return false;
+      }
+      return true;
+    }), RUNS_HEAVY);
 })();
 
 // --- 8. scalar helpers over the garbage pool --------------------------------

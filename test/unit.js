@@ -443,6 +443,46 @@ function run() {
       'nothing is masked when the setting is off');
   })();
 
+  // The record view renders values individually, so it cannot use the regex
+  // above — it uses redactFieldValue instead. Two redactors are two chances to
+  // drift, and the drift would be invisible: the screen would look right while
+  // a name sat in plain view. These tests hold them to the same policy.
+  describe('redactFieldValue — the record view hides exactly what the JSON view hides');
+  (function () {
+    var R = internals.load({ redact: true });
+    var SENSITIVE = ['applicantName', 'representativeName', 'address', 'city',
+      'email', 'phoneNumber', 'dateOfBirth', 'alienNumber', 'letterId', 'contentId'];
+    var drifted = [];
+    SENSITIVE.forEach(function (field) {
+      // Hidden by the walker?
+      var walked = R.redactFieldValue(field, 'SENSITIVE VALUE');
+      // Hidden by the JSON path?
+      var json = R.redactRawJson('{"' + field + '": "SENSITIVE VALUE"}');
+      var walkerHides = walked === '[hidden]';
+      var jsonHides = json.indexOf('SENSITIVE VALUE') === -1;
+      if (walkerHides !== jsonHides) drifted.push(field);
+    });
+    eq(drifted.join(','), '', 'both renderers agree on every sensitive field');
+
+    eq(R.redactFieldValue('APPLICANTNAME', 'X'), '[hidden]', 'field match is case-insensitive');
+    eq(R.redactFieldValue('formType', 'I-485'), 'I-485', 'ordinary fields pass through');
+    ok(String(R.redactFieldValue('someOtherField', 'see IOE0912345678 here')).indexOf('IOE0912345678') === -1,
+      'a receipt number inside an ordinary value is still masked');
+    eq(R.redactFieldValue('closed', false), false, 'non-strings are returned unchanged');
+
+    var off2 = internals.load({ redact: false });
+    eq(off2.redactFieldValue('applicantName', 'X'), 'X', 'nothing hidden when the setting is off');
+  })();
+
+  describe('humanizeFieldKey — mechanical, no dictionary');
+  eq(A.humanizeFieldKey('submissionTimestamp'), 'Submission timestamp', 'camelCase splits');
+  eq(A.humanizeFieldKey('isPremiumProcessed'), 'Is premium processed', 'leading verb kept');
+  eq(A.humanizeFieldKey('receipt_number'), 'Receipt number', 'underscores split');
+  eq(A.humanizeFieldKey('jurisdictionDescription'), 'Jurisdiction description', 'USCIS wording kept');
+  eq(A.humanizeFieldKey('x'), 'X', 'single character survives');
+  eq(A.humanizeFieldKey('letterID'), 'Letter ID', 'acronyms are not lowercased');
+  eq(A.humanizeFieldKey(''), '', 'empty key does not throw');
+
   describe('isValidReceiptNumber');
   ok(A.isValidReceiptNumber('IOE0912345678'), 'IOE accepted');
   ok(A.isValidReceiptNumber('EAC2412345678'), 'paper-filed prefix accepted (format is the rule)');
