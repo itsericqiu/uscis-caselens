@@ -4,6 +4,19 @@ Notable changes per release. The section matching a tag becomes that release's
 notes on GitHub, so keep entries written for someone deciding whether to update
 — not for someone reading a commit log.
 
+## 1.20.1
+
+- Fixed: the Print… choice was unreadable on a phone. It rendered as a 14px
+  sliver above the footer, with its buttons technically clickable but too
+  small to see. The popover was mounted inside the footer, which carries a
+  backdrop-filter and so becomes the anchor for anything positioned inside
+  it — leaving the panel's height rule to resolve against a 34px strip and
+  collapse the contents. It now mounts on the panel, the same place the
+  settings popover uses, sizes itself to fit a narrow panel rather than a
+  fixed 262px, and scrolls instead of overflowing when the panel is short.
+- "Full record" now looks like the primary action it is; it was rendering as
+  plain text next to two outlined buttons.
+
 ## 1.20.0
 
 - A second way to get a record out of the panel: **Print…**, in the footer

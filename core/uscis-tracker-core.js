@@ -34,7 +34,7 @@
   // SECTION 1: Constants
   // ==========================================================================
 
-  var VERSION = '1.20.0';
+  var VERSION = '1.20.1';
 
   var STORAGE_KEYS = {
     cases: 'uscisTracker.cases.v1',      // [{ number, label, addedAt }]
@@ -3508,7 +3508,7 @@
         'Nothing is sent anywhere.' }));
 
     wrap.appendChild(el('button', {
-      'class': 'uscistr-btn uscistr-btn-sm', type: 'button', text: 'Full record',
+      'class': 'uscistr-btn uscistr-btn-sm uscistr-btn-primary', type: 'button', text: 'Full record',
       onclick: function () { closeFn(); printRecord(entries, false); }
     }));
     wrap.appendChild(el('div', { 'class': 'uscistr-popover-desc',
@@ -3639,7 +3639,13 @@
       el('span', { 'class': 'uscistr-footer-sep', text: '|' }),
       el('span', { 'class': 'uscistr-version', text: 'v' + VERSION })
     ]);
-    return el('div', { 'class': 'uscistr-footer' }, [left, right, buildPrintChoice()]);
+    // The print choice is NOT a child of the footer. The footer carries a
+    // backdrop-filter, which makes it a containing block for absolutely
+    // positioned descendants — so a popover mounted here anchors to a 34px
+    // strip, and `max-height: calc(100% - 52px)` resolves against 34px and
+    // collapses the whole thing to a sliver. It goes on the panel instead,
+    // exactly where the settings popover goes.
+    return el('div', { 'class': 'uscistr-footer' }, [left, right]);
   }
 
   // ---- settings popover -----------------------------------------------------
@@ -6980,6 +6986,7 @@
 
     panel.appendChild(buildFooter());
     if (uiState.settingsOpen) panel.appendChild(buildSettingsPopover());
+    if (uiState.printFor) panel.appendChild(buildPrintChoice());
 
     return panel;
   }

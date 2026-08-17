@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CaseLens — Unofficial USCIS Case Tracker
 // @namespace    https://github.com/itsericqiu/uscis-caselens
-// @version      1.20.0
+// @version      1.20.1
 // @description  See all your USCIS cases in one place. Everything stays in your browser.
 // @match        https://my.uscis.gov/*
 // @run-at       document-idle
@@ -2280,17 +2280,33 @@ var CASELENS_STYLE = [
   ".uscistr-root .uscistr-code-copy { align-self: flex-start; margin-top: var(--ust-s2); }",
 
   // The print choice — full record or masked copy — reuses the popover shell
-  // but is raised by a footer button, not the header gear, so it is anchored
-  // to the bottom instead of `top: 42px`. Three classes deep, so it outranks
-  // the base rule wherever it sits in the file.
+  // but is raised by a footer button, not the header gear, so it sits above
+  // the 34px footer instead of below the header. Three classes deep, so it
+  // outranks the base rule wherever it sits in the file.
+  //
+  // It is mounted on the panel, never inside the footer: the footer carries a
+  // backdrop-filter, which makes it a containing block, and anchoring here to
+  // a 34px strip collapsed the popover to a 14px sliver on a phone.
+  //
+  // Width is a maximum rather than a fixed 262px, and both edges are pinned,
+  // so on a narrow panel the popover shrinks to fit instead of overflowing.
+  // `flex: none` on the children is load-bearing: as flex items under a
+  // max-height they shrank to 0-2px tall and the content vanished.
   ".uscistr-root .uscistr-popover.uscistr-print-choice {",
   "  top: auto;",
   "  bottom: 42px;",
+  "  left: var(--ust-s5);",
+  "  right: var(--ust-s5);",
+  "  width: auto;",
+  "  max-width: 262px;",
+  "  margin-left: auto;",
   "  display: flex;",
   "  flex-direction: column;",
   "  gap: var(--ust-s2);",
   "  transform-origin: bottom right;",
   "}",
+  ".uscistr-root .uscistr-print-choice > * { flex: none; }",
+  ".uscistr-root .uscistr-print-choice .uscistr-btn { width: 100%; }",
   ".uscistr-root .uscistr-print-choice .uscistr-popover-desc { margin-bottom: var(--ust-s3); }",
 
   // The printed record. Built into .uscistr-print inside .uscistr-root, kept
@@ -2523,7 +2539,7 @@ var CASELENS_STYLE = [
   // SECTION 1: Constants
   // ==========================================================================
 
-  var VERSION = '1.20.0';
+  var VERSION = '1.20.1';
 
   var STORAGE_KEYS = {
     cases: 'uscisTracker.cases.v1',      // [{ number, label, addedAt }]
@@ -5997,7 +6013,7 @@ var CASELENS_STYLE = [
         'Nothing is sent anywhere.' }));
 
     wrap.appendChild(el('button', {
-      'class': 'uscistr-btn uscistr-btn-sm', type: 'button', text: 'Full record',
+      'class': 'uscistr-btn uscistr-btn-sm uscistr-btn-primary', type: 'button', text: 'Full record',
       onclick: function () { closeFn(); printRecord(entries, false); }
     }));
     wrap.appendChild(el('div', { 'class': 'uscistr-popover-desc',
@@ -6128,7 +6144,13 @@ var CASELENS_STYLE = [
       el('span', { 'class': 'uscistr-footer-sep', text: '|' }),
       el('span', { 'class': 'uscistr-version', text: 'v' + VERSION })
     ]);
-    return el('div', { 'class': 'uscistr-footer' }, [left, right, buildPrintChoice()]);
+    // The print choice is NOT a child of the footer. The footer carries a
+    // backdrop-filter, which makes it a containing block for absolutely
+    // positioned descendants — so a popover mounted here anchors to a 34px
+    // strip, and `max-height: calc(100% - 52px)` resolves against 34px and
+    // collapses the whole thing to a sliver. It goes on the panel instead,
+    // exactly where the settings popover goes.
+    return el('div', { 'class': 'uscistr-footer' }, [left, right]);
   }
 
   // ---- settings popover -----------------------------------------------------
@@ -9469,6 +9491,7 @@ var CASELENS_STYLE = [
 
     panel.appendChild(buildFooter());
     if (uiState.settingsOpen) panel.appendChild(buildSettingsPopover());
+    if (uiState.printFor) panel.appendChild(buildPrintChoice());
 
     return panel;
   }

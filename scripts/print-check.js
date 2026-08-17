@@ -156,6 +156,23 @@ var STUB = '(function(){' +
   '    saysMasked: doc ? doc.textContent.indexOf("Masked copy")!==-1 : null' +
   '  };};return "stubbed";})()';
 
+// Measures the open choice popover: what it is anchored to, how tall it ended
+// up, whether it fits its panel, and whether its children have real height.
+var POPOVER_GEOMETRY = '(function(){' +
+  'var pop=document.querySelector(".uscistr-print-choice");' +
+  'if(!pop) return JSON.stringify({found:false});' +
+  'var panel=document.querySelector(".uscistr-panel");' +
+  'var r=pop.getBoundingClientRect(), pa=panel.getBoundingClientRect();' +
+  'var kids=[].slice.call(pop.children).map(function(c){return c.getBoundingClientRect().height;});' +
+  'return JSON.stringify({' +
+  '  found:true,' +
+  '  offsetParent: pop.offsetParent ? String(pop.offsetParent.className||"").trim().split(/\\s+/)[0] : null,' +
+  '  height: Math.round(r.height), width: Math.round(r.width),' +
+  '  insidePanel: (r.top >= pa.top - 1 && r.bottom <= pa.bottom + 1 &&' +
+  '                r.left >= pa.left - 1 && r.right <= pa.right + 1),' +
+  '  smallestChild: kids.length ? Math.round(Math.min.apply(null, kids)) : -1' +
+  '});})()';
+
 function clickText(label) {
   return '(function(){var b=[].slice.call(document.querySelectorAll(".uscistr-root button"))' +
     '.filter(function(x){return (x.textContent||"").trim()===' + JSON.stringify(label) + ';})[0];' +
@@ -328,6 +345,24 @@ function runChecks(CDP) {
       return sleep(POPOVER_WAIT_MS);
     })
     .then(function () {
+      // The choice popover's own geometry. It shipped collapsed to a 14px
+      // sliver on a phone: mounted inside the footer, whose backdrop-filter
+      // makes it a containing block, so `max-height: calc(100% - 52px)`
+      // resolved against 34px and squashed every child to nothing. Assert the
+      // anchor and the resulting size, not just that the buttons are clickable
+      // — they were clickable while being invisible.
+      return client.eval(POPOVER_GEOMETRY);
+    })
+    .then(function (raw) {
+      var g = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      check(g && g.found, 'print choice popover is in the DOM', JSON.stringify(g));
+      check(g && g.offsetParent === 'uscistr-panel',
+        'popover anchors to the panel, not the footer', 'anchored to ' + (g && g.offsetParent));
+      check(g && g.height >= 120,
+        'popover is not collapsed (>=120px tall)', 'height was ' + (g && g.height) + 'px');
+      check(g && g.insidePanel, 'popover sits inside the panel bounds', JSON.stringify(g));
+      check(g && g.smallestChild >= 12,
+        'popover children are not squashed flat', 'smallest child ' + (g && g.smallestChild) + 'px');
       return client.eval(clickText('Full record'));
     })
     .then(function (clicked) {
