@@ -11,6 +11,20 @@
 // No framework, no dependencies — same rule as the rest of the project.
 
 var internals = require('./internals.js');
+var fs = require('fs');
+var path = require('path');
+var vm = require('vm');
+
+// test/fixtures.js is a plain script that assigns window.USCIS_FIXTURES; it
+// is not a module, so it is loaded the same way internals.js loads the core:
+// evaluated in a tiny sandbox and its output read back off `window`.
+function loadFixtures() {
+  var src = fs.readFileSync(path.join(__dirname, 'fixtures.js'), 'utf8');
+  var sandbox = { window: {} };
+  vm.createContext(sandbox);
+  vm.runInContext(src, sandbox, { filename: 'fixtures.js' });
+  return sandbox.window.USCIS_FIXTURES;
+}
 
 var passed = 0;
 var failures = [];
@@ -505,6 +519,194 @@ function run() {
   describe('plural');
   eq(A.plural(1, 'change'), '1 change', 'singular');
   eq(A.plural(2, 'change'), '2 changes', 'plural');
+
+  // --- the printable record --------------------------------------------------
+  // buildPrintDocument/buildPrintCase/buildPrintFields build a detached DOM
+  // tree that the browser turns into a PDF. This is the file's first
+  // DOM-building test, so it carries its own small tree walkers rather than
+  // reusing scripts/fuzz.js's (a unit test should not depend on the fuzzer).
+  describe('print record');
+  (function () {
+    function textOf(node, out) {
+      out = out || [];
+      if (!node || typeof node !== 'object') return out;
+      if (typeof node.textContent === 'string' && node.textContent) out.push(node.textContent);
+      if (typeof node.text === 'string' && node.text) out.push(node.text);
+      var kids = node.childNodes || [];
+      for (var i = 0; i < kids.length; i++) textOf(kids[i], out);
+      return out;
+    }
+
+    // Tag census: { DIV: 12, SPAN: 4, ... } across the whole tree.
+    function tagsIn(node, out) {
+      out = out || {};
+      if (!node || typeof node !== 'object') return out;
+      if (node.tagName) out[node.tagName] = (out[node.tagName] || 0) + 1;
+      var kids = node.childNodes || [];
+      for (var i = 0; i < kids.length; i++) tagsIn(kids[i], out);
+      return out;
+    }
+
+    // Every value a given attribute takes across the tree (its mere presence
+    // is what the aria-expanded check below cares about).
+    function attrsIn(node, name, out) {
+      out = out || [];
+      if (!node || typeof node !== 'object') return out;
+      if (node.attributes && Object.prototype.hasOwnProperty.call(node.attributes, name)) {
+        out.push(node.attributes[name]);
+      }
+      var kids = node.childNodes || [];
+      for (var i = 0; i < kids.length; i++) attrsIn(kids[i], name, out);
+      return out;
+    }
+
+    var FIXTURES = loadFixtures();
+    var CASE_1 = FIXTURES.normal.cases['IOE0000000001'];
+
+    function fixtureEntry(number, caseData, over) {
+      var entry = {
+        number: number, label: null, addedAt: Date.now(),
+        result: {
+          caseDetail: caseData.detail, caseStatus: caseData.status,
+          documents: caseData.documents, location: { __empty: true },
+          processingTimes: { __empty: true }, succeededAt: Date.now()
+        },
+        changedSince: false, loading: false
+      };
+      var k;
+      if (over) for (k in over) entry[k] = over[k];
+      return entry;
+    }
+
+    // 1. empty document still carries the standing "not official" warning.
+    (function () {
+      var R = internals.load({ redact: false });
+      var doc = R.buildPrintDocument([], { redact: false });
+      var texts = textOf(doc);
+      ok(texts.join(' | ').indexOf('Not issued by USCIS') !== -1,
+        'empty document states it is not issued by USCIS', texts.join(' | '));
+    })();
+
+    // 2. masked says "Masked copy", full does not.
+    (function () {
+      var R = internals.load({ redact: false });
+      var masked = textOf(R.buildPrintDocument([], { redact: true })).join(' | ');
+      var full = textOf(R.buildPrintDocument([], { redact: false })).join(' | ');
+      ok(masked.indexOf('Masked copy') !== -1, 'masked document says "Masked copy"', masked);
+      ok(full.indexOf('Masked copy') === -1, 'full document does not say "Masked copy"', full);
+    })();
+
+    // 3. full document says "Full record".
+    (function () {
+      var R = internals.load({ redact: false });
+      var full = textOf(R.buildPrintDocument([], { redact: false })).join(' | ');
+      ok(full.indexOf('Full record') !== -1, 'full document says "Full record"', full);
+    })();
+
+    // 4/5. a real fixture entry: masked hides the receipt number and the
+    // applicant's name; full shows the receipt number. The mirror (#5) exists
+    // so #4 cannot pass by having rendered nothing (see the `_handlers`
+    // comment in test/internals.js — a record-view privacy test once did
+    // exactly that).
+    (function () {
+      var entry = fixtureEntry('IOE0000000001', CASE_1);
+      var Rmask = internals.load({ redact: true });
+      Rmask.buildCaseView(entry);
+      var maskedTexts = textOf(Rmask.buildPrintDocument([entry], { redact: true }));
+      ok(maskedTexts.length > 0, 'masked document rendered something to check',
+        JSON.stringify(maskedTexts).slice(0, 500));
+      var maskedJoined = maskedTexts.join(' | ');
+      ok(maskedJoined.indexOf('IOE0000000001') === -1,
+        'masked document never shows the full receipt number', maskedJoined.slice(0, 500));
+      ok(maskedJoined.indexOf(CASE_1.detail.applicantName) === -1,
+        'masked document never shows the applicant name', maskedJoined.slice(0, 500));
+
+      var entry2 = fixtureEntry('IOE0000000001', CASE_1);
+      var Rfull = internals.load({ redact: false });
+      Rfull.buildCaseView(entry2);
+      var fullTexts = textOf(Rfull.buildPrintDocument([entry2], { redact: false }));
+      ok(fullTexts.length > 0, 'full document rendered something to check',
+        JSON.stringify(fullTexts).slice(0, 500));
+      var fullJoined = fullTexts.join(' | ');
+      ok(fullJoined.indexOf('IOE0000000001') !== -1,
+        'the mirror: full document DOES show the full receipt number ' +
+        '(without this, the masked check above could pass vacuously)', fullJoined.slice(0, 500));
+    })();
+
+    // 6. nothing collapsed, nothing a control. my.uscis.gov's own print
+    // stylesheet contains `a[href]::after { content: " (" attr(href) ")" }`,
+    // so an anchor here would have raw URLs injected into a printed
+    // immigration record by a rule this project does not control — hence no
+    // <a>, no <button>, and (since buildIcon paints only via CSS classes,
+    // invisible on paper) no <svg> either. And paper cannot click, so nothing
+    // may be left collapsed behind an aria-expanded control.
+    (function () {
+      var entry = fixtureEntry('IOE0000000001', CASE_1);
+      var R = internals.load({ redact: false });
+      R.buildCaseView(entry);
+      var doc = R.buildPrintDocument([entry], { redact: false });
+      var expandedAttrs = attrsIn(doc, 'aria-expanded');
+      eq(expandedAttrs.length, 0, 'no node in a printed document carries aria-expanded');
+      var tags = tagsIn(doc);
+      eq(tags.A || 0, 0, 'no <a> in a printed document');
+      eq(tags.BUTTON || 0, 0, 'no <button> in a printed document');
+      eq(tags.SVG || 0, 0, 'no <svg> in a printed document');
+    })();
+
+    // 7. buildPrintFields is eager: it does not need clicks to reveal nested
+    // content, unlike the screen version's disclosures.
+    (function () {
+      var R = internals.load({ redact: false });
+      var node = R.buildPrintFields({ a: { b: { c: 'deep-value' } } }, false);
+      var texts = textOf(node).join(' | ');
+      ok(texts.indexOf('deep-value') !== -1,
+        'a deeply nested value renders without any clicks', texts);
+    })();
+
+    // 8. one case block per entry.
+    (function () {
+      var CASE_2 = FIXTURES.normal.cases['IOE0000000002'];
+      var entryA = fixtureEntry('IOE0000000001', CASE_1);
+      var entryB = fixtureEntry('IOE0000000002', CASE_2);
+      var R = internals.load({ redact: false });
+      R.buildCaseView(entryA);
+      R.buildCaseView(entryB);
+      var doc = R.buildPrintDocument([entryA, entryB], { redact: false });
+      var count = 0;
+      (function walk(n) {
+        if (!n || typeof n !== 'object') return;
+        if (typeof n.className === 'string' && n.className.indexOf('uscistr-print-case') !== -1) count++;
+        var kids = n.childNodes || [];
+        for (var i = 0; i < kids.length; i++) walk(kids[i]);
+      })(doc);
+      eq(count, 2, 'two entries produce exactly two case blocks');
+    })();
+
+    // 9. redactValueWith is the policy; redactFieldValue must not have forked
+    // from it.
+    (function () {
+      eq(A.redactValueWith('applicantName', 'NAME', true), '[hidden]',
+        'redactValueWith hides a sensitive field when on');
+      eq(A.redactValueWith('applicantName', 'NAME', false), 'NAME',
+        'redactValueWith passes it through when off');
+
+      var R = internals.load({ redact: true });
+      eq(R.redactFieldValue('applicantName', 'NAME'), A.redactValueWith('applicantName', 'NAME', true),
+        'redactFieldValue (the stored-preference wrapper) agrees with redactValueWith (the explicit policy)');
+    })();
+
+    // 10. no successful check this session still produces a document that
+    // says so, rather than throwing or rendering nothing.
+    (function () {
+      var entry = { number: 'IOE0000000001', label: null, addedAt: Date.now(),
+        result: null, changedSince: false, loading: false };
+      var R = internals.load({ redact: false });
+      R.buildCaseView(entry);
+      var texts = textOf(R.buildPrintDocument([entry], { redact: false })).join(' | ');
+      ok(texts.indexOf('No successful check in this browser session') !== -1,
+        'a case with no result says it had no successful check', texts);
+    })();
+  })();
 
   // ---------------------------------------------------------------------------
   if (failures.length) {

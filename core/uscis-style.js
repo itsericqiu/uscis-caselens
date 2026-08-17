@@ -36,6 +36,12 @@ var CASELENS_STYLE = [
   // five or six labels across a 400px panel. Named rather than left as a magic
   // number so it is obvious this is one exception, not a sixth step.
   "  --ust-fs-rail: 9.5px;      --ust-lh-rail: 1.2;",
+  // Print-document scale: a printed record is read at arm's length on paper,
+  // not in a 400px panel, so these steps are independent of the scale above.
+  "  --ust-fs-doc-title: 20px;   --ust-lh-doc-title: 1.25;",
+  "  --ust-fs-doc-head: 14px;    --ust-lh-doc-head: 1.3;",
+  "  --ust-fs-doc-body: 12px;    --ust-lh-doc-body: 1.45;",
+  "  --ust-fs-doc-meta: 9.5px;   --ust-lh-doc-meta: 1.35;",
   "  --ust-s1: 2px;  --ust-s2: 4px;  --ust-s3: 6px;  --ust-s4: 8px;  --ust-s5: 10px;",
   "  --ust-s6: 12px; --ust-s7: 16px; --ust-s8: 20px; --ust-s9: 24px; --ust-s10: 32px;",
   "  --ust-r-xs: 4px; --ust-r-sm: 6px; --ust-r-md: 8px;",
@@ -1560,5 +1566,212 @@ var CASELENS_STYLE = [
   ".uscistr-root .uscistr-footer .uscistr-btn-sm:hover { color: var(--ust-text-1); background: var(--ust-bg-hover); }",
   ".uscistr-root .uscistr-timeline-meta { font-size: var(--ust-fs-micro); line-height: 1.4; color: var(--ust-text-3); }",
   ".uscistr-root .uscistr-timeline-note { font-size: var(--ust-fs-micro); line-height: 1.45; color: var(--ust-text-3); }",
-  ".uscistr-root .uscistr-code-copy { align-self: flex-start; margin-top: var(--ust-s2); }"
+  ".uscistr-root .uscistr-code-copy { align-self: flex-start; margin-top: var(--ust-s2); }",
+
+  // The print choice — full record or masked copy — reuses the popover shell
+  // but is raised by a footer button, not the header gear, so it is anchored
+  // to the bottom instead of `top: 42px`. Three classes deep, so it outranks
+  // the base rule wherever it sits in the file.
+  ".uscistr-root .uscistr-popover.uscistr-print-choice {",
+  "  top: auto;",
+  "  bottom: 42px;",
+  "  display: flex;",
+  "  flex-direction: column;",
+  "  gap: var(--ust-s2);",
+  "  transform-origin: bottom right;",
+  "}",
+  ".uscistr-root .uscistr-print-choice .uscistr-popover-desc { margin-bottom: var(--ust-s3); }",
+
+  // The printed record. Built into .uscistr-print inside .uscistr-root, kept
+  // off-screen until a print starts (see main.js / uscistr-printing).
+  //
+  // This rule is deliberately a normal rule, not scoped to @media print: the
+  // container is invisible on screen by construction, so if the print
+  // teardown ever fails to run — a mid-print error, a browser that skips
+  // afterprint — nothing is left visible behind it.
+  ".uscistr-root .uscistr-print { display: none; }",
+
+  "@media print {",
+  "  html body.uscistr-printing > *:not(.uscistr-root) { display: none !important; }",
+  "  body.uscistr-printing {",
+  "    background: #FFFFFF !important;",
+  "    margin: 0 !important;",
+  "    padding: 0 !important;",
+  "    height: auto !important;",
+  "    min-height: 0 !important;",
+  "    overflow: visible !important;",
+  "  }",
+  "  body.uscistr-printing .uscistr-root {",
+  "    position: static !important;",
+  "    width: auto !important;",
+  "    height: auto !important;",
+  "    overflow: visible !important;",
+  "    display: block !important;",
+  "    pointer-events: auto !important;",
+  "    isolation: auto !important;",
+  "    color-scheme: light !important;",
+  "  }",
+  "  body.uscistr-printing .uscistr-panel,",
+  "  body.uscistr-printing .uscistr-pill { display: none !important; }",
+
+  // Colour split: font SIZE below always uses the --ust-fs-doc-* tokens, but
+  // colour is always a literal grey/black, never a --ust-* colour token. The
+  // panel supports a dark theme; a printed record must be black-on-white
+  // regardless of which theme was active on screen when it was generated.
+  // Spacing (--ust-s*), radii and font families (--ust-font/--ust-serif/
+  // --ust-mono) are theme-independent and safe to use here.
+  "  .uscistr-root .uscistr-print {",
+  "    display: block;",
+  "    color: #000000;",
+  "    background: #FFFFFF;",
+  "    font-family: var(--ust-font);",
+  "    font-size: var(--ust-fs-doc-body);",
+  "    line-height: var(--ust-lh-doc-body);",
+  "  }",
+  "  .uscistr-root .uscistr-print-cover {",
+  "    display: flex;",
+  "    flex-direction: column;",
+  "    gap: var(--ust-s4);",
+  "    padding-bottom: var(--ust-s7);",
+  "    margin-bottom: var(--ust-s7);",
+  "    border-bottom: 1px solid #000000;",
+  "  }",
+  "  .uscistr-root .uscistr-print-title {",
+  "    font-family: var(--ust-serif);",
+  "    font-size: var(--ust-fs-doc-title);",
+  "    line-height: var(--ust-lh-doc-title);",
+  "    font-weight: 600;",
+  "    color: #000000;",
+  "  }",
+  // Strength comes from a solid rule and generous padding, not colour — this
+  // banner has to read as unmistakable in pure greyscale.
+  "  .uscistr-root .uscistr-print-warn {",
+  "    margin-top: var(--ust-s4);",
+  "    padding: var(--ust-s4) var(--ust-s5);",
+  "    border: 2px solid #000000;",
+  "    font-weight: 700;",
+  "    text-align: center;",
+  "    text-transform: uppercase;",
+  "    letter-spacing: 0.04em;",
+  "    color: #000000;",
+  "  }",
+  "  .uscistr-root .uscistr-print-case {",
+  "    display: flex;",
+  "    flex-direction: column;",
+  "    gap: var(--ust-s6);",
+  "    padding-top: var(--ust-s7);",
+  "    break-before: page;",
+  "    page-break-before: always;",
+  "  }",
+  // No break-inside: avoid on the case itself — a case with a long timeline
+  // is routinely taller than one page, and asking the browser to avoid
+  // breaking inside it just makes it emit blank pages instead.
+  "  .uscistr-root .uscistr-print-case:first-child {",
+  "    padding-top: 0;",
+  "    break-before: auto;",
+  "    page-break-before: auto;",
+  "  }",
+  "  .uscistr-root .uscistr-print-h {",
+  "    font-family: var(--ust-serif);",
+  "    font-size: var(--ust-fs-doc-head);",
+  "    line-height: var(--ust-lh-doc-head);",
+  "    font-weight: 600;",
+  "    color: #000000;",
+  "    padding-bottom: var(--ust-s2);",
+  "    margin-bottom: var(--ust-s3);",
+  "    border-bottom: 1px solid #CCCCCC;",
+  "    break-after: avoid;",
+  "    page-break-after: avoid;",
+  "  }",
+  "  .uscistr-root .uscistr-print-block {",
+  "    display: flex;",
+  "    flex-direction: column;",
+  "    gap: var(--ust-s4);",
+  "    margin-bottom: var(--ust-s6);",
+  "    break-inside: avoid;",
+  "    page-break-inside: avoid;",
+  "  }",
+  "  .uscistr-root .uscistr-print-row {",
+  "    display: grid;",
+  "    grid-template-columns: 30% minmax(0, 1fr);",
+  "    gap: var(--ust-s4);",
+  "    align-items: baseline;",
+  "    padding: 2px 0;",
+  "    break-inside: avoid;",
+  "    page-break-inside: avoid;",
+  "  }",
+  "  .uscistr-root .uscistr-print-key { color: #444444; }",
+  "  .uscistr-root .uscistr-print-val { color: #000000; }",
+  "  .uscistr-root .uscistr-print-note {",
+  "    margin-top: var(--ust-s2);",
+  "    padding-left: var(--ust-s5);",
+  "    font-size: var(--ust-fs-doc-meta);",
+  "    line-height: var(--ust-lh-doc-meta);",
+  "    color: #444444;",
+  "    font-style: italic;",
+  "  }",
+  "  .uscistr-root .uscistr-print-meta {",
+  "    font-size: var(--ust-fs-doc-meta);",
+  "    line-height: var(--ust-lh-doc-meta);",
+  "    color: #767676;",
+  "  }",
+  // Same grid as a fact row, so a step and its date land on the column the
+  // facts above them already established. A document that changes its
+  // alignment halfway down a page reads as two documents.
+  "  .uscistr-root .uscistr-print-stage {",
+  "    display: grid;",
+  "    grid-template-columns: 30% minmax(0, 1fr);",
+  "    gap: var(--ust-s4);",
+  "    align-items: baseline;",
+  "    padding: 1px 0;",
+  "    color: #000000;",
+  "    break-inside: avoid;",
+  "    page-break-inside: avoid;",
+  "  }",
+  "  .uscistr-root .uscistr-print-event {",
+  "    display: flex;",
+  "    flex-direction: column;",
+  "    gap: 1px;",
+  "    padding: var(--ust-s2) 0;",
+  "    border-bottom: 1px solid #CCCCCC;",
+  "    break-inside: avoid;",
+  "    page-break-inside: avoid;",
+  "  }",
+  "  .uscistr-root .uscistr-print-prov {",
+  "    font-size: var(--ust-fs-doc-meta);",
+  "    line-height: var(--ust-lh-doc-meta);",
+  "    color: #767676;",
+  "  }",
+  "  .uscistr-root .uscistr-print-appendix {",
+  "    padding-top: var(--ust-s7);",
+  "    break-before: page;",
+  "    page-break-before: always;",
+  "  }",
+  "  .uscistr-root .uscistr-print-section { margin-bottom: var(--ust-s6); }",
+  // Indent and hairline left border, matching how .uscistr-rec-group-body
+  // shows nesting on screen.
+  "  .uscistr-root .uscistr-print-group {",
+  "    margin-left: 5px;",
+  "    padding-left: var(--ust-s4);",
+  "    border-left: 1px solid #CCCCCC;",
+  "  }",
+  "  .uscistr-root .uscistr-print-foot {",
+  "    margin-top: var(--ust-s8);",
+  "    padding-top: var(--ust-s4);",
+  "    border-top: 1px solid #000000;",
+  "    font-size: var(--ust-fs-doc-meta);",
+  "    line-height: var(--ust-lh-doc-meta);",
+  "    color: #767676;",
+  "  }",
+
+  // my.uscis.gov ships its own @media print rules: `a[href]::after { content:
+  // " (" attr(href) ")"; }` and `img { display: none !important; }`. The
+  // document is built with no anchors and no images by design; these rules
+  // make that a guarantee rather than a convention, since a host rule we do
+  // not control would otherwise splatter raw URLs into a printed
+  // immigration record.
+  "  .uscistr-root .uscistr-print a[href]::after { content: none !important; }",
+  "  .uscistr-root .uscistr-print img { display: none; }",
+  "}",
+  "@page { margin: 14mm 12mm; }"
 ].join('\n');

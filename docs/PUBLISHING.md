@@ -247,6 +247,8 @@ between paragraphs and between bullets.
 >   each field labelled and in the agency's own order, nothing filtered out.
 > • Nicknames, a JSON export of your full case record, receipt-number
 >   masking, and dark mode.
+> • An unofficial printable record — full or masked, chosen each time you
+>   print — through the browser's own print dialog. No bundled PDF library.
 > • Spanish status wording where it is supplied.
 >
 > PRIVACY

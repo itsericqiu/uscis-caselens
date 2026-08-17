@@ -28,6 +28,17 @@ read-only records file and nothing ingests it.)
 - The userscript declares `@grant none`. It has no access to privileged
   userscript-manager APIs and can do nothing that ordinary page JavaScript
   running on `my.uscis.gov` couldn't already do.
+- Printing adds no new capability. `Print…` builds the record document, mounts
+  it inside the panel's own root, sets a body class the print stylesheet keys
+  on, and hands off to `window.print()` — the browser's own print dialog,
+  where "Save as PDF" writes the file. No iframe, no blob, no popup, no
+  network request. Teardown — unmounting the document and clearing the body
+  class — runs from both a `finally` and the browser's `afterprint` event, so
+  it happens whether the print dialog is dismissed, completed, or the render
+  throws. The rules that hide the host page during a print are themselves
+  gated on that same body class, so the stylesheet is inert outside an active
+  print. The printed document itself contains no links, images or scripts, by
+  construction.
 
 ## No dynamic code, no injected markup
 

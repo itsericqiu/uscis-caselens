@@ -502,6 +502,94 @@ run('render throw-safety + no leaked internals', fc.property(resultArb, function
     }), RUNS_HEAVY);
 })();
 
+// --- 7c. the printable record ------------------------------------------------
+// buildPrintDocument/buildPrintCase/buildPrintFields build the DOM tree the
+// browser turns into a PDF (docs/design/06-print-record.md). Two properties
+// mirror what already holds for the screen record view — arbitrary shapes
+// render without throwing, and masked output never leaks a sensitive value —
+// plus two mirroring what already holds for the screen card render: the whole
+// buildCaseView -> buildPrintDocument pipeline never throws, and masking
+// never leaks the receipt number. The one property with no screen equivalent
+// is #2: the print walker has no disclosures to click, so expandAll must find
+// nothing left to open.
+(function () {
+  // Same shape as 7b's jsonValueArb, defined locally because 7b's is closed
+  // over that IIFE.
+  var jsonValueArb = fc.letrec(function (tie) {
+    return {
+      value: fc.oneof(
+        { weight: 6, arbitrary: fc.oneof(garbageArb, fc.string({ maxLength: 30 }),
+            fc.integer(), fc.boolean(), fc.constant(null)) },
+        { weight: 2, arbitrary: fc.array(tie('value'), { maxLength: 5 }) },
+        { weight: 2, arbitrary: fc.dictionary(
+            fc.oneof(fc.string({ minLength: 1, maxLength: 14 }),
+              fc.constantFrom('applicantName', 'address', 'letterId', 'receiptNumber',
+                'formType', '__proto__', 'constructor')),
+            tie('value'), { maxKeys: 6 }) }
+      )
+    };
+  }).value;
+
+  var R = internals.load({ redact: true });
+
+  run('print fields render any shape without throwing', fc.property(jsonValueArb, function (v) {
+    var node = R.buildPrintFields({ data: v }, false);   // must not throw
+    return !!node;
+  }), RUNS_HEAVY);
+
+  // The print walker is eager — no group is left collapsed for a reader to
+  // click, because paper cannot click. expandAll returns how many collapsed
+  // disclosures it found and opened; a print tree must offer none.
+  run('print fields are fully expanded', fc.property(jsonValueArb, function (v) {
+    var node = R.buildPrintFields({ data: v }, false);
+    return expandAll(node) === 0;
+  }), RUNS_HEAVY);
+
+  // Same sensitive-field shapes as 7b's leak property, run through the print
+  // builder instead of the record view.
+  run('masked print never renders a sensitive value', fc.property(
+    fc.oneof(
+      fc.record({ applicantName: fc.constant('SECRET-NAME') }),
+      fc.record({ nested: fc.record({ address: fc.constant('SECRET-NAME') }) }),
+      fc.record({ list: fc.array(fc.record({ letterId: fc.constant('SECRET-NAME') }), { minLength: 1, maxLength: 3 }) }),
+      fc.record({ deep: fc.record({ deeper: fc.record({ email: fc.constant('SECRET-NAME') }) }) })
+    ),
+    function (payload) {
+      var node = R.buildPrintFields({ data: payload }, true);
+      var texts = collectText(node, []);
+      if (!texts.length) return false;   // rendered nothing means checked nothing
+      for (var i = 0; i < texts.length; i++) {
+        if (texts[i].indexOf('SECRET-NAME') !== -1) return false;
+      }
+      return true;
+    }), RUNS_HEAVY);
+})();
+
+(function () {
+  var R4 = internals.load({ redact: false });
+  run('a whole-case print never throws', fc.property(resultArb, function (res) {
+    var entry = { number: 'IOE0000000001', label: null, addedAt: NOW, result: res,
+      changedSince: false, loading: false };
+    R4.buildCaseView(entry);
+    var doc = R4.buildPrintDocument([entry], { redact: false, generatedAt: NOW });
+    return collectText(doc, []).length > 0;
+  }), RUNS_HEAVY);
+
+  var R5 = internals.load({ redact: true });
+  run('masked whole-case print never leaks the receipt number', fc.property(resultArb, function (res) {
+    var entry = { number: 'IOE0000000001', label: null, addedAt: NOW, result: res,
+      changedSince: false, loading: false };
+    R5.buildCaseView(entry);
+    var doc = R5.buildPrintDocument([entry], { redact: true, generatedAt: NOW });
+    var texts = collectText(doc, []);
+    if (!texts.length) return false;   // rendered nothing means checked nothing
+    for (var i = 0; i < texts.length; i++) {
+      if (texts[i].indexOf('IOE0000000001') !== -1) return false;
+    }
+    return true;
+  }), RUNS_HEAVY);
+})();
+
 // --- 8. scalar helpers over the garbage pool --------------------------------
 run('scalar helpers never throw', fc.property(garbageArb, function (g) {
   A.parseUscisDate(g); A.relativeDate(g); A.formatDateFull(g); A.stripHtml(g);

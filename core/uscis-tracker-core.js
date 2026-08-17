@@ -34,7 +34,7 @@
   // SECTION 1: Constants
   // ==========================================================================
 
-  var VERSION = '1.19.0';
+  var VERSION = '1.20.0';
 
   var STORAGE_KEYS = {
     cases: 'uscisTracker.cases.v1',      // [{ number, label, addedAt }]
@@ -1545,19 +1545,34 @@
   // nothing in — silently, with names left on screen. Extracting the decision
   // means one list governs both, and adding a field to REDACT_JSON_FIELDS
   // protects both at once. test/unit.js holds them to agreement.
-  function redactFieldValue(key, value) {
-    if (!state.prefs || !state.prefs.redact) return value;
+  // The policy above with the preference lookup pulled out, so a caller that
+  // is not reading from stored prefs — the printable record, which must be
+  // able to render masked or full regardless of the "Hide receipt numbers"
+  // setting — can hand in the choice explicitly instead of going through
+  // state. Takes no state; pure in on -> out.
+  function redactValueWith(key, value, on) {
+    if (!on) return value;
     if (typeof key === 'string' && REDACT_FIELD_SET[key.toLowerCase()]) return '[hidden]';
     if (typeof value !== 'string') return value;
     return value.replace(/[A-Z]{3}[0-9]{10}/gi, function (n) { return redactNumber(n); });
+  }
+
+  // Thin wrapper kept so the rest of the panel — which renders from the
+  // stored preference, not an explicit choice — can keep calling this name
+  // unchanged.
+  function redactFieldValue(key, value) {
+    return redactValueWith(key, value, !!(state.prefs && state.prefs.redact));
   }
 
   // "Hide receipt numbers" is used before sharing a screenshot, so it has to
   // cover the raw JSON too — that payload carries names, addresses and
   // document ids as well as the receipt number, and masking the card heading
   // while leaving them visible one click away defeats the point.
-  function redactRawJson(text) {
-    if (!state.prefs || !state.prefs.redact) return text;
+  // Same split as redactValueWith: the policy takes an explicit on/off so a
+  // renderer outside the panel — the printable record — can choose masked or
+  // full without going through the stored preference. Pure; reads no state.
+  function redactJsonWith(text, on) {
+    if (!on) return text;
     if (typeof text !== 'string') return text;
 
     // The value pattern must consume escaped quotes. `[^"]*` stopped at the
@@ -1571,22 +1586,42 @@
       .replace(valueRe, '$1"[hidden]"');
   }
 
+  // Thin wrapper kept for existing callers that render from the stored
+  // preference rather than an explicit choice.
+  function redactRawJson(text) {
+    return redactJsonWith(text, !!(state.prefs && state.prefs.redact));
+  }
+
+  // Policy for a case number's display form, given an explicit on/off rather
+  // than the stored preference — needed so the printable record can render
+  // masked or full independent of "Hide receipt numbers". Reads no state.
+  function numberFor(n, on) {
+    if (on) return redactNumber(n);
+    return n;
+  }
+
   // Case number as it should be shown in the UI, honoring the user's redact
   // preference.
   function displayNumber(n) {
-    if (state.prefs && state.prefs.redact) return redactNumber(n);
-    return n;
+    return numberFor(n, !!(state.prefs && state.prefs.redact));
   }
 
   // USCIS names document files after the receipt number, so the document list
   // printed the number in full — in visible text and in the title attribute —
   // while "Hide receipt numbers" was on. The document list is exactly what
   // gets scrolled past on the screen share this setting exists for.
-  function displayFileName(name) {
-    if (!name || !state.prefs || !state.prefs.redact) return name;
+  // Policy for a file name's display form, split out from the preference for
+  // the same reason as numberFor: the printable record needs an explicit
+  // masked/full choice, not the stored setting. Reads no state.
+  function fileNameFor(name, on) {
+    if (!name || !on) return name;
     return String(name).replace(/[A-Z]{3}[0-9]{10}/gi, function (match) {
       return redactNumber(match);
     });
+  }
+
+  function displayFileName(name) {
+    return fileNameFor(name, !!(state.prefs && state.prefs.redact));
   }
 
   // Plain-text summary of one case, suitable for copying to clipboard (e.g.
@@ -1903,7 +1938,8 @@
     addOpen: false,               // the add-case form is collapsed until asked for
     openNumber: null,             // the one open case, for this page view only
     panelMounted: false,          // has the panel been on screen since last opened
-    renderedWide: false           // layout actually on screen, so resize can compare
+    renderedWide: false,          // layout actually on screen, so resize can compare
+    printFor: null                // 'all', or a receipt number, while the print choice is open
   };
   // Per-case reading state — which disclosures are open on which card. Keyed
   // by receipt number, and lasts exactly as long as the page does.
@@ -2986,6 +3022,531 @@
     };
   }
 
+  // ==========================================================================
+  // The printable record (docs/design/06-print-record.md)
+  // ==========================================================================
+  // The second way a record leaves this panel. The JSON file above is the
+  // archive; this is the thing a person hands to an attorney. Same data, laid
+  // out to be read on paper.
+  //
+  // Everything below is a PURE builder: entries in, detached DOM out, no
+  // reading of state.prefs and no touching of the live document. The redaction
+  // choice arrives in `opts` because it is made per print, not read from the
+  // stored setting — see redactValueWith. That purity is what makes the whole
+  // document fuzzable for the one property that matters: a masked copy must
+  // never render a sensitive value at any depth.
+  //
+  // Three rules this document lives by, all of them load-bearing:
+  //
+  //   1. No anchors, no images, no icons. my.uscis.gov's own print stylesheet
+  //      carries `a[href]::after { content: " (" attr(href) ")" }` and
+  //      `img { display: none !important }`. An anchor here would have raw
+  //      URLs splattered through it by a rule this project does not control.
+  //      buildIcon's SVG paints only via CSS classes, so icons would print as
+  //      invisible boxes. Text only, throughout.
+  //   2. Nothing collapsed. Every disclosure the panel folds — timeline beyond
+  //      four, nested record groups, the raw JSON — is rendered open here.
+  //      Paper has no click.
+  //   3. It never looks official. No seal, no eagle, no agency mark, no
+  //      federal blue, no signature line. The word "Unofficial" leads the
+  //      document and closes every case block.
+  var PRINT_UNOFFICIAL = 'Unofficial document. Not issued by USCIS.';
+
+  // Where each timeline row came from, in words. A printed timeline handed to
+  // an attorney has to separate what the agency reported from what this panel
+  // noticed between two checks; on screen that distinction is carried by a
+  // glyph, and a glyph does not survive a photocopier.
+  var PRINT_PROVENANCE = {
+    official: 'reported by USCIS',
+    coded: 'reported by USCIS',
+    notice: 'reported by USCIS',
+    document: 'reported by USCIS',
+    anchor: 'from the filing date',
+    local: 'observed by CaseLens between checks'
+  };
+
+  function printHeading(text) {
+    return el('div', { 'class': 'uscistr-print-h', text: text });
+  }
+
+  function printNote(text) {
+    return el('div', { 'class': 'uscistr-print-note', text: text });
+  }
+
+  function printRow(label, value) {
+    return el('div', { 'class': 'uscistr-print-row' }, [
+      el('span', { 'class': 'uscistr-print-key', text: label }),
+      el('span', { 'class': 'uscistr-print-val', text: value })
+    ]);
+  }
+
+  // The facts block skips a row it has no answer for. The appendix does not —
+  // there, a field USCIS sent empty is different from one it never sent, and
+  // that distinction is the whole point of printing the raw data.
+  function printRowIf(parent, label, value) {
+    if (value === null || value === undefined || value === '') return;
+    parent.appendChild(printRow(label, String(value)));
+  }
+
+  function printDateAndTime(ms, precision) {
+    if (ms === null || ms === undefined) return null;
+    var text = formatDateFull(ms);
+    if (precision && precision !== 'day') {
+      text += ' at ' + formatTimeOfDay(ms) + ' ' + localZoneLabel(ms);
+    }
+    return text;
+  }
+
+  function buildPrintCover(entries, opts) {
+    var cover = el('div', { 'class': 'uscistr-print-cover' });
+    cover.appendChild(el('div', { 'class': 'uscistr-print-title', text: 'USCIS case record' }));
+    cover.appendChild(el('div', { 'class': 'uscistr-print-warn', text: PRINT_UNOFFICIAL }));
+    cover.appendChild(printNote(STANDING_DISCLAIMER));
+
+    var facts = el('div', { 'class': 'uscistr-print-block' });
+    printRowIf(facts, 'Generated', printDateAndTime(opts.generatedAt, 'time'));
+    printRowIf(facts, 'Prepared by',
+      'CaseLens v' + VERSION + ', an open-source browser panel. github.com/itsericqiu/uscis-caselens');
+    printRowIf(facts, 'Covers', entries.length === 1
+      ? 'One case, ' + numberFor(entries[0].number, opts.redact)
+      : plural(entries.length, 'case'));
+    // A masked copy mistaken for a complete one is the worst thing this
+    // document can do, so which one it is gets stated, not implied.
+    printRowIf(facts, 'Completeness', opts.redact
+      ? 'Masked copy. Receipt numbers, names and addresses are hidden. This is not the complete record.'
+      : 'Full record. Contains names, addresses and full receipt numbers.');
+    cover.appendChild(facts);
+    return cover;
+  }
+
+  function buildPrintFacts(entry, view, opts) {
+    var block = el('div', { 'class': 'uscistr-print-block' });
+    var detail = view.detail;
+    var notice = view.notice;
+
+    printRowIf(block, 'Receipt number', numberFor(entry.number, opts.redact));
+    if (entry.label) printRowIf(block, 'Nickname', entry.label);
+    printRowIf(block, 'Form', detail && detail.formType ? detail.formType : null);
+    printRowIf(block, 'Form name', detail && detail.formName ? detail.formName : null);
+
+    var filed = detail && detail.submissionDate ? parseUscisDate(detail.submissionDate) : null;
+    if (filed !== null) {
+      var elapsed = daysBetween(filed, Date.now());
+      printRowIf(block, 'Filed', formatDateFull(filed) + ' · ' + longDuration(elapsed) + ' ago');
+    }
+    printRowIf(block, 'Office', view.office);
+    printRowIf(block, 'Office code', view.officeCode);
+    printRowIf(block, 'Representative',
+      detail && detail.representativeName
+        ? (opts.redact ? '[hidden]' : String(detail.representativeName))
+        : null);
+    if (detail && detail.backendAt) {
+      var touched = parseUscisDate(detail.backendAt);
+      if (touched !== null) printRowIf(block, 'Record last updated', formatDateFull(touched));
+    }
+    if (view.estimateMonths !== null && view.estimateMonths !== undefined) {
+      block.appendChild(printRow('Processing estimate',
+        plural(view.estimateMonths, 'month') + ' — a range USCIS publishes, not a promise about this case'));
+    }
+    if (detail && detail.actionRequired) printRowIf(block, 'Action required', 'Yes, according to this record');
+    if (view.evidenceCount) printRowIf(block, 'Evidence requests', String(view.evidenceCount));
+    if (detail && detail.premium) printRowIf(block, 'Premium processing', 'Yes');
+    if (detail && detail.closed) printRowIf(block, 'Case closed', 'Yes, according to this record');
+    printRowIf(block, 'Status code', notice && notice.actionCode ? notice.actionCode : null);
+    return block;
+  }
+
+  function buildPrintStages(entry, view) {
+    var info = stageInfo(entry, view);
+    var wrap = el('div', { 'class': 'uscistr-print-block' });
+    wrap.appendChild(printHeading('Steps this record shows'));
+    if (!info.stages.length) {
+      wrap.appendChild(printNote('No steps could be read from this record.'));
+      return wrap;
+    }
+    // The panel collapses these into segments to fit 400px. Paper has room, so
+    // every step is printed with its state spelled out.
+    for (var i = 0; i < info.stages.length; i++) {
+      var stage = info.stages[i];
+      var said;
+      if (stage.state === 'not-reported') said = 'not reported in this data';
+      else if (stage.state === 'ahead') said = 'not reached in this record';
+      else if (stage.state === 'current') said = 'where this case sits now';
+      else said = stage.at ? formatDateFull(stage.at) : 'shown by this record';
+      wrap.appendChild(el('div', { 'class': 'uscistr-print-stage' }, [
+        el('span', { 'class': 'uscistr-print-key', text: stage.label }),
+        el('span', { 'class': 'uscistr-print-val', text: said })
+      ]));
+    }
+    wrap.appendChild(printNote(
+      '"Not reported" means USCIS does not publish that step through the data this panel can read. ' +
+      'It does not mean the step did not happen.'));
+    if (info.unmapped && info.unmapped.length) {
+      wrap.appendChild(printNote(
+        'Codes in this record with no published meaning: ' + info.unmapped.join(', ') + '.'));
+    }
+    return wrap;
+  }
+
+  function buildPrintTimeline(entry, view, opts) {
+    var wrap = el('div');
+    wrap.appendChild(printHeading('Timeline'));
+    var items = (view.upcoming || []).concat(view.items || []);
+    if (!items.length) {
+      wrap.appendChild(printNote('No dated events could be read from this record.'));
+      return wrap;
+    }
+    for (var i = 0; i < items.length; i++) {
+      var item = items[i];
+      var row = el('div', { 'class': 'uscistr-print-event' });
+      var when = printDateAndTime(item.displayAt, item.precision);
+      row.appendChild(el('span', { 'class': 'uscistr-print-key', text: when || 'Date not given' }));
+      var body = el('span', { 'class': 'uscistr-print-val' });
+      var label = item.label ? String(item.label) : (item.code ? String(item.code) : 'Event');
+      body.appendChild(el('span', { text: label }));
+      if (item.code) body.appendChild(el('span', { 'class': 'uscistr-print-prov', text: ' [' + item.code + ']' }));
+      if (item.fileName) {
+        body.appendChild(el('span', { 'class': 'uscistr-print-prov',
+          text: ' · ' + fileNameFor(item.fileName, opts.redact) }));
+      }
+      body.appendChild(el('span', { 'class': 'uscistr-print-prov',
+        text: ' · ' + (PRINT_PROVENANCE[item.provenance] || 'source not recorded') }));
+      row.appendChild(body);
+      wrap.appendChild(row);
+    }
+    return wrap;
+  }
+
+  function buildPrintDocsList(entry, view, opts) {
+    var wrap = el('div');
+    wrap.appendChild(printHeading('Documents USCIS lists'));
+    var docs = view.docs || [];
+    if (!docs.length) {
+      wrap.appendChild(printNote('No documents are listed on this case.'));
+      return wrap;
+    }
+    for (var i = 0; i < docs.length; i++) {
+      var doc = docs[i];
+      var at = doc.date ? parseUscisDate(doc.date) : null;
+      var parts = [];
+      if (doc.type) parts.push(String(doc.type));
+      if (at !== null) parts.push(formatDateFull(at));
+      wrap.appendChild(printRow(
+        fileNameFor(doc.name || 'Document', opts.redact),
+        parts.length ? parts.join(' · ') : 'no date given'));
+    }
+    wrap.appendChild(printNote(
+      'These files live in the USCIS account and can be downloaded there. They are named here, not copied.'));
+    return wrap;
+  }
+
+  function buildPrintChanges(view, opts) {
+    var wrap = el('div');
+    wrap.appendChild(printHeading('Changes this panel recorded'));
+    var history = view.history || [];
+    if (!history.length) {
+      wrap.appendChild(printNote('No changes have been recorded for this case in this browser.'));
+      return wrap;
+    }
+    // USCIS publishes no change log, so this is the one section of the record
+    // the agency cannot reproduce. It is this panel's observation, and it is
+    // labelled as such.
+    wrap.appendChild(printNote(
+      'Observed by CaseLens by comparing one check against the previous one. Not an agency record.'));
+    for (var i = 0; i < history.length; i++) {
+      var change = history[i];
+      var at = change.at ? parseUscisDate(change.at) : null;
+      var said;
+      if (change.kind === 'document') said = 'New document listed: ' + fileNameFor(change.to, opts.redact);
+      else if (change.kind === 'backend') said = 'USCIS touched the record without changing the status wording';
+      else if (change.kind === 'office') said = 'Office changed to ' + String(change.to);
+      else said = 'Status became: ' + String(change.to);
+      wrap.appendChild(el('div', { 'class': 'uscistr-print-event' }, [
+        el('span', { 'class': 'uscistr-print-key', text: at !== null ? formatDateFull(at) : 'Date not given' }),
+        el('span', { 'class': 'uscistr-print-val', text: said })
+      ]));
+    }
+    return wrap;
+  }
+
+  function buildPrintCase(entry, opts) {
+    var view = buildCaseView(entry);
+    var block = el('div', { 'class': 'uscistr-print-case' });
+
+    var title = entry.label ? entry.label : (view.detail && view.detail.formType ? view.detail.formType : 'Case');
+    block.appendChild(el('div', { 'class': 'uscistr-print-h',
+      text: title + ' — ' + numberFor(entry.number, opts.redact) }));
+
+    // When the data was true is the first thing a reader needs, because a
+    // printed page carries no hint that it has gone stale.
+    var asOf = view.checkedAt || view.cachedAt || null;
+    if (asOf) {
+      block.appendChild(printNote('As of ' + printDateAndTime(asOf, 'time') +
+        ' — when USCIS was last read successfully. The case may have changed since.'));
+    } else {
+      block.appendChild(printNote('This case had no successful check in this browser session.'));
+    }
+    if (view.fromCache) {
+      block.appendChild(printNote('Drawn from the last stored check, because the most recent attempt failed.'));
+    }
+
+    if (view.notice && view.notice.status) {
+      var status = el('div', { 'class': 'uscistr-print-block' });
+      status.appendChild(printHeading('Status, in USCIS’s wording'));
+      status.appendChild(el('div', { 'class': 'uscistr-print-val', text: view.notice.status }));
+      if (view.notice.statusDetail) {
+        status.appendChild(el('div', { 'class': 'uscistr-print-note', text: view.notice.statusDetail }));
+      }
+      block.appendChild(status);
+    }
+
+    block.appendChild(buildPrintFacts(entry, view, opts));
+    block.appendChild(buildPrintStages(entry, view));
+    block.appendChild(buildPrintTimeline(entry, view, opts));
+    block.appendChild(buildPrintDocsList(entry, view, opts));
+    block.appendChild(buildPrintChanges(view, opts));
+    block.appendChild(el('div', { 'class': 'uscistr-print-meta', text: PRINT_UNOFFICIAL }));
+    return block;
+  }
+
+  // The eager counterpart of buildRecordValue. Same walk, same order, same
+  // depth cap — but it renders open, with no button anywhere, because the
+  // screen version fills a group only when it is clicked and paper cannot
+  // click. Shares humanizeFieldKey and objectKeys so the two views label and
+  // order fields identically.
+  function buildPrintValue(key, value, depth, redact) {
+    if (depth > RECORD_MAX_DEPTH) {
+      return printRow(humanizeFieldKey(key), 'nested deeper than this document prints');
+    }
+    if (Array.isArray(value)) {
+      return buildPrintGroup(humanizeFieldKey(key) + ' (' + value.length + ')', value, depth, true, redact);
+    }
+    if (value !== null && typeof value === 'object') {
+      return buildPrintGroup(humanizeFieldKey(key), value, depth, false, redact);
+    }
+    var shown;
+    if (value === null) shown = '—';
+    else if (value === '') shown = '(empty)';
+    else shown = String(redactValueWith(key, value, redact));
+    return printRow(humanizeFieldKey(key), shown);
+  }
+
+  function buildPrintGroup(label, value, depth, isArray, redact) {
+    var wrap = el('div', { 'class': 'uscistr-print-group' });
+    wrap.appendChild(el('div', { 'class': 'uscistr-print-key', text: label }));
+    var i;
+    if (isArray) {
+      if (!value.length) {
+        wrap.appendChild(printNote('USCIS sent this list with nothing in it.'));
+        return wrap;
+      }
+      for (i = 0; i < value.length; i++) {
+        wrap.appendChild(buildPrintValue('#' + (i + 1), value[i], depth + 1, redact));
+      }
+      return wrap;
+    }
+    var keys = objectKeys(value);
+    if (!keys.length) {
+      wrap.appendChild(printNote('USCIS sent this with nothing in it.'));
+      return wrap;
+    }
+    for (i = 0; i < keys.length; i++) {
+      wrap.appendChild(buildPrintValue(keys[i], value[keys[i]], depth + 1, redact));
+    }
+    return wrap;
+  }
+
+  function buildPrintFields(data, redact) {
+    var wrap = el('div', { 'class': 'uscistr-print-fields' });
+    var body = (data && typeof data === 'object' && 'data' in data) ? data.data : data;
+    if (body === null || body === undefined) {
+      wrap.appendChild(printNote('USCIS answered with no content for this one.'));
+      return wrap;
+    }
+    if (typeof body !== 'object') {
+      wrap.appendChild(buildPrintValue('Value', body, 0, redact));
+      return wrap;
+    }
+    if (Array.isArray(body)) {
+      if (!body.length) {
+        wrap.appendChild(printNote('USCIS answered with an empty list.'));
+        return wrap;
+      }
+      for (var a = 0; a < body.length; a++) {
+        wrap.appendChild(buildPrintValue('#' + (a + 1), body[a], 0, redact));
+      }
+      return wrap;
+    }
+    var keys = responseKeys(body);
+    if (!keys.length) {
+      wrap.appendChild(printNote('USCIS answered with no content for this one.'));
+      return wrap;
+    }
+    for (var i = 0; i < keys.length; i++) {
+      wrap.appendChild(buildPrintValue(keys[i], body[keys[i]], 0, redact));
+    }
+    return wrap;
+  }
+
+  function buildPrintAppendix(entries, opts) {
+    var wrap = el('div', { 'class': 'uscistr-print-appendix' });
+    wrap.appendChild(el('div', { 'class': 'uscistr-print-title', text: 'Everything USCIS sent' }));
+    wrap.appendChild(printNote(
+      'The rest of this document is the data USCIS returned to this browser, unreshaped. Field names ' +
+      'are USCIS’s own, made readable; values are printed as they arrived, in the order they arrived.'));
+
+    for (var i = 0; i < entries.length; i++) {
+      var entry = entries[i];
+      var caseWrap = el('div', { 'class': 'uscistr-print-section' });
+      caseWrap.appendChild(printHeading(numberFor(entry.number, opts.redact)));
+      if (!entry.result) {
+        // Word for word what the JSON export says in the same situation, so
+        // the two record formats never disagree about why data is missing.
+        caseWrap.appendChild(printNote('No successful check in this browser session, so the raw ' +
+          'responses are not available to include. Refresh, then export again.'));
+        wrap.appendChild(caseWrap);
+        continue;
+      }
+      var sections = caseResponses(entry);
+      for (var s = 0; s < sections.length; s++) {
+        var section = sections[s];
+        var body = el('div', { 'class': 'uscistr-print-block' });
+        body.appendChild(el('div', { 'class': 'uscistr-print-key',
+          text: section.label + ' · ' + section.path + ' · ' + payloadStatus(section.data).text }));
+        body.appendChild(buildPrintFields(section.data, opts.redact));
+        caseWrap.appendChild(body);
+      }
+      wrap.appendChild(caseWrap);
+    }
+    return wrap;
+  }
+
+  // The whole document. One renderer for both entry points: the footer hands
+  // it every case, a card hands it one, and nothing else differs — so a bug
+  // cannot exist in one path and not the other.
+  function buildPrintDocument(entries, opts) {
+    var options = {
+      redact: !!(opts && opts.redact),
+      generatedAt: (opts && opts.generatedAt) || Date.now()
+    };
+    var list = entries || [];
+    var doc = el('div', { 'class': 'uscistr-print' });
+    doc.appendChild(buildPrintCover(list, options));
+    if (!list.length) {
+      doc.appendChild(printNote('No cases were saved in this browser when this document was made.'));
+      return doc;
+    }
+    for (var i = 0; i < list.length; i++) {
+      doc.appendChild(buildPrintCase(list[i], options));
+    }
+    doc.appendChild(buildPrintAppendix(list, options));
+    doc.appendChild(el('div', { 'class': 'uscistr-print-foot' }, [
+      el('span', { text: PRINT_UNOFFICIAL + ' my.uscis.gov and mailed notices are the authority. ' }),
+      el('span', { text: 'CaseLens v' + VERSION + ' · End of record.' })
+    ]));
+    return doc;
+  }
+
+  // The only function in this file that touches the host document for the sake
+  // of printing, and therefore the only one that changes if this ever has to
+  // move into an off-screen iframe. It mounts the built document, flips the
+  // body class the print stylesheet keys on, runs `go`, and always undoes all
+  // of it.
+  //
+  // Teardown is idempotent and runs from two places — a `finally`, and the
+  // browser's own afterprint event — because a print dialog that is dismissed,
+  // a renderer that throws, and a browser that fires afterprint late are three
+  // different exits from the same state. The screen-side rule that hides
+  // `.uscistr-print` is a plain rule rather than part of the print block, so
+  // even a teardown that never ran leaves nothing visible on screen.
+  function withPrintMode(node, go) {
+    var previousTitle = document.title;
+    var done = false;
+    function teardown() {
+      if (done) return;
+      done = true;
+      try { window.removeEventListener('afterprint', teardown); } catch (e) {}
+      if (node.parentNode) node.parentNode.removeChild(node);
+      document.body.className = String(document.body.className)
+        .replace(/\s*uscistr-printing\b/g, '');
+      document.title = previousTitle;
+    }
+
+    ROOT.appendChild(node);
+    document.body.className = String(document.body.className) + ' uscistr-printing';
+    // The document title is what the browser offers as the default file name
+    // in its "Save as PDF" dialog, so it is set to match the JSON export's
+    // naming rather than leaving someone to save "my.uscis.gov.pdf".
+    document.title = 'caselens-record-' + new Date().toISOString().slice(0, 10);
+    try { window.addEventListener('afterprint', teardown); } catch (e) {}
+
+    try {
+      go();
+    } finally {
+      teardown();
+    }
+  }
+
+  function printRecord(entries, redact) {
+    var node = buildPrintDocument(entries, { redact: redact, generatedAt: Date.now() });
+    withPrintMode(node, function () {
+      // Blocks until the print dialog closes in every browser that matters.
+      window.print();
+    });
+  }
+
+  // Three outcomes — full record, masked copy, cancel — so this cannot be a
+  // window.confirm, which has two and would force "cancel" to stand in for one
+  // of the real choices. That is how a shared PDF ends up unmasked by accident.
+  function buildPrintPopover(entries, closeFn) {
+    var many = entries.length !== 1;
+    var wrap = el('div', { 'class': 'uscistr-popover uscistr-print-choice' });
+    wrap.appendChild(el('div', { 'class': 'uscistr-popover-label',
+      text: many ? 'Print ' + plural(entries.length, 'case') : 'Print this case' }));
+    wrap.appendChild(el('div', { 'class': 'uscistr-popover-desc',
+      text: 'Opens the browser print dialog, where "Save as PDF" writes a file. ' +
+        'Nothing is sent anywhere.' }));
+
+    wrap.appendChild(el('button', {
+      'class': 'uscistr-btn uscistr-btn-sm', type: 'button', text: 'Full record',
+      onclick: function () { closeFn(); printRecord(entries, false); }
+    }));
+    wrap.appendChild(el('div', { 'class': 'uscistr-popover-desc',
+      text: 'Names, addresses and full receipt numbers, as USCIS returned them.' }));
+
+    wrap.appendChild(el('button', {
+      'class': 'uscistr-btn uscistr-btn-sm uscistr-btn-outline', type: 'button', text: 'Masked copy',
+      onclick: function () { closeFn(); printRecord(entries, true); }
+    }));
+    wrap.appendChild(el('div', { 'class': 'uscistr-popover-desc',
+      text: 'Receipt numbers masked and names hidden, for sharing. Says on the page that it is not complete.' }));
+
+    wrap.appendChild(el('button', {
+      'class': 'uscistr-btn uscistr-btn-sm uscistr-btn-outline', type: 'button', text: 'Cancel',
+      onclick: function () { closeFn(); render(); }
+    }));
+    return wrap;
+  }
+
+  // Resolves uiState.printFor to the cases it names: every case, or the one
+  // whose receipt number it holds.
+  function printSelection() {
+    if (uiState.printFor === 'all') return state.cases.slice();
+    for (var i = 0; i < state.cases.length; i++) {
+      if (String(state.cases[i].number).toUpperCase() === String(uiState.printFor).toUpperCase()) {
+        return [state.cases[i]];
+      }
+    }
+    return [];
+  }
+
+  function buildPrintChoice() {
+    if (!uiState.printFor) return null;
+    var entries = printSelection();
+    if (!entries.length) { uiState.printFor = null; return null; }
+    return buildPrintPopover(entries, function () { uiState.printFor = null; });
+  }
+
   function exportRecord() {
     // The file is unencrypted and deliberately unredacted, whatever "Hide
     // receipt numbers" is set to — a masked record is not a record. Someone
@@ -3018,13 +3579,19 @@
   // tooltip on every date row: the rows that used to carry it were themselves
   // duplicates of dates stated above the fold, and a caveat nobody hovers is
   // not a caveat.
+  // Stated once, used twice: on screen under the panel header, and at the top
+  // of the printed record. A printed document outlives the session and travels
+  // to people who never saw the panel, so the two must not drift.
+  var STANDING_DISCLAIMER =
+    'Unofficial tool. Not USCIS, not legal advice. Dates and labels here are read out of ' +
+    'USCIS data by this panel and can be wrong. my.uscis.gov and your mailed notices are the ' +
+    'authority on your case — if this panel disagrees with them, believe them.';
+
   function buildStandingDisclaimer() {
     return el('div', {
       'class': 'uscistr-standing',
       title: DATE_CAVEAT,
-      text: 'Unofficial tool. Not USCIS, not legal advice. Dates and labels here are read out of ' +
-        'USCIS data by this panel and can be wrong. my.uscis.gov and your mailed notices are the ' +
-        'authority on your case — if this panel disagrees with them, believe them.'
+      text: STANDING_DISCLAIMER
     });
   }
 
@@ -3058,12 +3625,21 @@
         text: 'Unofficial · follow your USCIS notices'
       })
     ]);
+    // Print sits beside Export because they are the same act — getting a
+    // record out — in two shapes: a file for keeping, a document for reading.
+    var printBtn = el('button', {
+      'class': 'uscistr-btn uscistr-btn-sm uscistr-btn-outline', type: 'button', text: 'Print…',
+      disabled: !state.cases.length,
+      onclick: function () { uiState.printFor = 'all'; render(); }
+    });
+
     var right = el('div', { 'class': 'uscistr-footer-right' }, [
+      printBtn,
       exportBtn,
       el('span', { 'class': 'uscistr-footer-sep', text: '|' }),
       el('span', { 'class': 'uscistr-version', text: 'v' + VERSION })
     ]);
-    return el('div', { 'class': 'uscistr-footer' }, [left, right]);
+    return el('div', { 'class': 'uscistr-footer' }, [left, right, buildPrintChoice()]);
   }
 
   // ---- settings popover -----------------------------------------------------
@@ -5657,6 +6233,21 @@
     return out;
   }
 
+  // The keys a reader should see, which is not the same as the keys present.
+  // `__empty`, `__error` and `__auth` are this panel's own markers, written by
+  // the fetch layer onto a payload USCIS never sent — so listing them renders
+  // a field called "Empty" with the value "true" in a view whose whole claim
+  // is that it shows the agency's data unreshaped. The status chip beside the
+  // section already states the same fact honestly, in the panel's own voice.
+  function responseKeys(obj) {
+    var all = objectKeys(obj);
+    var out = [];
+    for (var i = 0; i < all.length; i++) {
+      if (String(all[i]).indexOf('__') !== 0) out.push(all[i]);
+    }
+    return out;
+  }
+
   // The readable rendering of one endpoint payload.
   function buildRecordFields(data) {
     var wrap = el('div', { 'class': 'uscistr-rec-fields' });
@@ -5676,10 +6267,10 @@
       fillRecordGroup(wrap, body, 0, true);
       return wrap;
     }
-    var keys = objectKeys(body);
+    var keys = responseKeys(body);
     if (!keys.length) {
       wrap.appendChild(el('div', { 'class': 'uscistr-rec-row uscistr-is-quiet',
-        text: 'USCIS answered with an empty record.' }));
+        text: 'USCIS answered with no content for this one.' }));
       return wrap;
     }
     for (var i = 0; i < keys.length; i++) {
@@ -6270,6 +6861,10 @@
         onclick: function () { refreshCase(entry.number); }
       }),
       buildCopyButton(entry),
+      el('button', {
+        'class': 'uscistr-btn uscistr-btn-sm uscistr-btn-outline', type: 'button', text: 'Print…',
+        onclick: function () { uiState.printFor = entry.number; render(); }
+      }),
       el('button', {
         'class': 'uscistr-btn uscistr-btn-sm uscistr-btn-danger', type: 'button', text: 'Remove',
         onclick: function () {

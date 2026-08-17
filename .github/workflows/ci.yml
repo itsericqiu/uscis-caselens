@@ -81,6 +81,11 @@ jobs:
           CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
         run: node scripts/smoke-test.js
 
+      - name: Print gate — the print stylesheet must hide the host page
+        env:
+          CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
+        run: node scripts/print-check.js
+
   # Protects the auto-update path. Userscript managers (Violentmonkey,
   # Tampermonkey) and the browser extensions all key off VERSION (stamped
   # from core/uscis-tracker-core.js into the userscript @version and every

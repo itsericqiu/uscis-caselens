@@ -29,7 +29,8 @@ any third party. There is no third party.
 
 ## Data the user moves themselves
 
-Two features write data out of the panel, and both require a deliberate action:
+Three features write data out of the panel, and all three require a
+deliberate action:
 
 - **Export** downloads a JSON records file to the device: everything USCIS
   returned about the cases on the latest successful check — including names,
@@ -37,6 +38,10 @@ Two features write data out of the panel, and both require a deliberate action:
   numbers" setting — plus the changes CaseLens observed between checks. It is
   a personal record, not a backup; nothing imports it.
 - **Copy summary** places case text on the clipboard.
+- **Print** builds a document — a full record or a masked copy, chosen at
+  print time — and hands it to the browser's own print dialog, where the user
+  saves or prints it themselves. Chosen as "Full record", it carries names,
+  addresses, and full receipt numbers.
 
 Where those files then go is outside CaseLens's control.
 

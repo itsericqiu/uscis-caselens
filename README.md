@@ -26,6 +26,8 @@ The official site does not show which office holds a case, or when USCIS last to
 
 Under each open case, **Everything USCIS sent** lists every response in full — one section per endpoint, each field labelled and in USCIS's own order, with the raw JSON one level further down. Nothing is filtered on the way through, so a field USCIS starts returning tomorrow shows up tomorrow.
 
+**Print…**, in the footer or on an open case, builds an unofficial paper record — full or masked, chosen at print time — and hands it to the browser's own print dialog, where "Save as PDF" writes the file. No PDF library; the browser's own print engine renders it, correctly, in any script or alphabet.
+
 CaseLens does not predict decision dates and does not characterise a case as going well or badly. Where USCIS publishes a processing estimate for a case, the panel shows how much of that range has passed; otherwise it shows days elapsed.
 
 ## Privacy
@@ -58,6 +60,8 @@ A userscript manager can see every site you visit — you are trusting it as wel
 **Removing a case deletes its history.** USCIS does not publish that history and it cannot be recovered. Export first if you want a copy for your records. Clearing browser site data for my.uscis.gov erases it the same way.
 
 **Export is a records file, not a backup.** It contains everything USCIS returned about your cases on the latest check — names, addresses, and full receipt numbers included, whatever "Hide receipt numbers" is set to — plus every change this panel recorded. There is no import: a new browser reads your account page fresh. Treat the file like a mailed notice.
+
+**Print asks full or masked, every time.** The choice is made per print, not tied to "Hide receipt numbers" — a PDF gets shared far more than a JSON file does. The masked copy says on its own cover that it is not the complete record.
 
 **Event codes** like `FTA0` or `LDA` are labelled with USCIS's own wording where your case supplies it, otherwise from the federal NIEM schema. Codes in neither are shown as the raw code, and the raw code stays visible alongside any label.
 

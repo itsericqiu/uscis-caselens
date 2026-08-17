@@ -4,6 +4,28 @@ Notable changes per release. The section matching a tag becomes that release's
 notes on GitHub, so keep entries written for someone deciding whether to update
 — not for someone reading a commit log.
 
+## 1.20.0
+
+- A second way to get a record out of the panel: **Print…**, in the footer
+  for every case and on an open case card for that one, opens the browser's
+  own print dialog. Choosing it first offers **Full record** — names,
+  addresses and full receipt numbers, as USCIS returned them — or **Masked
+  copy** — receipt numbers masked, names hidden, and the document states on
+  its own cover that it is not the complete record.
+- That redaction choice is made per print, not tied to the stored "Hide
+  receipt numbers" setting: a PDF gets shared far more than a JSON file
+  does, so what a given copy shows is decided each time, not inherited from
+  a setting made for something else.
+- No PDF library is bundled. The document is handed to the browser's own
+  print dialog, where "Save as PDF" writes the file — which is why it
+  renders correctly in every script and alphabet, and why nothing is
+  uploaded and no new permission is needed.
+- Fixed: an endpoint that answered with no content was rendering as a field
+  called "Empty" with the value "true" — an internal marker leaking into a
+  view whose whole point is showing only what USCIS actually sent. Both the
+  record view and the printed record now say "USCIS answered with no
+  content for this one."
+
 ## 1.19.0
 
 - Every field USCIS returned is now readable in the panel. Each open case gains

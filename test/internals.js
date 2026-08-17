@@ -44,7 +44,14 @@ var EXPORTS = [
   // The record view (docs/design/05-record-view.md). redactFieldValue is the
   // single redaction policy both renderers must obey; buildRecordFields walks
   // arbitrary API shapes, which is exactly what the fuzzer should hammer.
-  'redactFieldValue', 'humanizeFieldKey', 'buildRecordFields', 'caseResponses'
+  'redactFieldValue', 'humanizeFieldKey', 'buildRecordFields', 'caseResponses',
+  // The printable record (docs/design/06-print-record.md). Only the pure half
+  // is reachable: printRecord and withPrintMode touch window.print and the
+  // live document, neither of which exists in this sandbox — the same split
+  // that keeps buildExportPayload testable and exportRecord not.
+  // redactValueWith is the policy behind redactFieldValue, exported so a test
+  // can prove the two have not forked.
+  'buildPrintDocument', 'buildPrintCase', 'buildPrintFields', 'redactValueWith'
 ];
 
 function fakeElement() {
@@ -125,8 +132,21 @@ function load(prefs) {
     },
     document: {
       readyState: 'complete',
-      createElement: fakeElement,
-      createElementNS: fakeElement,
+      // Tag names are recorded because the printable record has to prove a
+      // negative: no <a>, no <button>, no <svg> anywhere in it. my.uscis.gov's
+      // own print stylesheet rewrites anchors to show their href, so an anchor
+      // that sneaks in would deface a printed immigration record. Nothing else
+      // in the core reads tagName off a node it built, so this is additive.
+      createElement: function (tag) {
+        var node = fakeElement();
+        node.tagName = String(tag || 'div').toUpperCase();
+        return node;
+      },
+      createElementNS: function (ns, tag) {
+        var node = fakeElement();
+        node.tagName = String(tag || 'div').toUpperCase();
+        return node;
+      },
       createTextNode: function (t) { return { text: t }; },
       createDocumentFragment: fakeElement,
       documentElement: fakeElement(),
