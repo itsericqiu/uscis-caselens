@@ -4,6 +4,17 @@ Notable changes per release. The section matching a tag becomes that release's
 notes on GitHub, so keep entries written for someone deciding whether to update
 — not for someone reading a commit log.
 
+## 1.20.2
+
+- Fixed: printing from Safari, on iPhone especially, printed the my.uscis.gov
+  page with the panel sitting on top of it instead of the record. The record
+  was being removed before Safari ever rendered it. `window.print()` blocks
+  until the dialog closes on desktop Chrome and Firefox, so tearing down
+  immediately after it returned looked correct — but on Safari it returns
+  straight away and the print UI appears afterwards. Teardown now waits for
+  whichever end-of-print signal arrives first: the browser's `afterprint`
+  event, a print media-query change, or a bounded timeout.
+
 ## 1.20.1
 
 - Fixed: the Print… choice was unreadable on a phone. It rendered as a 14px

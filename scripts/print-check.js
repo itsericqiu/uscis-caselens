@@ -154,7 +154,13 @@ var STUB = '(function(){' +
   '    chars: doc ? doc.textContent.length : -1,' +
   '    leaksReceipt: doc ? doc.textContent.indexOf("IOE0000000001")!==-1 : null,' +
   '    saysMasked: doc ? doc.textContent.indexOf("Masked copy")!==-1 : null' +
-  '  };};return "stubbed";})()';
+  '  };' +
+  // A real browser fires afterprint once the dialog closes, and teardown is
+  // driven by that rather than by print() returning — because print() does not
+  // block on Safari. The stub must therefore fire it too, or this gate would
+  // test a teardown path no browser actually takes.
+  '  setTimeout(function(){ try { window.dispatchEvent(new Event("afterprint")); } catch(e) {} }, 0);' +
+  '};return "stubbed";})()';
 
 // Measures the open choice popover: what it is anchored to, how tall it ended
 // up, whether it fits its panel, and whether its children have real height.
@@ -172,6 +178,10 @@ var POPOVER_GEOMETRY = '(function(){' +
   '                r.left >= pa.left - 1 && r.right <= pa.right + 1),' +
   '  smallestChild: kids.length ? Math.round(Math.min.apply(null, kids)) : -1' +
   '});})()';
+
+// A print() that behaves like Safari's: returns straight away, fires nothing.
+var SILENT_PRINT_STUB =
+  '(function(){window.print=function(){};return "stubbed";})()';
 
 function clickText(label) {
   return '(function(){var b=[].slice.call(document.querySelectorAll(".uscistr-root button"))' +
@@ -402,6 +412,43 @@ function runChecks(CDP) {
     })
     .then(function (state) {
       assertTeardown(state, harnessTitle, 'after masked copy print');
+
+      // --- The Safari case ---
+      // window.print() blocks on desktop Chrome and Firefox but returns
+      // immediately on Safari, iOS especially, with the print UI presented
+      // afterwards. Teardown used to run in a `finally` right after print()
+      // returned, so on Safari the document and the body class were gone
+      // before anything rendered and Safari printed the underlying page with
+      // the panel sitting on top of it. This stub reproduces that browser: it
+      // records nothing and fires no afterprint. Print mode must still be
+      // standing when print() has returned.
+      return client.eval(SILENT_PRINT_STUB);
+    })
+    .then(function (stubbed) {
+      check(stubbed === 'stubbed', 'non-blocking print stub installed', 'got ' + stubbed);
+      return client.eval(clickText('Print…'));
+    })
+    .then(function () { return sleep(POPOVER_WAIT_MS); })
+    .then(function () { return client.eval(clickText('Full record')); })
+    .then(function () { return sleep(PRINT_ACTION_WAIT_MS); })
+    .then(function () {
+      return client.eval(readTeardownState());
+    })
+    .then(function (raw) {
+      var s = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      check(s && s.printNodes === 1,
+        'non-blocking print: the record is still mounted after print() returns',
+        'print nodes in DOM: ' + (s && s.printNodes));
+      check(s && /uscistr-printing/.test(String(s.bodyClass)),
+        'non-blocking print: body still carries uscistr-printing',
+        'body class: ' + (s && s.bodyClass));
+      // Now let the browser say printing finished, the way a real one does.
+      return client.eval('(function(){window.dispatchEvent(new Event("afterprint"));return "fired";})()');
+    })
+    .then(function () { return sleep(600); })
+    .then(function () { return client.eval(readTeardownState()); })
+    .then(function (state) {
+      assertTeardown(state, harnessTitle, 'after afterprint fires');
 
       // --- Cancel ---
       return client.eval(clickText('Print…'));

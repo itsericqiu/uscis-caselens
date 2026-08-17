@@ -188,7 +188,18 @@ status chip beside the section already stated that fact honestly.
 - **Long timelines.** `break-inside: avoid` is applied to rows and sub-blocks,
   never to a whole case block — a case whose timeline exceeds a page would
   otherwise push the browser into emitting blank pages.
-- **What the automated check cannot cover.** Teardown runs in a `finally`, so
+- **`window.print()` does not block everywhere.** It blocks on desktop Chrome
+  and Firefox; on Safari, iOS especially, it returns immediately and the print
+  UI is presented afterwards. Teardown originally ran in a `finally` right
+  after it returned, which was correct on the browsers it was tested on and
+  wrong on Safari: the document and body class were gone before anything
+  rendered, so Safari printed my.uscis.gov with the panel on top of it —
+  reported from a phone and fixed in 1.20.2. Teardown is now driven by
+  whichever end-of-print signal arrives first (`afterprint`, a `print`
+  media-query change, or a bounded timeout) and never by the call returning.
+  `print-check.js` simulates a non-blocking `print()` that fires nothing and
+  asserts the record is still mounted after it returns.
+- **What the automated check cannot cover.** Teardown is asynchronous, so
   the document is gone before a CDP `printToPDF` round-trip could capture it,
   and blocking inside a stubbed `print()` blocks the renderer that call needs.
   The computed-style assertions — host hidden, root static, container visible,

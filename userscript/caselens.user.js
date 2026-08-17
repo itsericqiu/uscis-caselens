@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CaseLens — Unofficial USCIS Case Tracker
 // @namespace    https://github.com/itsericqiu/uscis-caselens
-// @version      1.20.1
+// @version      1.20.2
 // @description  See all your USCIS cases in one place. Everything stays in your browser.
 // @match        https://my.uscis.gov/*
 // @run-at       document-idle
@@ -2539,7 +2539,7 @@ var CASELENS_STYLE = [
   // SECTION 1: Constants
   // ==========================================================================
 
-  var VERSION = '1.20.1';
+  var VERSION = '1.20.2';
 
   var STORAGE_KEYS = {
     cases: 'uscisTracker.cases.v1',      // [{ number, label, addedAt }]
@@ -5964,13 +5964,35 @@ var CASELENS_STYLE = [
   // different exits from the same state. The screen-side rule that hides
   // `.uscistr-print` is a plain rule rather than part of the print block, so
   // even a teardown that never ran leaves nothing visible on screen.
+  // How long print mode may persist with no end-of-print signal at all. Only
+  // reached if a browser fires neither afterprint nor a print media change.
+  var PRINT_TEARDOWN_MS = 60000;
+
   function withPrintMode(node, go) {
     var previousTitle = document.title;
+    var mql = window.matchMedia ? window.matchMedia('print') : null;
+    var sawPrintMedia = false;
+    var timer = null;
     var done = false;
+
+    function onMediaChange(e) {
+      // Safari reports the preview opening as matches=true and closing as
+      // matches=false. Only the close is a teardown signal, and only after a
+      // matching open — otherwise the initial matches=false tears down before
+      // printing has begun.
+      if (e && e.matches) { sawPrintMedia = true; return; }
+      if (sawPrintMedia) teardown();
+    }
+
     function teardown() {
       if (done) return;
       done = true;
+      if (timer !== null) { clearTimeout(timer); timer = null; }
       try { window.removeEventListener('afterprint', teardown); } catch (e) {}
+      try {
+        if (mql && mql.removeEventListener) mql.removeEventListener('change', onMediaChange);
+        else if (mql && mql.removeListener) mql.removeListener(onMediaChange);
+      } catch (e) {}
       if (node.parentNode) node.parentNode.removeChild(node);
       document.body.className = String(document.body.className)
         .replace(/\s*uscistr-printing\b/g, '');
@@ -5983,19 +6005,36 @@ var CASELENS_STYLE = [
     // in its "Save as PDF" dialog, so it is set to match the JSON export's
     // naming rather than leaving someone to save "my.uscis.gov.pdf".
     document.title = 'caselens-record-' + new Date().toISOString().slice(0, 10);
+
+    // Teardown is asynchronous, and that is the whole point. window.print()
+    // BLOCKS until the dialog closes on desktop Chrome and Firefox, but on
+    // Safari — iOS especially — it returns immediately and the print UI is
+    // presented afterwards. Tearing down in a `finally` therefore removed the
+    // document and the body class before Safari had rendered anything, and
+    // Safari printed the page as it stood: my.uscis.gov with the panel over
+    // it. Three independent end-of-print signals, whichever arrives first:
     try { window.addEventListener('afterprint', teardown); } catch (e) {}
+    try {
+      if (mql && mql.addEventListener) mql.addEventListener('change', onMediaChange);
+      else if (mql && mql.addListener) mql.addListener(onMediaChange);
+    } catch (e) {}
+    timer = setTimeout(teardown, PRINT_TEARDOWN_MS);
 
     try {
       go();
-    } finally {
+    } catch (e) {
+      // A throw means no print is coming, so nothing is waiting on the DOM.
       teardown();
+      throw e;
     }
   }
 
   function printRecord(entries, redact) {
     var node = buildPrintDocument(entries, { redact: redact, generatedAt: Date.now() });
     withPrintMode(node, function () {
-      // Blocks until the print dialog closes in every browser that matters.
+      // Blocks on desktop Chrome and Firefox; returns immediately on Safari.
+      // Teardown is therefore driven by the end-of-print signals armed above,
+      // never by this call returning.
       window.print();
     });
   }

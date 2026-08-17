@@ -33,7 +33,8 @@ read-only records file and nothing ingests it.)
   on, and hands off to `window.print()` — the browser's own print dialog,
   where "Save as PDF" writes the file. No iframe, no blob, no popup, no
   network request. Teardown — unmounting the document and clearing the body
-  class — runs from both a `finally` and the browser's `afterprint` event, so
+  class — runs on whichever end-of-print signal arrives first: the browser's
+  `afterprint` event, a `print` media-query change, or a bounded timeout, so
   it happens whether the print dialog is dismissed, completed, or the render
   throws. The rules that hide the host page during a print are themselves
   gated on that same body class, so the stylesheet is inert outside an active
