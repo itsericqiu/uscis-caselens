@@ -708,6 +708,227 @@ function run() {
     })();
   })();
 
+  // --- the printable record: tables and second root (1.21) -----------------
+  describe('print record — tables and second root');
+  (function () {
+    // Reload the same fixtures and helpers this block's sibling above defined
+    // — they are scoped to that IIFE, so this one carries its own copies
+    // rather than reaching across a closure boundary.
+    function textOf(node, out) {
+      out = out || [];
+      if (!node || typeof node !== 'object') return out;
+      if (typeof node.textContent === 'string' && node.textContent) out.push(node.textContent);
+      if (typeof node.text === 'string' && node.text) out.push(node.text);
+      var kids = node.childNodes || [];
+      for (var i = 0; i < kids.length; i++) textOf(kids[i], out);
+      return out;
+    }
+
+    function tagsIn(node, out) {
+      out = out || {};
+      if (!node || typeof node !== 'object') return out;
+      if (node.tagName) out[node.tagName] = (out[node.tagName] || 0) + 1;
+      var kids = node.childNodes || [];
+      for (var i = 0; i < kids.length; i++) tagsIn(kids[i], out);
+      return out;
+    }
+
+    // Every TD node in the tree, so a test can inspect an individual cell's
+    // textContent — unlike textOf, which drops empty strings, exactly the
+    // case a missing ragged-table cell needs to be checked against.
+    function tdNodes(node, out) {
+      out = out || [];
+      if (!node || typeof node !== 'object') return out;
+      if (node.tagName === 'TD') out.push(node);
+      var kids = node.childNodes || [];
+      for (var i = 0; i < kids.length; i++) tdNodes(kids[i], out);
+      return out;
+    }
+
+    function findByClass(node, cls) {
+      if (!node || typeof node !== 'object') return null;
+      if (typeof node.className === 'string' && node.className.indexOf(cls) !== -1) return node;
+      var kids = node.childNodes || [];
+      for (var i = 0; i < kids.length; i++) {
+        var found = findByClass(kids[i], cls);
+        if (found) return found;
+      }
+      return null;
+    }
+
+    var FIXTURES = loadFixtures();
+    var CASE_1 = FIXTURES.normal.cases['IOE0000000001'];
+    var CASE_2 = FIXTURES.normal.cases['IOE0000000002'];
+
+    function fixtureEntry(number, caseData, over) {
+      var entry = {
+        number: number, label: null, addedAt: Date.now(),
+        result: {
+          caseDetail: caseData.detail, caseStatus: caseData.status,
+          documents: caseData.documents, location: { __empty: true },
+          processingTimes: { __empty: true }, succeededAt: Date.now()
+        },
+        changedSince: false, loading: false
+      };
+      var k;
+      if (over) for (k in over) entry[k] = over[k];
+      return entry;
+    }
+
+    // 1. uniformListColumns — the edge-heavy pure function behind the table
+    // decision.
+    describe('uniformListColumns');
+    eq(A.uniformListColumns([]), null, 'empty list is not a table');
+    eq(A.uniformListColumns([{ a: 1 }]), null, 'fewer than two items is not a table');
+    eq(A.uniformListColumns([{ a: 1 }, { a: 2 }]).join(','), 'a', 'two like-shaped items give their column');
+    eq(A.uniformListColumns([{ a: 1 }, { b: 2 }]).join(','), 'a,b',
+      'ragged keys union in first-seen order');
+    eq(A.uniformListColumns([{ a: { x: 1 } }, { a: 2 }]), null, 'a nested object value is not a table');
+    eq(A.uniformListColumns([{ a: [1] }, { a: 2 }]), null, 'an array value is not a table');
+    (function () {
+      var eleven = [];
+      var letters = 'abcdefghijk'.split('');
+      for (var i = 0; i < letters.length; i++) {
+        var row = {};
+        row[letters[i]] = 1;
+        eleven.push(row);
+      }
+      eq(A.uniformListColumns(eleven), null, '11 distinct keys across items is over the column cap');
+    })();
+    (function () {
+      var wide = { a: 1, b: 2, c: 3, d: 4, e: 5, f: 6, g: 7, h: 8, i: 9, j: 10 };
+      var ten = [wide, wide];
+      eq(A.uniformListColumns(ten).length, 10, 'exactly 10 columns is still a table');
+    })();
+
+    // 2. buildPrintFields renders a uniform list as a table.
+    describe('buildPrintFields — uniform lists render as tables');
+    (function () {
+      var R = internals.load({ redact: false });
+      var node = R.buildPrintFields({ data: { events: [{ code: 'A', at: 'x' }, { code: 'B', at: 'y' }] } }, false);
+      var tags = tagsIn(node);
+      ok(tags.TABLE > 0, 'tag census contains TABLE', JSON.stringify(tags));
+      ok(tags.THEAD > 0, 'tag census contains THEAD', JSON.stringify(tags));
+      ok(tags.TBODY > 0, 'tag census contains TBODY', JSON.stringify(tags));
+      eq(tags.TR, 3, 'TR count is header + two rows');
+      eq(tags.TH, 3, 'TH count is # plus two columns');
+      var texts = textOf(node).join(' | ');
+      ok(texts.indexOf('A') !== -1, 'text contains the first row value', texts);
+      ok(texts.indexOf('B') !== -1, 'text contains the second row value', texts);
+    })();
+
+    // 3. a ragged list still renders one TD per column per row, and the
+    // missing cell is an empty string rather than a dropped column.
+    describe('buildPrintFields — ragged list tables');
+    (function () {
+      var R = internals.load({ redact: false });
+      var node = R.buildPrintFields({ data: { list: [{ a: 1 }, { b: 2 }] } }, false);
+      var tags = tagsIn(node);
+      eq(tags.TD, 2 * (2 + 1), 'TD count is rows x (columns + 1)');
+      var tds = tdNodes(node);
+      var sawEmpty = false;
+      for (var i = 0; i < tds.length; i++) {
+        if (tds[i].textContent === '') sawEmpty = true;
+      }
+      ok(sawEmpty, 'the missing cell in a ragged row renders as an empty string');
+    })();
+
+    // 4. a nested list falls back to the stacked rendering — no table at all.
+    describe('buildPrintFields — nested lists never render as a table');
+    (function () {
+      var R = internals.load({ redact: false });
+      var node = R.buildPrintFields({ data: { list: [{ a: { x: 1 } }, { a: 2 }] } }, false);
+      var tags = tagsIn(node);
+      eq(tags.TABLE || 0, 0, 'no TABLE tag anywhere for a nested list');
+    })();
+
+    // 5. the printable document is its own root, carrying both classes.
+    describe('buildPrintDocument — second root');
+    (function () {
+      var R = internals.load({ redact: false });
+      var doc = R.buildPrintDocument([], {});
+      ok(String(doc.className).indexOf('uscistr-root') !== -1,
+        'root className contains uscistr-root', doc.className);
+      ok(String(doc.className).indexOf('uscistr-print') !== -1,
+        'root className contains uscistr-print', doc.className);
+    })();
+
+    // 6. the appendix opt-out.
+    describe('buildPrintDocument — appendix opt-out');
+    (function () {
+      var entry = fixtureEntry('IOE0000000001', CASE_1);
+      var R = internals.load({ redact: false });
+      R.buildCaseView(entry);
+
+      var noAppendixText = textOf(R.buildPrintDocument([entry], { redact: false, appendix: false })).join(' | ');
+      ok(noAppendixText.indexOf('Everything USCIS sent') === -1,
+        'appendix:false omits the appendix title', noAppendixText.slice(0, 300));
+      ok(noAppendixText.indexOf('left out of this copy') !== -1,
+        'appendix:false says the appendix was left out', noAppendixText.slice(0, 300));
+
+      var defaultText = textOf(R.buildPrintDocument([entry], { redact: false })).join(' | ');
+      ok(defaultText.indexOf('Everything USCIS sent') !== -1,
+        'default includes the appendix title', defaultText.slice(0, 300));
+      ok(defaultText.indexOf('in full') !== -1,
+        'default cover says the record is in full', defaultText.slice(0, 300));
+
+      ok(noAppendixText.length < defaultText.length,
+        'appendix-off text is shorter than the default (the appendix is most of the pages)',
+        'off=' + noAppendixText.length + ' default=' + defaultText.length);
+    })();
+
+    // 7. the cover overview table.
+    describe('buildPrintDocument — cover overview table');
+    (function () {
+      var entryA = fixtureEntry('IOE0000000001', CASE_1);
+      var entryB = fixtureEntry('IOE0000000002', CASE_2);
+      var R = internals.load({ redact: false });
+      R.buildCaseView(entryA);
+      R.buildCaseView(entryB);
+      var doc = R.buildPrintDocument([entryA, entryB], {});
+      var table = findByClass(doc, 'uscistr-print-overview');
+      ok(!!table, 'a TABLE with className uscistr-print-overview exists');
+      eq(table.tagName, 'TABLE', 'the overview node is a table');
+      var tags = tagsIn(table);
+      eq(tags.TR, 2 + 1, 'TR count inside the overview is entries + 1 (header row)');
+    })();
+
+    // 8. the leak check that matters: masking must survive the table path,
+    // not just the old stacked one.
+    describe('buildPrintFields — masked tables never leak');
+    (function () {
+      var R = internals.load({ redact: true });
+      var node = R.buildPrintFields({ data: { events: [
+        { receiptNumber: 'IOE0000000001', applicantName: 'SECRET-NAME' },
+        { receiptNumber: 'IOE0000000001', applicantName: 'SECRET-NAME' }
+      ] } }, true);
+      var texts = textOf(node);
+      ok(texts.length > 0, 'masked table rendered something to check', JSON.stringify(texts).slice(0, 500));
+      var joined = texts.join(' | ');
+      ok(joined.indexOf('IOE0000000001') === -1,
+        'masked table never shows the full receipt number', joined.slice(0, 500));
+      ok(joined.indexOf('SECRET-NAME') === -1,
+        'masked table never shows the applicant name', joined.slice(0, 500));
+      var tags = tagsIn(node);
+      ok(tags.TABLE > 0, 'the tag census contains TABLE (the leak check ran on the table path)',
+        JSON.stringify(tags));
+    })();
+
+    // 9. the mirror: unmasked shows the receipt number, so #8 could not have
+    // passed vacuously by rendering nothing worth checking.
+    describe('buildPrintFields — the mirror (unmasked shows the receipt)');
+    (function () {
+      var R = internals.load({ redact: false });
+      var node = R.buildPrintFields({ data: { events: [
+        { receiptNumber: 'IOE0000000001', applicantName: 'SECRET-NAME' },
+        { receiptNumber: 'IOE0000000001', applicantName: 'SECRET-NAME' }
+      ] } }, false);
+      var joined = textOf(node).join(' | ');
+      ok(joined.indexOf('IOE0000000001') !== -1,
+        'the mirror: full table DOES show the full receipt number', joined.slice(0, 500));
+    })();
+  })();
+
   // ---------------------------------------------------------------------------
   if (failures.length) {
     console.error('\nunit: FAILED — ' + failures.length + ' of ' + (passed + failures.length) + ' checks\n');

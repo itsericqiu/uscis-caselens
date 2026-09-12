@@ -4,6 +4,45 @@ Notable changes per release. The section matching a tag becomes that release's
 notes on GitHub, so keep entries written for someone deciding whether to update
 — not for someone reading a commit log.
 
+## 1.21.0
+
+- The printed record is shorter and no longer produces blank pages. A real
+  4-case record printed on an iPhone ran to 27 pages, four of them nearly
+  empty. One cause: the per-case closing line — "Unofficial document. Not
+  issued by USCIS." — could land alone on its own sheet with nothing tying
+  it to what precedes it. Another: wrapping an entire appendix endpoint as
+  one unbreakable block, which is fine for a small endpoint and dragged a
+  large one whole onto a fresh page, stranding the page before it. The
+  closing line now stays attached to what precedes it, appendix endpoints
+  break normally across a page, and the document sets `orphans`/`widows: 3`
+  so a break can no longer leave one or two lines stranded.
+- Events, notices and status history — flat, like-shaped arrays — now print
+  as tables, one row per item and one column per field, instead of nine
+  stacked label/value rows per entry. Same values, same order, roughly a
+  fifth of the paper. A list that is nested, or wider than ten columns,
+  still prints as stacked rows.
+- The Full/Masked choice gains a switch, **Include everything USCIS sent**,
+  on by default. Turning it off leaves the field-by-field appendix out of
+  that copy, and the cover's new **Contents** row states whether the
+  appendix is present or was left out.
+- The cover now carries one row per case — form, receipt number, status in
+  USCIS's own wording, as-of date — where it used to hold little beyond the
+  disclaimer.
+- Fixed: a print could come out blank. The record used to build inside the
+  panel's own root, which the panel rebuilds from scratch on its own
+  15-minute refresh schedule. With 1.20.2's teardown able to linger up to
+  60 seconds on Safari, a refresh landing in that window rebuilt the root
+  out from under the record — the host page stayed hidden with nothing put
+  back in its place. The record now mounts as its own root, beside the
+  panel's rather than inside it, so rebuilding one cannot remove the other.
+- Choosing Full or Masked now closes that popover before printing. It used
+  to stay open through the print and be the first thing seen on returning
+  from a phone's print sheet.
+- iOS names the saved PDF after the tab title at the moment the print sheet
+  opens — a title changed after that point is ignored there, though it
+  still takes effect on desktop — and supplies its own footer with the page
+  URL and real page numbers, which CSS had no way to provide.
+
 ## 1.20.2
 
 - Fixed: printing from Safari, on iPhone especially, printed the my.uscis.gov

@@ -1605,7 +1605,13 @@ var CASELENS_STYLE = [
   // container is invisible on screen by construction, so if the print
   // teardown ever fails to run — a mid-print error, a browser that skips
   // afterprint — nothing is left visible behind it.
-  ".uscistr-root .uscistr-print { display: none; }",
+  //
+  // Compound selector, not descendant: the print container now mounts as a
+  // second root on document.body, carrying both .uscistr-root and
+  // .uscistr-print on the SAME element, sibling to the panel's own root. The
+  // compound form is what still beats the base `.uscistr-root { display:
+  // block }` rule on specificity and keeps it hidden on screen.
+  ".uscistr-root.uscistr-print { display: none; }",
 
   "@media print {",
   "  html body.uscistr-printing > *:not(.uscistr-root) { display: none !important; }",
@@ -1636,13 +1642,20 @@ var CASELENS_STYLE = [
   // regardless of which theme was active on screen when it was generated.
   // Spacing (--ust-s*), radii and font families (--ust-font/--ust-serif/
   // --ust-mono) are theme-independent and safe to use here.
-  "  .uscistr-root .uscistr-print {",
+  // Compound selector to match the same element as the screen-side hide rule
+  // above (both classes now land on one node, mounted as a second root on
+  // document.body). orphans/widows is merged in here rather than a separate
+  // rule: it is what stops a single stray line — a heading, a closing meta
+  // line — from landing alone at the top or bottom of a sheet.
+  "  .uscistr-root.uscistr-print {",
   "    display: block;",
   "    color: #000000;",
   "    background: #FFFFFF;",
   "    font-family: var(--ust-font);",
   "    font-size: var(--ust-fs-doc-body);",
   "    line-height: var(--ust-lh-doc-body);",
+  "    orphans: 3;",
+  "    widows: 3;",
   "  }",
   "  .uscistr-root .uscistr-print-cover {",
   "    display: flex;",
@@ -1659,6 +1672,40 @@ var CASELENS_STYLE = [
   "    font-weight: 600;",
   "    color: #000000;",
   "  }",
+  // Cover overview: one row per case. Body-sized, not meta-sized, since this
+  // is the first thing read in the document.
+  "  .uscistr-root .uscistr-print-overview {",
+  "    width: 100%;",
+  "    border-collapse: collapse;",
+  "    table-layout: fixed;",
+  "    margin-top: var(--ust-s4);",
+  "    font-size: var(--ust-fs-doc-body);",
+  "    line-height: var(--ust-lh-doc-body);",
+  "  }",
+  "  .uscistr-root .uscistr-print-overview th {",
+  "    text-align: left;",
+  "    font-weight: 600;",
+  "    color: #444444;",
+  "    padding: 2px 4px;",
+  "    border-bottom: 1px solid #CCCCCC;",
+  "    vertical-align: bottom;",
+  "    overflow-wrap: anywhere;",
+  "  }",
+  // No word-break: break-all here, unlike the appendix table below — this
+  // column holds status wording, which should wrap at word boundaries, not
+  // the ids/timestamps the appendix tables carry.
+  "  .uscistr-root .uscistr-print-overview td {",
+  "    color: #000000;",
+  "    padding: 2px 4px;",
+  "    border-bottom: 1px solid #EEEEEE;",
+  "    vertical-align: top;",
+  "    overflow-wrap: anywhere;",
+  "  }",
+  "  .uscistr-root .uscistr-print-col-form { width: 12%; }",
+  "  .uscistr-root .uscistr-print-col-receipt { width: 22%; }",
+  "  .uscistr-root .uscistr-print-col-asof { width: 20%; }",
+  // .uscistr-print-col-status carries no width — it takes whatever the fixed
+  // layout leaves after the other three columns.
   // Strength comes from a solid rule and generous padding, not colour — this
   // banner has to read as unmistakable in pure greyscale.
   "  .uscistr-root .uscistr-print-warn {",
@@ -1731,6 +1778,13 @@ var CASELENS_STYLE = [
   "    line-height: var(--ust-lh-doc-meta);",
   "    color: #767676;",
   "  }",
+  // The per-case closing "Unofficial document…" meta line was orphaning onto
+  // a page of its own — a single line, four nearly-blank pages in a 27-page
+  // print. Keep it glued to whatever precedes it.
+  "  .uscistr-root .uscistr-print-case > .uscistr-print-meta:last-child {",
+  "    break-before: avoid;",
+  "    page-break-before: avoid;",
+  "  }",
   // Same grid as a fact row, so a step and its date land on the column the
   // facts above them already established. A document that changes its
   // alignment halfway down a page reads as two documents.
@@ -1764,6 +1818,57 @@ var CASELENS_STYLE = [
   "    page-break-before: always;",
   "  }",
   "  .uscistr-root .uscistr-print-section { margin-bottom: var(--ust-s6); }",
+  // Wraps each appendix endpoint. Unlike .uscistr-print-block, this is NOT
+  // break-inside: avoid — a whole endpoint (events/notices/status history)
+  // routinely runs longer than one page, and forcing it to stay together was
+  // what produced the other near-blank pages: the browser pushed the entire
+  // block to a fresh sheet rather than split it.
+  "  .uscistr-root .uscistr-print-endpoint {",
+  "    margin-bottom: var(--ust-s6);",
+  "    break-inside: auto;",
+  "    page-break-inside: auto;",
+  "  }",
+  // Events, notices and status history now render as a table — one row per
+  // item, one column per field — instead of nine stacked label/value rows
+  // each.
+  "  .uscistr-root .uscistr-print-table {",
+  "    width: 100%;",
+  "    border-collapse: collapse;",
+  "    table-layout: fixed;",
+  "    margin: var(--ust-s2) 0 var(--ust-s4);",
+  "    font-size: var(--ust-fs-doc-meta);",
+  "    line-height: var(--ust-lh-doc-meta);",
+  "  }",
+  // Repeats the header on every printed page the table spans.
+  "  .uscistr-root .uscistr-print-table thead { display: table-header-group; }",
+  "  .uscistr-root .uscistr-print-table tr {",
+  "    break-inside: avoid;",
+  "    page-break-inside: avoid;",
+  "  }",
+  "  .uscistr-root .uscistr-print-table th {",
+  "    text-align: left;",
+  "    font-weight: 600;",
+  "    color: #444444;",
+  "    padding: 2px 4px;",
+  "    border-bottom: 1px solid #CCCCCC;",
+  "    vertical-align: bottom;",
+  "    overflow-wrap: anywhere;",
+  "  }",
+  // Values include 36-char ids and 24-char timestamps; with a fixed layout
+  // they must be allowed to wrap mid-token or the table overflows the page.
+  "  .uscistr-root .uscistr-print-table td {",
+  "    color: #000000;",
+  "    padding: 2px 4px;",
+  "    border-bottom: 1px solid #EEEEEE;",
+  "    vertical-align: top;",
+  "    overflow-wrap: anywhere;",
+  "    word-break: break-all;",
+  "  }",
+  // The row-number column.
+  "  .uscistr-root .uscistr-print-table .uscistr-print-table-n {",
+  "    width: 2.4em;",
+  "    color: #767676;",
+  "  }",
   // Indent and hairline left border, matching how .uscistr-rec-group-body
   // shows nesting on screen.
   "  .uscistr-root .uscistr-print-group {",

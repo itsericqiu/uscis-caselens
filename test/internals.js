@@ -51,7 +51,10 @@ var EXPORTS = [
   // that keeps buildExportPayload testable and exportRecord not.
   // redactValueWith is the policy behind redactFieldValue, exported so a test
   // can prove the two have not forked.
-  'buildPrintDocument', 'buildPrintCase', 'buildPrintFields', 'redactValueWith'
+  'buildPrintDocument', 'buildPrintCase', 'buildPrintFields', 'redactValueWith',
+  // Decides which lists print as a table (1.21). Pure and edge-heavy — ragged
+  // keys, nested values, the column cap — so it is tested on its own.
+  'uniformListColumns'
 ];
 
 function fakeElement() {

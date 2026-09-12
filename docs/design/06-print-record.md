@@ -53,10 +53,14 @@ stakes are higher here because the output is a file someone keeps.
 
 ## Mechanism: `@media print`, not an iframe
 
-The document is built into `<div class="uscistr-print">` inside the existing
-`.uscistr-root`, hidden on screen. A print stylesheet hides the host page,
-neutralises the root's overlay positioning, reveals the container, and
-`window.print()` does the rest.
+The document is built into `<div class="uscistr-print">`, mounted on
+`document.body` as its own root — carrying the `uscistr-root` class itself,
+beside the panel's root rather than inside it, since 1.21. (See "After the
+first real print (1.21)," below: the panel's own root rebuilds from scratch
+on its own schedule, and nesting the record inside it left a window where a
+rebuild could remove the record mid-print.) Hidden on screen, a print
+stylesheet hides the host page, neutralises the root's overlay positioning,
+reveals the container, and `window.print()` does the rest.
 
 The obvious alternative — build into an off-screen iframe and print that — was
 rejected because it buys only CSS isolation, which `.uscistr-root` already
@@ -163,6 +167,21 @@ so the two views label and order fields identically. A fuzz property asserts
 quotes are unreadable on paper and would roughly double the page count; the
 "Show as JSON" disclosure keeps the exact bytes available on screen.
 
+**The cover carries an overview.** One row per case — form, receipt number,
+status in USCIS's own wording, as-of date — ahead of the per-case sections.
+The panel's own collapsed list, restated on the one page of the document most
+likely to be read first.
+
+**Uniform lists print as tables.** Events, notices and status history are
+arrays of flat, like-shaped objects — USCIS repeats the receipt number on
+every event and sends six timestamp fields per event, so nine stacked
+label/value rows per item was mostly the same values again. Printed as a
+table instead, one row per item and one column per field, in the order the
+items supplied them, the same values take roughly a fifth of the paper. A
+list that is nested, or wider than ten columns, still falls back to stacked
+rows. This is presentation, the same as "Nothing is collapsed" above: a
+table manages length, and imposes nothing on the data.
+
 ## One correctness fix that came with it
 
 Printing the appendix always-expanded exposed something the record view had
@@ -205,3 +224,65 @@ status chip beside the section already stated that fact honestly.
   The computed-style assertions — host hidden, root static, container visible,
   zero anchors, redaction honoured — are the automatable part and the part that
   regresses. **Reading the actual PDF stays a manual, once-per-release check.**
+
+## After the first real print (1.21)
+
+A real 4-case record — the first printed outside test fixtures — ran to 27
+pages on an iPhone: 1 cover, 10 pages of readable record, 16 of appendix, and
+four pages nearly blank. Each near-blank page traced to a different cause.
+
+1. **Blank pages.** One was a single orphaned line: the per-case closing
+   "Unofficial document. Not issued by USCIS." pushed onto its own sheet
+   because nothing tied it to what precedes it. It now carries
+   `break-before: avoid`. The others came from wrapping an entire appendix
+   endpoint in one `break-inside: avoid` block — correct for keeping a small
+   endpoint together, wrong for a large one, which the browser then dragged
+   whole onto a fresh page, stranding whatever was left of the previous one.
+   Appendix endpoints now use a wrapper that is allowed to break, and the
+   document sets `orphans: 3; widows: 3` so a break still cannot leave one
+   or two lines stranded on either side.
+2. **Tables for uniform lists.** Events, notices and status history are
+   arrays of flat, like-shaped objects. USCIS repeats the receipt number on
+   every event and sends six timestamp fields per event, so nine stacked
+   label/value rows per item was mostly repetition. Printed as a table
+   instead — one row per item, one column per field, in the order the items
+   supplied them — the same values take roughly a fifth of the paper. A list
+   that is nested, or wider than ten columns, still falls back to stacked
+   rows: the table is a presentation choice, not a data transform, and it
+   yields whenever a table would misrepresent the shape more than it helps.
+3. **Opt-out at print time.** The appendix is most of the page count and
+   least often what a given copy is for. The Full/Masked popover gains a
+   switch, **Include everything USCIS sent**, on by default; the cover's new
+   **Contents** row states whether the appendix is present in that copy or
+   was left out, so a page count alone never has to answer that question.
+4. **Cover overview.** The cover was mostly disclaimer and metadata — 70%
+   empty on a 4-case record. It now carries one row per case: form, receipt
+   number, status in USCIS's own wording, as-of date. The panel's own
+   collapsed list, restated on the one page most likely to be read first.
+5. **The record is now its own root.** It used to build inside the panel's
+   existing `.uscistr-root`. The panel's `render()` rebuilds that root from
+   scratch, and does so on its own schedule — a refresh tick every 15
+   minutes by default, independent of whether a print is in progress. 1.20.2
+   let teardown linger until whichever end-of-print signal arrived first,
+   up to a bounded timeout of 60 seconds on Safari. A refresh landing inside
+   that window rebuilt the root the record was living in out from under it,
+   while the body class that hides the host page stayed set: the host page
+   hidden, the record gone, nothing put back in its place. The record now
+   mounts on `document.body` beside the panel's root, carrying the
+   `uscistr-root` class itself, so rebuilding one root cannot remove the
+   other. This is a correctness fix, not a change to the mechanism in
+   "Mechanism," above — the print stylesheet, the host-hiding rule, and the
+   body-class gate are unchanged.
+6. **Popover closes on choice.** Choosing Full or Masked used to leave the
+   popover open through the print call. On a phone, returning from the
+   print sheet landed back on that popover instead of the panel, since
+   nothing had closed it. It now closes before `window.print()` is called.
+7. **Two things iOS decides for you.** Safari on iOS names the saved PDF
+   after the tab's `document.title` at the moment the print sheet opens; a
+   title changed after that point, mid-flight, is ignored there (desktop
+   Chrome and Firefox pick up the later title instead). And iOS prints its
+   own footer with the page URL and real page numbers — the footer this
+   project could not itself produce, since Chrome does not implement `@page`
+   margin boxes (see "Page numbers," under Risks, above). The unofficial
+   banner already counters a printed URL; the page numbers are simply
+   useful, and free.

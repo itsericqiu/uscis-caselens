@@ -563,6 +563,80 @@ run('render throw-safety + no leaked internals', fc.property(resultArb, function
       }
       return true;
     }), RUNS_HEAVY);
+
+  // The table path (1.21) is a second renderer for the same data, so it gets
+  // its own leak property rather than trusting the fallback path's coverage
+  // to carry over. Every item is uniformly shaped (applicantName plus 0-5
+  // fields off a fixed pool), which is exactly the shape uniformListColumns
+  // turns into a <table> — the walk this property must prove clean.
+  var TABLE_KEY_POOL = ['a', 'b', 'c', 'd', 'e'];
+  var tableRowArb = fc.dictionary(
+    fc.constantFrom.apply(null, TABLE_KEY_POOL),
+    fc.oneof(fc.string({ maxLength: 20 }), fc.integer(), fc.constant(null)),
+    { maxKeys: 5 }
+  ).map(function (extra) {
+    var row = { applicantName: 'SECRET-NAME' };
+    for (var k in extra) if (Object.prototype.hasOwnProperty.call(extra, k)) row[k] = extra[k];
+    return row;
+  });
+  var tableListArb = fc.array(tableRowArb, { minLength: 2, maxLength: 6 });
+
+  run('masked print tables never leak', fc.property(tableListArb, function (list) {
+    var node = R.buildPrintFields({ data: { list: list } }, true);
+    var texts = collectText(node, []);
+    if (!texts.length) return false;   // rendered nothing means checked nothing
+    for (var i = 0; i < texts.length; i++) {
+      if (texts[i].indexOf('SECRET-NAME') !== -1) return false;
+    }
+    // The print walker is eager (same guarantee as the fallback path above):
+    // a table has no disclosures to click, so nothing should be left closed.
+    return expandAll(node) === 0;
+  }), RUNS_HEAVY);
+
+  // A list with any nested object/array value must fall back to the stacked
+  // rendering — never a <table>, which would silently drop or flatten the
+  // nested value's own fields. Built by forcing one random item/key of an
+  // otherwise-flat list to hold an object or array, rather than filtering
+  // generated data down to that shape.
+  var flatRowArb = fc.dictionary(
+    fc.constantFrom('p', 'q', 'r'),
+    fc.oneof(fc.string({ maxLength: 10 }), fc.integer(), fc.constant(null)),
+    { maxKeys: 3 }
+  );
+  var nestedValueArb = fc.oneof(
+    fc.dictionary(fc.constantFrom('nx', 'ny'), fc.integer(), { maxKeys: 2 }),
+    fc.array(fc.integer(), { maxLength: 3 })
+  );
+  var nestedListArb = fc.tuple(
+    fc.array(flatRowArb, { minLength: 2, maxLength: 6 }),
+    fc.nat(),
+    fc.constantFrom('p', 'q', 'r'),
+    nestedValueArb
+  ).map(function (t) {
+    var list = t[0];
+    var idx = t[1] % list.length;
+    var key = t[2];
+    var nested = t[3];
+    var copy = list.map(function (o) {
+      var c = {};
+      for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) c[k] = o[k];
+      return c;
+    });
+    copy[idx][key] = nested;
+    return copy;
+  });
+
+  run('a table is never emitted for a nested list', fc.property(nestedListArb, function (list) {
+    var node = R.buildPrintFields({ data: { list: list } }, false);
+    var found = false;
+    (function walk(n) {
+      if (!n || typeof n !== 'object' || found) return;
+      if (n.tagName === 'TABLE') { found = true; return; }
+      var kids = n.childNodes || [];
+      for (var i = 0; i < kids.length; i++) walk(kids[i]);
+    })(node);
+    return !found;
+  }), RUNS_HEAVY);
 })();
 
 (function () {

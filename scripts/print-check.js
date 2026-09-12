@@ -183,6 +183,21 @@ var POPOVER_GEOMETRY = '(function(){' +
 var SILENT_PRINT_STUB =
   '(function(){window.print=function(){};return "stubbed";})()';
 
+// Where the mounted print record actually lives, and what classes it
+// carries — the whole point of the second-root change (1.21): it is a
+// sibling of the panel's own root on <body>, never a descendant of
+// .uscistr-panel, so a panel render() cannot remove it mid-print.
+var MOUNT_CHECK = '(function(){' +
+  'var n=document.querySelector(".uscistr-print");' +
+  'if(!n) return {found:false};' +
+  'var panel=document.querySelector(".uscistr-panel");' +
+  'return {' +
+  '  found:true,' +
+  '  parentIsBody: n.parentNode === document.body,' +
+  '  insidePanel: !!(panel && panel.contains(n)),' +
+  '  className: n.className' +
+  '};})()';
+
 function clickText(label) {
   return '(function(){var b=[].slice.call(document.querySelectorAll(".uscistr-root button"))' +
     '.filter(function(x){return (x.textContent||"").trim()===' + JSON.stringify(label) + ';})[0];' +
@@ -260,6 +275,14 @@ function assertFullRecordProbe(probe) {
     'full record: does not carry the masked-copy disclaimer',
     'saysMasked was ' + probe.saysMasked);
 }
+
+// The choice popover used to stay open through the whole print — on a
+// phone, the first thing seen on returning from the print sheet. Full
+// record / Masked copy now call render() before printing, which rebuilds
+// the panel without uiState.printFor set and so drops the popover. Checked
+// via a plain selector count rather than a probe field, since this is a DOM
+// fact independent of the window.print() stub.
+var POPOVER_GONE = '(function(){return document.querySelectorAll(".uscistr-print-choice").length;})()';
 
 // Assertions 9-10: the masked copy must invert exactly the two privacy
 // facts that matter — the real receipt number gone, the disclaimer present.
@@ -380,6 +403,12 @@ function runChecks(CDP) {
       return sleep(PRINT_ACTION_WAIT_MS);
     })
     .then(function () {
+      return client.eval(POPOVER_GONE);
+    })
+    .then(function (count) {
+      check(count === 0,
+        'full record: the print choice popover closed when the print started',
+        'got ' + count + ' .uscistr-print-choice node(s)');
       return client.eval('window.__printProbe');
     })
     .then(function (probe) {
@@ -442,33 +471,65 @@ function runChecks(CDP) {
       check(s && /uscistr-printing/.test(String(s.bodyClass)),
         'non-blocking print: body still carries uscistr-printing',
         'body class: ' + (s && s.bodyClass));
+
+      // The record is a second root, mounted as a sibling of the panel's own
+      // root directly on <body> (see withPrintMode / buildPrintDocument) —
+      // never inside it, precisely so a panel render() cannot reach it.
+      return client.eval(MOUNT_CHECK);
+    })
+    .then(function (raw) {
+      var m = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      check(m && m.found, 'non-blocking print: the mounted record is found in the DOM', JSON.stringify(m));
+      check(m && m.parentIsBody === true,
+        'non-blocking print: the mounted record\'s parentNode is document.body',
+        JSON.stringify(m));
+      check(m && m.insidePanel === false,
+        'non-blocking print: the mounted record is NOT inside .uscistr-panel',
+        JSON.stringify(m));
+      check(m && typeof m.className === 'string' && m.className.indexOf('uscistr-root') !== -1,
+        'non-blocking print: the mounted record\'s className contains uscistr-root',
+        JSON.stringify(m));
+      check(m && typeof m.className === 'string' && m.className.indexOf('uscistr-print') !== -1,
+        'non-blocking print: the mounted record\'s className contains uscistr-print',
+        JSON.stringify(m));
+
+      // Print… again while the record from the first print is still standing
+      // opens the choice popover, which is a full panel render() — exactly
+      // the re-render that used to wipe the record (it lives in the panel's
+      // own root, rebuilt wholesale by render()) while document.body kept the
+      // uscistr-printing class, silently printing a blank page.
+      return client.eval(clickText('Print…'));
+    })
+    .then(function (clicked) {
+      check(clicked === 'clicked', 'Print… button found (while a non-blocking print is still standing)',
+        'got ' + clicked);
+      return sleep(POPOVER_WAIT_MS);
+    })
+    .then(function () {
+      return client.eval(readTeardownState());
+    })
+    .then(function (raw) {
+      var s = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      check(s && s.printNodes === 1,
+        'reopening the print popover: the record survives the panel re-render (.uscistr-print count still 1)',
+        'print nodes in DOM: ' + (s && s.printNodes));
+      check(s && /uscistr-printing/.test(String(s.bodyClass)),
+        'reopening the print popover: body still carries uscistr-printing',
+        'body class: ' + (s && s.bodyClass));
+      return client.eval(clickText('Cancel'));
+    })
+    .then(function (clicked) {
+      check(clicked === 'clicked', 'Cancel button found (Safari case)', 'got ' + clicked);
+      return sleep(PRINT_ACTION_WAIT_MS);
+    })
+    .then(function () {
       // Now let the browser say printing finished, the way a real one does.
       return client.eval('(function(){window.dispatchEvent(new Event("afterprint"));return "fired";})()');
     })
     .then(function () { return sleep(600); })
     .then(function () { return client.eval(readTeardownState()); })
     .then(function (state) {
-      assertTeardown(state, harnessTitle, 'after afterprint fires');
-
-      // --- Cancel ---
-      return client.eval(clickText('Print…'));
-    })
-    .then(function (clicked) {
-      check(clicked === 'clicked', 'Print… button found (before cancel)', 'got ' + clicked);
-      return sleep(POPOVER_WAIT_MS);
-    })
-    .then(function () {
-      return client.eval(clickText('Cancel'));
-    })
-    .then(function (clicked) {
-      check(clicked === 'clicked', 'Cancel button found', 'got ' + clicked);
-      return sleep(PRINT_ACTION_WAIT_MS);
-    })
-    .then(function () {
-      return client.eval(readTeardownState());
-    })
-    .then(function (state) {
-      assertTeardown(state, harnessTitle, 'after cancel');
+      assertTeardown(state, harnessTitle, 'after the Safari case (re-render survived, then teardown)');
       return client.close();
     })
     .catch(function (err) {

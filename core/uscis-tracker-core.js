@@ -34,7 +34,7 @@
   // SECTION 1: Constants
   // ==========================================================================
 
-  var VERSION = '1.20.2';
+  var VERSION = '1.21.0';
 
   var STORAGE_KEYS = {
     cases: 'uscisTracker.cases.v1',      // [{ number, label, addedAt }]
@@ -1939,7 +1939,8 @@
     openNumber: null,             // the one open case, for this page view only
     panelMounted: false,          // has the panel been on screen since last opened
     renderedWide: false,          // layout actually on screen, so resize can compare
-    printFor: null                // 'all', or a receipt number, while the print choice is open
+    printFor: null,               // 'all', or a receipt number, while the print choice is open
+    printAppendix: true           // include "Everything USCIS sent" in the printed record
   };
   // Per-case reading state — which disclosures are open on which card. Keyed
   // by receipt number, and lasts exactly as long as the page does.
@@ -3115,7 +3116,33 @@
     printRowIf(facts, 'Completeness', opts.redact
       ? 'Masked copy. Receipt numbers, names and addresses are hidden. This is not the complete record.'
       : 'Full record. Contains names, addresses and full receipt numbers.');
+    printRowIf(facts, 'Contents', opts.appendix
+      ? 'A readable record for each case, then every field USCIS returned, in full.'
+      : 'A readable record for each case. The field-by-field appendix was left out of this copy.');
     cover.appendChild(facts);
+
+    // The panel's collapsed list, on paper. The cover used to be a disclaimer
+    // and seventy percent air; what a reader wants first is one line per case.
+    if (entries.length) {
+      var head = el('tr', {}, [
+        el('th', { 'class': 'uscistr-print-col-form', text: 'Form' }),
+        el('th', { 'class': 'uscistr-print-col-receipt', text: 'Receipt' }),
+        el('th', { 'class': 'uscistr-print-col-status', text: 'Status, in USCIS’s wording' }),
+        el('th', { 'class': 'uscistr-print-col-asof', text: 'As of' })
+      ]);
+      var rows = el('tbody');
+      for (var i = 0; i < entries.length; i++) {
+        var view = buildCaseView(entries[i]);
+        var asOf = view.checkedAt || view.cachedAt || null;
+        rows.appendChild(el('tr', {}, [
+          el('td', { text: view.detail && view.detail.formType ? String(view.detail.formType) : '—' }),
+          el('td', { text: numberFor(entries[i].number, opts.redact) }),
+          el('td', { text: view.notice && view.notice.status ? String(view.notice.status) : 'No status published' }),
+          el('td', { text: asOf ? formatDateFull(asOf) : 'not checked' })
+        ]));
+      }
+      cover.appendChild(el('table', { 'class': 'uscistr-print-overview' }, [el('thead', {}, [head]), rows]));
+    }
     return cover;
   }
 
@@ -3314,21 +3341,83 @@
   // screen version fills a group only when it is clicked and paper cannot
   // click. Shares humanizeFieldKey and objectKeys so the two views label and
   // order fields identically.
+  // One scalar, as it prints. null was sent and empty; undefined was not sent
+  // at all — the two stay distinguishable, here and in the tables below.
+  function printScalar(key, value, redact) {
+    if (value === undefined) return '';
+    if (value === null) return '—';
+    if (value === '') return '(empty)';
+    return String(redactValueWith(key, value, redact));
+  }
+
+  // Lists of flat, like-shaped objects — USCIS's events, notices and status
+  // history — print as a table: one row per item, one column per field, in
+  // the order the items supplied them. Same values, same order, about a fifth
+  // of the paper that nine stacked rows per event took. Collapsing manages
+  // length and imposes nothing on the data; a table is that idea on paper.
+  //
+  // Anything nested, and any list too wide to read across a portrait page,
+  // falls back to the stacked rendering rather than to a table nobody can
+  // read. Returns the column list, or null for "not a table".
+  var PRINT_TABLE_MAX_COLUMNS = 10;
+
+  function uniformListColumns(list) {
+    if (!Array.isArray(list) || list.length < 2) return null;
+    var columns = [];
+    var seen = {};
+    for (var i = 0; i < list.length; i++) {
+      var item = list[i];
+      if (item === null || typeof item !== 'object' || Array.isArray(item)) return null;
+      var keys = responseKeys(item);
+      for (var k = 0; k < keys.length; k++) {
+        var v = item[keys[k]];
+        if (v !== null && typeof v === 'object') return null;
+        if (!seen[keys[k]]) {
+          seen[keys[k]] = true;
+          columns.push(keys[k]);
+          if (columns.length > PRINT_TABLE_MAX_COLUMNS) return null;
+        }
+      }
+    }
+    return columns.length ? columns : null;
+  }
+
+  function buildPrintTable(label, list, columns, redact) {
+    var wrap = el('div');
+    wrap.appendChild(el('div', { 'class': 'uscistr-print-key', text: label }));
+    var head = el('tr');
+    head.appendChild(el('th', { 'class': 'uscistr-print-table-n', text: '#' }));
+    for (var c = 0; c < columns.length; c++) {
+      head.appendChild(el('th', { text: humanizeFieldKey(columns[c]) }));
+    }
+    var body = el('tbody');
+    for (var i = 0; i < list.length; i++) {
+      var row = el('tr');
+      row.appendChild(el('td', { 'class': 'uscistr-print-table-n', text: String(i + 1) }));
+      for (var j = 0; j < columns.length; j++) {
+        var has = Object.prototype.hasOwnProperty.call(list[i], columns[j]);
+        row.appendChild(el('td', { text: printScalar(columns[j], has ? list[i][columns[j]] : undefined, redact) }));
+      }
+      body.appendChild(row);
+    }
+    wrap.appendChild(el('table', { 'class': 'uscistr-print-table' }, [el('thead', {}, [head]), body]));
+    return wrap;
+  }
+
   function buildPrintValue(key, value, depth, redact) {
     if (depth > RECORD_MAX_DEPTH) {
       return printRow(humanizeFieldKey(key), 'nested deeper than this document prints');
     }
     if (Array.isArray(value)) {
-      return buildPrintGroup(humanizeFieldKey(key) + ' (' + value.length + ')', value, depth, true, redact);
+      var label = humanizeFieldKey(key) + ' (' + value.length + ')';
+      var columns = uniformListColumns(value);
+      if (columns) return buildPrintTable(label, value, columns, redact);
+      return buildPrintGroup(label, value, depth, true, redact);
     }
     if (value !== null && typeof value === 'object') {
       return buildPrintGroup(humanizeFieldKey(key), value, depth, false, redact);
     }
-    var shown;
-    if (value === null) shown = '—';
-    else if (value === '') shown = '(empty)';
-    else shown = String(redactValueWith(key, value, redact));
-    return printRow(humanizeFieldKey(key), shown);
+    return printRow(humanizeFieldKey(key), printScalar(key, value, redact));
   }
 
   function buildPrintGroup(label, value, depth, isArray, redact) {
@@ -3410,7 +3499,10 @@
       var sections = caseResponses(entry);
       for (var s = 0; s < sections.length; s++) {
         var section = sections[s];
-        var body = el('div', { 'class': 'uscistr-print-block' });
+        // Not a print-block: an endpoint's fields can run past a page, and a
+        // block that cannot break drags itself to the next sheet and leaves
+        // the one before it mostly blank. This wrapper is allowed to break.
+        var body = el('div', { 'class': 'uscistr-print-endpoint' });
         body.appendChild(el('div', { 'class': 'uscistr-print-key',
           text: section.label + ' · ' + section.path + ' · ' + payloadStatus(section.data).text }));
         body.appendChild(buildPrintFields(section.data, opts.redact));
@@ -3427,10 +3519,13 @@
   function buildPrintDocument(entries, opts) {
     var options = {
       redact: !!(opts && opts.redact),
+      appendix: !(opts && opts.appendix === false),
       generatedAt: (opts && opts.generatedAt) || Date.now()
     };
     var list = entries || [];
-    var doc = el('div', { 'class': 'uscistr-print' });
+    // Both classes on one element: this is its own root (see withPrintMode),
+    // so every `.uscistr-root …` rule reaches its contents.
+    var doc = el('div', { 'class': 'uscistr-root uscistr-print' });
     doc.appendChild(buildPrintCover(list, options));
     if (!list.length) {
       doc.appendChild(printNote('No cases were saved in this browser when this document was made.'));
@@ -3439,7 +3534,7 @@
     for (var i = 0; i < list.length; i++) {
       doc.appendChild(buildPrintCase(list[i], options));
     }
-    doc.appendChild(buildPrintAppendix(list, options));
+    if (options.appendix) doc.appendChild(buildPrintAppendix(list, options));
     doc.appendChild(el('div', { 'class': 'uscistr-print-foot' }, [
       el('span', { text: PRINT_UNOFFICIAL + ' my.uscis.gov and mailed notices are the authority. ' }),
       el('span', { text: 'CaseLens v' + VERSION + ' · End of record.' })
@@ -3494,7 +3589,14 @@
       document.title = previousTitle;
     }
 
-    ROOT.appendChild(node);
+    // A SECOND root, beside the panel's — never inside it. render() rebuilds
+    // ROOT with clearNode(), and it runs on its own schedule: a refresh tick
+    // landing inside the print dwell would have removed the record while the
+    // body class stayed set, so the host page was hidden and nothing stood in
+    // its place — a blank printout. The record carries the uscistr-root class
+    // itself so every scoped rule still reaches it, and lives where a re-render
+    // cannot.
+    document.body.appendChild(node);
     document.body.className = String(document.body.className) + ' uscistr-printing';
     // The document title is what the browser offers as the default file name
     // in its "Save as PDF" dialog, so it is set to match the JSON export's
@@ -3525,7 +3627,9 @@
   }
 
   function printRecord(entries, redact) {
-    var node = buildPrintDocument(entries, { redact: redact, generatedAt: Date.now() });
+    var node = buildPrintDocument(entries, {
+      redact: redact, appendix: uiState.printAppendix !== false, generatedAt: Date.now()
+    });
     withPrintMode(node, function () {
       // Blocks on desktop Chrome and Firefox; returns immediately on Safari.
       // Teardown is therefore driven by the end-of-print signals armed above,
@@ -3546,16 +3650,26 @@
       text: 'Opens the browser print dialog, where "Save as PDF" writes a file. ' +
         'Nothing is sent anywhere.' }));
 
+    // The appendix is most of the pages and all of the proof. On by default;
+    // someone who wants the ten readable pages and nothing else can say so.
+    wrap.appendChild(switchRow('Include everything USCIS sent',
+      'The field-by-field appendix. Most of the pages, and the proof.',
+      uiState.printAppendix !== false,
+      function () { uiState.printAppendix = uiState.printAppendix === false; render(); }));
+
+    // render() before printing closes this popover. Without it the choice sat
+    // open through the print and was still there afterwards — on a phone, the
+    // first thing seen on returning from the print sheet.
     wrap.appendChild(el('button', {
       'class': 'uscistr-btn uscistr-btn-sm uscistr-btn-primary', type: 'button', text: 'Full record',
-      onclick: function () { closeFn(); printRecord(entries, false); }
+      onclick: function () { closeFn(); render(); printRecord(entries, false); }
     }));
     wrap.appendChild(el('div', { 'class': 'uscistr-popover-desc',
       text: 'Names, addresses and full receipt numbers, as USCIS returned them.' }));
 
     wrap.appendChild(el('button', {
       'class': 'uscistr-btn uscistr-btn-sm uscistr-btn-outline', type: 'button', text: 'Masked copy',
-      onclick: function () { closeFn(); printRecord(entries, true); }
+      onclick: function () { closeFn(); render(); printRecord(entries, true); }
     }));
     wrap.appendChild(el('div', { 'class': 'uscistr-popover-desc',
       text: 'Receipt numbers masked and names hidden, for sharing. Says on the page that it is not complete.' }));
